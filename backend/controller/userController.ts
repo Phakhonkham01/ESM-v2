@@ -1,11 +1,55 @@
 import mongoose from "mongoose";
-import User from '../models/User.js';
+import { Request, Response } from "express";
+import User, { IUser } from "../models/User";
 import bcrypt from "bcryptjs";
+
+// ================= Interfaces =================
+
+interface CreateUserBody {
+  user_name: string;
+  user_email: string;
+  password: string;
+  role?: 'CEO' | 'admin' | 'employee' | 'supervisor';
+  department_id?: mongoose.Types.ObjectId[] | null;
+  leave_days?: number;
+  status?: 'Active' | 'On Leave' | 'Inactive';
+  first_name_en: string;
+  last_name_en: string;
+  nickname_en?: string;
+  first_name_la: string;
+  last_name_la: string;
+  nickname_la?: string;
+  date_of_birth: string | Date;
+  start_work: string | Date;
+  gender?: 'male' | 'female' | 'other';
+  position_id?: mongoose.Types.ObjectId | null;
+  base_salary?: number;
+}
+
+interface UpdateUserBody extends Partial<CreateUserBody> {
+  new_password?: string;
+}
+
+interface GetUsersQuery {
+  search?: string;
+  role?: string;
+  sort?: string;
+  order?: 'asc' | 'desc';
+}
+
+interface GetUsersOnLeaveQuery {
+  date?: string;
+}
+
+// ================= Controllers =================
 
 // @desc    สร้าง user ใหม่
 // @route   POST /api/users
 // @access  Admin / CEO
-export const createUser = async (req, res) => {
+export const createUser = async (
+  req: Request<{}, {}, CreateUserBody>,
+  res: Response
+): Promise<void> => {
   try {
     const {
       user_name,
@@ -15,7 +59,6 @@ export const createUser = async (req, res) => {
       department_id,
       leave_days,
       status,
-      // ✅ ฟิลด์ใหม่
       first_name_en,
       last_name_en,
       nickname_en,
@@ -33,21 +76,24 @@ export const createUser = async (req, res) => {
 
     // ✅ ตรวจสอบฟิลด์ที่จำเป็น
     if (!first_name_en || !last_name_en || !first_name_la || !last_name_la) {
-      return res.status(400).json({ 
+      res.status(400).json({ 
         message: "First name and last name (both EN and LA) are required." 
       });
+      return;
     }
 
     if (!date_of_birth || !start_work) {
-      return res.status(400).json({ 
+      res.status(400).json({ 
         message: "Date of birth and start work date are required." 
       });
+      return;
     }
 
     // เช็ค email ซ้ำ
     const existingUser = await User.findOne({ user_email });
     if (existingUser) {
-      return res.status(400).json({ message: "The email is already in use." });
+      res.status(400).json({ message: "The email is already in use." });
+      return;
     }
 
     // ✅ สร้าง user พร้อมฟิลด์ใหม่
@@ -58,8 +104,7 @@ export const createUser = async (req, res) => {
       role,
       department_id: department_id || null,
       leave_days: leave_days || 15,
-      status: status || "work day",
-      // ฟิลด์ใหม่
+      status: status || "Active",
       first_name_en,
       last_name_en,
       nickname_en: nickname_en || '',
@@ -99,7 +144,7 @@ export const createUser = async (req, res) => {
         base_salary: user.base_salary,
       },
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('❌ Create user error:', err);
     res.status(500).json({ 
       message: "An error occurred while creating the user.",
@@ -111,7 +156,10 @@ export const createUser = async (req, res) => {
 // @desc    ดึงรายชื่อผู้ใช้ทั้งหมด
 // @route   GET /api/users
 // @access  Admin / CEO
-export const getUsers = async (req, res) => {
+export const getUsers = async (
+  req: Request<{}, {}, {}, GetUsersQuery>,
+  res: Response
+): Promise<void> => {
   const searchTerm = req.query.search || "";
   const roleFilter = req.query.role || null;
   console.log("🚀 ~ roleFilter:", roleFilter);
@@ -134,7 +182,7 @@ export const getUsers = async (req, res) => {
       ? sortField
       : "createdAt";
 
-    const query = {
+    const query: any = {
       user_name: { $regex: searchTerm, $options: "i" },
     };
 
@@ -145,10 +193,10 @@ export const getUsers = async (req, res) => {
     const users = await User.find(query)
       .sort({ [finalSortField]: order })
       .populate("department_id", "department_name")
-      .populate("position_id", "position_name"); // ✅ เพิ่ม populate position
+      .populate("position_id", "position_name");
 
     res.status(200).json(users);
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
     res.status(500).json({ 
       message: "An error occurred while retrieving user data." 
@@ -159,18 +207,22 @@ export const getUsers = async (req, res) => {
 // @desc    ดึง user ตาม ID
 // @route   GET /api/users/:id
 // @access  Admin / CEO / ตัวเอง
-export const getUserById = async (req, res) => {
+export const getUserById = async (
+  req: Request<{ id: string }>,
+  res: Response
+): Promise<void> => {
   try {
     const user = await User.findById(req.params.id)
       .populate("department_id", "department_name")
-      .populate("position_id", "position_name"); // ✅ เพิ่ม populate position
+      .populate("position_id", "position_name");
 
     if (!user) {
-      return res.status(404).json({ message: "This user was not found." });
+      res.status(404).json({ message: "This user was not found." });
+      return;
     }
 
     res.status(200).json(user);
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
     res.status(500).json({ 
       message: "An error occurred while retrieving user data." 
@@ -181,7 +233,10 @@ export const getUserById = async (req, res) => {
 // @desc    อัปเดตข้อมูล user
 // @route   PUT /api/users/:id
 // @access  Admin / CEO / ตัวเอง
-export const updateUser = async (req, res) => {
+export const updateUser = async (
+  req: Request<{ id: string }, {}, UpdateUserBody>,
+  res: Response
+): Promise<void> => {
   try {
     const { 
       user_name, 
@@ -192,7 +247,6 @@ export const updateUser = async (req, res) => {
       status, 
       password, 
       new_password,
-      // ✅ ฟิลด์ใหม่
       first_name_en,
       last_name_en,
       nickname_en,
@@ -210,7 +264,8 @@ export const updateUser = async (req, res) => {
 
     const user = await User.findById(req.params.id);
     if (!user) {
-      return res.status(404).json({ message: "This user was not found." });
+      res.status(404).json({ message: "This user was not found." });
+      return;
     }
 
     // ✅ อัพเดทฟิลด์เดิม
@@ -238,7 +293,7 @@ export const updateUser = async (req, res) => {
     await user.save();
 
     res.status(200).json({ message: "User update completed.", user });
-  } catch (err) { 
+  } catch (err: any) { 
     console.error('❌ Update user error:', err);
     res.status(500).json({ 
       message: "An error occurred while updating the user.",
@@ -250,25 +305,30 @@ export const updateUser = async (req, res) => {
 // @desc    ลบ user
 // @route   DELETE /api/users/:id
 // @access  Admin / CEO
-export const deleteUser = async (req, res) => {
+export const deleteUser = async (
+  req: Request<{ id: string }>,
+  res: Response
+): Promise<void> => {
   try {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid user id" });
+      res.status(400).json({ message: "Invalid user id" });
+      return;
     }
 
     const user = await User.findByIdAndDelete(id);
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      res.status(404).json({ message: "User not found" });
+      return;
     }
 
     res.status(200).json({
       success: true,
       message: "User successfully deleted",
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Delete user error:", error);
     res.status(500).json({
       success: false,
@@ -280,12 +340,15 @@ export const deleteUser = async (req, res) => {
 // @desc    Get users on leave today
 // @route   GET /api/holidays/users-on-leave
 // @access  Private
-export const getUsersOnLeave = async (req, res) => {
-    try {
-        const date = req.query.date ? new Date(req.query.date) : new Date();
-        const users = await User.findUsersOnLeave(date);
-        res.json(users);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+export const getUsersOnLeave = async (
+  req: Request<{}, {}, {}, GetUsersOnLeaveQuery>,
+  res: Response
+): Promise<void> => {
+  try {
+    const date = req.query.date ? new Date(req.query.date) : new Date();
+    const users = await User.findUsersOnLeave(date);
+    res.json(users);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 };

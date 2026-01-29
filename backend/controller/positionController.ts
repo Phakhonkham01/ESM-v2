@@ -1,15 +1,37 @@
-import Position from '../models/Position.js';
+import { Request, Response } from 'express';
+import Position from '../models/Position';
 import mongoose from 'mongoose';
+
+// ================= Interfaces =================
+
+interface GetPositionsQuery {
+  department_id?: string;
+}
+
+interface CreatePositionBody {
+  position_name: string;
+  department_id: string;
+}
+
+interface UpdatePositionBody {
+  position_name?: string;
+  department_id?: string;
+}
+
+// ================= Controllers =================
 
 // @desc    Get all positions (with optional department filter)
 // @route   GET /api/positions
 // @access  Public/Private
-export const getPositions = async (req, res) => {
+export const getPositions = async (
+  req: Request<{}, {}, {}, GetPositionsQuery>,
+  res: Response
+): Promise<void> => {
   try {
     const { department_id } = req.query;
     
     // Build query
-    const query = {};
+    const query: any = {};
     if (department_id) {
       query.department_id = department_id;
     }
@@ -23,7 +45,7 @@ export const getPositions = async (req, res) => {
       count: positions.length,
       data: positions
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching positions:', error);
     res.status(500).json({
       success: false,
@@ -36,29 +58,34 @@ export const getPositions = async (req, res) => {
 // @desc    Get single position
 // @route   GET /api/positions/:id
 // @access  Public/Private
-export const getPosition = async (req, res) => {
+export const getPosition = async (
+  req: Request<{ id: string }>,
+  res: Response
+): Promise<void> => {
   try {
     const position = await Position.findById(req.params.id)
       .populate('department_id', 'department_name');
 
     if (!position) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Position not found'
       });
+      return;
     }
 
     res.status(200).json({
       success: true,
       data: position
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching position:', error);
     if (error.kind === 'ObjectId') {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Position not found'
       });
+      return;
     }
     res.status(500).json({
       success: false,
@@ -71,16 +98,20 @@ export const getPosition = async (req, res) => {
 // @desc    Create new position
 // @route   POST /api/positions
 // @access  Private (Admin only)
-export const createPosition = async (req, res) => {
+export const createPosition = async (
+  req: Request<{}, {}, CreatePositionBody>,
+  res: Response
+): Promise<void> => {
   try {
     const { position_name, department_id } = req.body;
 
     // Validation
     if (!position_name || !department_id) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'Please provide position name and department'
       });
+      return;
     }
 
     // Check if position already exists in this department
@@ -90,10 +121,11 @@ export const createPosition = async (req, res) => {
     });
 
     if (existingPosition) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'Position already exists in this department'
       });
+      return;
     }
 
     const position = await Position.create({
@@ -109,13 +141,14 @@ export const createPosition = async (req, res) => {
       message: 'Position created successfully',
       data: position
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating position:', error);
     if (error.code === 11000) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'Position already exists in this department'
       });
+      return;
     }
     res.status(500).json({
       success: false,
@@ -128,24 +161,29 @@ export const createPosition = async (req, res) => {
 // @desc    Update position
 // @route   PUT /api/positions/:id
 // @access  Private (Admin only)
-export const updatePosition = async (req, res) => {
+export const updatePosition = async (
+  req: Request<{ id: string }, {}, UpdatePositionBody>,
+  res: Response
+): Promise<void> => {
   try {
     const { position_name, department_id } = req.body;
 
     if (!position_name) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'Please provide position name'
       });
+      return;
     }
 
     let position = await Position.findById(req.params.id);
 
     if (!position) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Position not found'
       });
+      return;
     }
 
     // Check for duplicate within same department
@@ -156,14 +194,15 @@ export const updatePosition = async (req, res) => {
     });
 
     if (existingPosition) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'Position name already exists in this department'
       });
+      return;
     }
 
     // Update
-    const updateData = { position_name };
+    const updateData: any = { position_name };
     if (department_id) {
       updateData.department_id = department_id;
     }
@@ -172,20 +211,21 @@ export const updatePosition = async (req, res) => {
       req.params.id,
       updateData,
       { new: true, runValidators: true }
-    ).populate('department_id', 'department_name');
+    ).populate('department_id', 'department_name') as any;
 
     res.status(200).json({
       success: true,
       message: 'Position updated successfully',
       data: position
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating position:', error);
     if (error.kind === 'ObjectId' || error.code === 11000) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'Invalid data or position name already exists'
       });
+      return;
     }
     res.status(500).json({
       success: false,
@@ -198,25 +238,30 @@ export const updatePosition = async (req, res) => {
 // @desc    Delete position
 // @route   DELETE /api/positions/:id
 // @access  Private (Admin only)
-export const deletePosition = async (req, res) => {
+export const deletePosition = async (
+  req: Request<{ id: string }>,
+  res: Response
+): Promise<void> => {
   try {
     const position = await Position.findById(req.params.id);
 
     if (!position) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Position not found'
       });
+      return;
     }
 
     // Optional: Check if any users have this position
     // const User = mongoose.model('User');
     // const usersWithPosition = await User.countDocuments({ position_id: req.params.id });
     // if (usersWithPosition > 0) {
-    //   return res.status(400).json({
+    //   res.status(400).json({
     //     success: false,
     //     message: `Cannot delete position. ${usersWithPosition} user(s) are assigned to this position.`
     //   });
+    //   return;
     // }
 
     await position.deleteOne();
@@ -226,13 +271,14 @@ export const deletePosition = async (req, res) => {
       message: 'Position deleted successfully',
       data: {}
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting position:', error);
     if (error.kind === 'ObjectId') {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Position not found'
       });
+      return;
     }
     res.status(500).json({
       success: false,
@@ -245,7 +291,10 @@ export const deletePosition = async (req, res) => {
 // @desc    Get positions by department
 // @route   GET /api/positions/department/:departmentId
 // @access  Public/Private
-export const getPositionsByDepartment = async (req, res) => {
+export const getPositionsByDepartment = async (
+  req: Request<{ departmentId: string }>,
+  res: Response
+): Promise<void> => {
   try {
     const positions = await Position.find({ 
       department_id: req.params.departmentId 
@@ -256,7 +305,7 @@ export const getPositionsByDepartment = async (req, res) => {
       count: positions.length,
       data: positions
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching positions by department:', error);
     res.status(500).json({
       success: false,

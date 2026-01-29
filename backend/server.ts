@@ -1,22 +1,18 @@
-import 'dotenv/config';
-import express, { json, urlencoded } from 'express';
+import dotenv from 'dotenv';
+dotenv.config();
+
+import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import path from 'path';
-import connectDB from './config/db.js';
-import positionRoutes from './routes/positionRoutes.js';
-// Import Routes
-import authRoutes from './routes/authRoutes.js';
-import departmentRoutes from './routes/departmentRoutes.js';
-// import eventRoutes from './routes/eventRoutes.js';
-import holidayRoutes from './routes/holidayRoutes.js';
-import userRoutes from './routes/userRoutes.js';
-// import eventTypeRoutes from './routes/eventTypeRoutes.js'
-import googleRoutes from './routes/googleRoutes.js';
+import connectDB from './config/db';
+import positionRoutes from './routes/positionRoutes';
+import authRoutes from './routes/authRoutes';
+import departmentRoutes from './routes/departmentRoutes';
+import userRoutes from './routes/userRoutes';
+
 // Connect to Database
 await connectDB();
 
-import cronService from './services/cron.js'; // Initialize cron jobs
-const app = express();
+const app: Express = express();
 
 // CORS Configuration
 app.use(
@@ -29,21 +25,17 @@ app.use(
 );
 
 // Middleware
-app.use(json());
-app.use(urlencoded({ extended: true }));
-app.use('/api/positions', positionRoutes); // ✅ เพิ่มบรรทัดนี้
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // Routes
+app.use('/api/positions', positionRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/departments', departmentRoutes);
-// app.use('/api/events', eventRoutes);
-// app.use('/api/event-types', eventTypeRoutes);
-app.use('/api/holidays', holidayRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/google', googleRoutes);
 
-// ... ส่วนที่เหลือเหมือนเดิม
 // Health Check Route
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (req: Request, res: Response) => {
     res.status(200).json({ 
         status: 'OK', 
         message: 'Server is running',
@@ -52,7 +44,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Root Route
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
     res.json({ 
         message: 'Employee Leave Management API',
         version: '1.0.0'
@@ -60,7 +52,7 @@ app.get('/', (req, res) => {
 });
 
 // 404 Handler
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
     res.status(404).json({ 
         message: 'Route not found',
         path: req.originalUrl
@@ -68,7 +60,11 @@ app.use((req, res, next) => {
 });
 
 // Error Handling Middleware
-app.use((err, req, res, next) => {
+interface CustomError extends Error {
+    status?: number;
+}
+
+app.use((err: CustomError, req: Request, res: Response, next: NextFunction) => {
     console.error(err.stack);
     res.status(err.status || 500).json({
         message: err.message || 'Internal Server Error',
@@ -76,7 +72,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start Server - เก็บ instance ไว้ใน variable
+// Start Server
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
@@ -85,7 +81,7 @@ const server = app.listen(PORT, () => {
 });
 
 // Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
+process.on('unhandledRejection', (err: Error) => {
     console.error('UNHANDLED REJECTION! 💥 Shutting down...');
     console.error(err.name, err.message);
     server.close(() => {

@@ -1,22 +1,25 @@
-// Change requires to imports
-import express from 'express';
+import express, { Router, Response } from 'express';
 import { 
     registerUser, 
     loginUser, 
     getUserProfile, 
     updateUserProfile 
-} from '../controller/authController.js'; // Added .js extension
-import { protect } from '../middlewares/authMiddleware.js'; // Added .js extension
+} from '../controller/authController';
+import { protect, AuthRequest } from '../middlewares/authMiddleware';
 
-const router = express.Router();
+const router: Router = express.Router();
 
-// ... (your routes remain the same) ...
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.get("/profile", protect, getUserProfile);
 router.put("/profile", protect, updateUserProfile);
 
-router.get("/verify", protect, (req, res) => {
+router.get("/verify", protect, (req: AuthRequest, res: Response) => {
+    if (!req.user) {
+        res.status(401).json({ message: "Not authenticated" });
+        return;
+    }
+
     res.status(200).json({
         valid: true,
         user: {
@@ -30,5 +33,4 @@ router.get("/verify", protect, (req, res) => {
     });
 });
 
-// Change module.exports to export default
 export default router;

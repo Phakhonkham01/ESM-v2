@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Router } from 'express';
 import { 
     getPositions, 
     getPosition, 
@@ -6,10 +6,10 @@ import {
     updatePosition, 
     deletePosition,
     getPositionsByDepartment
-} from '../controller/positionController.js';
-import { protect } from '../middlewares/authMiddleware.js';
+} from '../controller/positionController';
+import { protect } from '../middlewares/authMiddleware';
 
-const router = express.Router();
+const router: Router = express.Router();
 
 // Public routes
 router.get("/", getPositions);                                    // GET /api/positions
