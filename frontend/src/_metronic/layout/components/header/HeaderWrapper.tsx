@@ -1,4 +1,3 @@
-
 import clsx from 'clsx'
 import {useEffect, useState} from 'react'
 import {Link} from 'react-router-dom'
@@ -11,6 +10,7 @@ export function HeaderWrapper() {
   const {config, classes, attributes} = useLayout()
   const {header} = config
   const [offset, setOffset] = useState<string>(`{default: '200px', lg: '300px'}`)
+  
   useEffect(() => {
     let newString = `{default: '200px', lg: '300px'}`
     if (header.fixed.desktop) {
@@ -35,13 +35,11 @@ export function HeaderWrapper() {
     >
       {/* begin::Container */}
       <div
-        className={clsx(
-          classes.headerContainer.join(' '),
-          'd-flex align-items-center justify-content-between'
-        )}
+        className='container-fluid d-flex align-items-center justify-content-between px-8'
         id='kt_header_container'
       >
         <DefaultTitle />
+        
         {/* begin::Wrapper */}
         <div className={'d-flex d-lg-none align-items-center ms-n2 me-2'}>
           {/* begin::Aside mobile toggle */}
@@ -56,6 +54,7 @@ export function HeaderWrapper() {
           {/* end::Logo */}
         </div>
         {/* end::Wrapper */}
+        
         <Topbar />
       </div>
       {/* end::Container */}
