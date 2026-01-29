@@ -15,9 +15,7 @@ const PrivateRoutes = () => {
   const ChatPage = lazy(() => import('../modules/apps/chat/ChatPage'))
   const UsersPage = lazy(() => import('../modules/apps/user-management/UsersPage'))
   const EventsPage = lazy(() => import('../modules/apps/event/EventsPage'))
-  const HolidaysPage = lazy(() => import('../modules/apps/holiday/HolidaysPage'))
-  const RequestsPage = lazy(() => import('../modules/apps/request/RequestPage'))
-  const UserRequired = lazy(() => import('../modules/apps/user-required/UserRequired'))
+
   
   
   
@@ -48,30 +46,7 @@ const PrivateRoutes = () => {
             </SuspensedView>
           }
         />
-        <Route
-          path='apps/user-required/*'
-          element={
-            <SuspensedView>
-              <UserRequired />
-            </SuspensedView>
-          }
-        />
-        <Route
-          path='apps/requests/*'
-          element={
-            <SuspensedView>
-              <RequestsPage />
-            </SuspensedView>
-          }
-        />
-        <Route
-          path='apps/holiday/*'
-          element={
-            <SuspensedView>
-              <HolidaysPage />
-            </SuspensedView>
-          }
-        />
+
         <Route
           path='crafted/widgets/*'
           element={
