@@ -50,7 +50,7 @@ export function Login() {
           throw new Error('No token received from server')
         }
 
-        // ✅ แปลง AuthModel เป็น UserModel (ใช้ข้อมูลจาก login response)
+        // ✅ แปลง AuthModel เป็น UserModel (เก็บข้อมูลทั้งหมดจาก backend)
         const user: UserModel = {
           _id: auth._id,
           user_name: auth.user_name,
@@ -58,9 +58,35 @@ export function Login() {
           role: auth.role,
           department_id: auth.department_id,
           leave_days: auth.leave_days,
+          
+          // Status
+          status: auth.status,
+          
+          // Personal Information (English)
+          first_name_en: auth.first_name_en,
+          last_name_en: auth.last_name_en,
+          nickname_en: auth.nickname_en,
+          
+          // Personal Information (Lao)
+          first_name_la: auth.first_name_la,
+          last_name_la: auth.last_name_la,
+          nickname_la: auth.nickname_la,
+          
+          // Basic Information
+          date_of_birth: auth.date_of_birth,
+          start_work: auth.start_work,
+          gender: auth.gender,
+          
+          // Position & Salary
+          position_id: auth.position_id,
+          base_salary: auth.base_salary,
+          
+          // Timestamps
+          createdAt: auth.createdAt,
+          updatedAt: auth.updatedAt
         }
 
-        console.log('✅ User data:', user)
+        console.log('✅ User data (full):', user)
 
         // ✅ บันทึก user ลง localStorage
         localStorage.setItem('user', JSON.stringify(user))

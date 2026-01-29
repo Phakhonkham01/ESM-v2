@@ -58,7 +58,8 @@ const AsideDefault = () => {
           <img src={toAbsoluteUrl('media/avatars/blank.png')} alt='avatar' />
         </div>
         {/* end::Menu wrapper */}
-        <HeaderUserMenu /></div>
+        <HeaderUserMenu />
+        </div>
           <AsideTabs link={link} setLink={setLink} />
         </div>
         {/* end::Nav */}

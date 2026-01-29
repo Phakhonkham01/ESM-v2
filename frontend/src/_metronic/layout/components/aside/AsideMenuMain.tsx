@@ -14,13 +14,13 @@ export function AsideMenuMain() {
         title={intl.formatMessage({id: 'MENU.DASHBOARD'})}
         fontIcon='bi-app-indicator'
       />
-      {/* <AsideMenuItem to='/builder' icon='switch' title='Layout Builder' fontIcon='bi-layers' />
+      <AsideMenuItem to='/builder' icon='switch' title='Layout Builder' fontIcon='bi-layers' />
       <div className='menu-item'>
         <div className='menu-content pt-8 pb-2'>
           <span className='menu-section text-muted text-uppercase fs-8 ls-1'>Crafted</span>
         </div>
-      </div> */}
-      {/* <AsideMenuItemWithSub
+      </div>
+      <AsideMenuItemWithSub
         to='/crafted/pages'
         title='Pages'
         fontIcon='bi-archive'
@@ -46,8 +46,8 @@ export function AsideMenuMain() {
           />
           <AsideMenuItem to='/crafted/pages/wizards/vertical' title='Vertical' hasBullet={true} />
         </AsideMenuItemWithSub>
-      </AsideMenuItemWithSub> */}
-      {/* <AsideMenuItemWithSub
+      </AsideMenuItemWithSub>
+      <AsideMenuItemWithSub
         to='/crafted/accounts'
         title='Accounts'
         icon='profile-circle'
@@ -72,13 +72,13 @@ export function AsideMenuMain() {
         <AsideMenuItem to='/crafted/widgets/mixed' title='Mixed' hasBullet={true} />
         <AsideMenuItem to='/crafted/widgets/tables' title='Tables' hasBullet={true} />
         <AsideMenuItem to='/crafted/widgets/feeds' title='Feeds' hasBullet={true} />
-      </AsideMenuItemWithSub> */}
-      {/* <div className='menu-item'>
+      </AsideMenuItemWithSub>
+      <div className='menu-item'>
         <div className='menu-content pt-8 pb-2'>
           <span className='menu-section text-muted text-uppercase fs-8 ls-1'>Apps</span>
         </div>
-      </div> */}
-      {/* <AsideMenuItemWithSub
+      </div>
+      <AsideMenuItemWithSub
         to='/apps/chat'
         title='Chat'
         fontIcon='bi-chat-left'
@@ -87,7 +87,7 @@ export function AsideMenuMain() {
         <AsideMenuItem to='/apps/chat/private-chat' title='Private Chat' hasBullet={true} />
         <AsideMenuItem to='/apps/chat/group-chat' title='Group Chart' hasBullet={true} />
         <AsideMenuItem to='/apps/chat/drawer-chat' title='Drawer Chart' hasBullet={true} />
-      </AsideMenuItemWithSub> */}
+      </AsideMenuItemWithSub>
       <AsideMenuItem
         to='/apps/user-management/users'
         icon='people'

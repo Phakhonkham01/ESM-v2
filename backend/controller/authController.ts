@@ -144,6 +144,7 @@ export const loginUser = async (
             return;
         }
 
+        // ✅ Return ข้อมูล user ทั้งหมดตาม model
         res.status(200).json({
             _id: user._id,
             user_name: user.user_name,
@@ -151,6 +152,32 @@ export const loginUser = async (
             role: user.role,
             department_id: user.department_id,
             leave_days: user.leave_days,
+            status: user.status,
+            
+            // Personal Information (English)
+            first_name_en: user.first_name_en,
+            last_name_en: user.last_name_en,
+            nickname_en: user.nickname_en,
+            
+            // Personal Information (Lao)
+            first_name_la: user.first_name_la,
+            last_name_la: user.last_name_la,
+            nickname_la: user.nickname_la,
+            
+            // Basic Information
+            date_of_birth: user.date_of_birth,
+            start_work: user.start_work,
+            gender: user.gender,
+            
+            // Position & Salary
+            position_id: user.position_id,
+            base_salary: user.base_salary,
+            
+            // Timestamps
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+            
+            // Token
             token: generateToken(user._id),
         });
     } catch (error: any) {
