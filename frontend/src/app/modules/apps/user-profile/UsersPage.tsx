@@ -1,11 +1,11 @@
-import {Route, Routes, Outlet, Navigatio} from 'react-router-dom'
+import {Route, Routes, Outlet, Navigate} from 'react-router-dom'
 import {PageLink, PageTitle} from '../../../../_metronic/layout/core'
-import {EventsListWrapper} from './users-list/EventsList'
+import {UsersListWrapper} from './users-list/UsersList'
 
 const usersBreadcrumbs: Array<PageLink> = [
   {
-    title: 'User',
-    path: '/user/user-profile',
+    title: 'User Profile',
+    path: '/apps/user/user-profile',
     isSeparator: false,
     isActive: false,
   },
@@ -25,13 +25,13 @@ const UsersPage = () => {
           path='user-profile'
           element={
             <>
-              <PageTitle breadcrumbs={usersBreadcrumbs}>User Profile</PageTitle>
-              <EventsListWrapper />
+              <PageTitle breadcrumbs={usersBreadcrumbs}>Users Profile</PageTitle>
+              <UsersListWrapper />
             </>
           }
         />
       </Route>
-      {/* <Route index element={<Navigate to='/apps/user-management/users' />} /> */}
+      <Route index element={<Navigate to='/apps/user-management/users' />} />
     </Routes>
   )
 }

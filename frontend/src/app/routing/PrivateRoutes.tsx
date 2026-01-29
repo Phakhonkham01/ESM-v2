@@ -10,7 +10,6 @@ import BuilderPageWrapper from '../pages/layout-builder/BuilderPageWrapper'
 
 const PrivateRoutes = () => {
   const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'))
-  const WizardsPage = lazy(() => import('../modules/wizards/WizardsPage'))
   const AccountPage = lazy(() => import('../modules/accounts/AccountPage'))
   const WidgetsPage = lazy(() => import('../modules/widgets/WidgetsPage'))
   const ChatPage = lazy(() => import('../modules/apps/chat/ChatPage'))
@@ -19,7 +18,9 @@ const PrivateRoutes = () => {
   const HolidaysPage = lazy(() => import('../modules/apps/holiday/HolidaysPage'))
   const RequestsPage = lazy(() => import('../modules/apps/request/RequestPage'))
   const UserRequired = lazy(() => import('../modules/apps/user-required/UserRequired'))
-
+  
+  
+  
   return (
     <Routes>
       <Route element={<MasterLayout />}>
@@ -37,7 +38,8 @@ const PrivateRoutes = () => {
               <ProfilePage />
             </SuspensedView>
           }
-        />
+        />   
+        
         <Route
           path='apps/event/*'
           element={

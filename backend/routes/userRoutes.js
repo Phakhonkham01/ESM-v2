@@ -7,7 +7,7 @@ const router = express.Router();
 router.post("/", userController.createUser);
 router.get("/", userController.getUsers);
 router.get("/:id", userController.getUserById);
-router.get("/holidays/users-on-leave", userController.getUsersOnLeave);
+
 router.put("/:id", userController.updateUser);
 router.delete("/:id", userController.deleteUser);
 

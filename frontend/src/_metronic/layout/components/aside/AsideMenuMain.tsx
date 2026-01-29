@@ -95,9 +95,9 @@ export function AsideMenuMain() {
         fontIcon='bi-layers'
       />
       <AsideMenuItem
-        to='/apps/event/events'
+        to='/apps/user/user-profile'
         icon='calendar-edit'
-        title='Events'
+        title='User-Profile'
         fontIcon='bi-calendar-event'
       />
        <AsideMenuItem
