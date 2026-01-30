@@ -37,7 +37,7 @@ const AccountPage: React.FC = () => {
           path='overview'
           element={
             <>
-              {/* <PageTitle>User Profile</PageTitle> */}
+              {/* <PageTitle>Overview</PageTitle> */}
               <Overview />
             </>
           }
