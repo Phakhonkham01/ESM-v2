@@ -1,13 +1,15 @@
 import React from 'react'
 import {Navigate, Outlet, Route, Routes} from 'react-router-dom'
 import {PageLink, PageTitle} from '../../../_metronic/layout/core'
-import {Overview} from './components/Overview'
+import {Overview} from './components/overview/Overview'
 import {Settings} from './components/settings/Settings'
 import {AccountHeader} from './AccountHeader'
+import Profile from './components/profile/Profile'
+import ViewPaySlip from './components/viewpayslip/ViewPaySlip'
 
 const accountBreadCrumbs: Array<PageLink> = [
   {
-    title: 'Account',
+    title: '',
     path: '/crafted/account/overview',
     isSeparator: false,
     isActive: false,
@@ -35,10 +37,26 @@ const AccountPage: React.FC = () => {
           path='overview'
           element={
             <>
-              <PageTitle breadcrumbs={accountBreadCrumbs}>Overview</PageTitle>
+              {/* <PageTitle>Overview</PageTitle> */}
               <Overview />
             </>
           }
+        />
+        <Route
+        path='profile'
+        element={
+          <>
+          <Profile/>
+          </>
+        }
+        />
+        <Route
+        path='viewpayslip'
+        element={
+          <>
+          <ViewPaySlip/>
+          </>
+        }
         />
         <Route
           path='settings'
@@ -49,7 +67,7 @@ const AccountPage: React.FC = () => {
             </>
           }
         />
-        <Route index element={<Navigate to='/crafted/account/overview' />} />
+        <Route index element={<Navigate to='/crafted/account/user-profile' />} />
       </Route>
     </Routes>
   )
