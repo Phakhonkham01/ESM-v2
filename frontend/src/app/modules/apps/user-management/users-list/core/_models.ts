@@ -55,6 +55,8 @@ export type User = {
   gender: 'male' | 'female' | 'other'
   position_id?: PositionIdType
   base_salary?: number
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type UsersQueryResponse = Response<Array<User>>
@@ -78,6 +80,8 @@ export const initialUser: User = {
   gender: 'male',
   position_id: null,
   base_salary: 0,
+  createdAt:'',
+  updatedAt:''
 }
 
 // Helper functions สำหรับการแปลง type

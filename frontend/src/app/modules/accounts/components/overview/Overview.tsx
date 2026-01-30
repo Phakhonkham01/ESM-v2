@@ -1,13 +1,14 @@
 
 import React from 'react'
 import {Link} from 'react-router-dom'
-import {KTIcon} from '../../../../_metronic/helpers'
+import {KTIcon} from '../../../../../_metronic/helpers'
 import {
   ChartsWidget1,
   ListsWidget5,
   TablesWidget1,
   TablesWidget5,
-} from '../../../../_metronic/partials/widgets'
+} from '../../../../../_metronic/partials/widgets'
+import { useAuth } from '../../../auth'
 
 export function Overview() {
   return (
@@ -17,10 +18,6 @@ export function Overview() {
           <div className='card-title m-0'>
             <h3 className='fw-bolder m-0'>Profile Details</h3>
           </div>
-
-          <Link to='/crafted/account/settings' className='btn btn-primary align-self-center'>
-            Edit Profile
-          </Link>
         </div>
 
         <div className='card-body p-9'>
@@ -98,7 +95,7 @@ export function Overview() {
             </div>
           </div>
 
-          <div className='notice d-flex bg-light-warning rounded border-warning border border-dashed p-6'>
+          {/* <div className='notice d-flex bg-light-warning rounded border-warning border border-dashed p-6'>
             <KTIcon iconName='information-5' className='fs-2tx text-warning me-4' />
             <div className='d-flex flex-stack flex-grow-1'>
               <div className='fw-bold'>
@@ -113,11 +110,11 @@ export function Overview() {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
 
-      <div className='row gy-10 gx-xl-10'>
+      {/* <div className='row gy-10 gx-xl-10'>
         <div className='col-xl-6'>
           <ChartsWidget1 className='card-xxl-stretch mb-5 mb-xl-10' />
         </div>
@@ -135,7 +132,7 @@ export function Overview() {
         <div className='col-xl-6'>
           <TablesWidget5 className='card-xxl-stretch mb-5 mb-xl-10' />
         </div>
-      </div>
+      </div> */}
     </>
   )
 }

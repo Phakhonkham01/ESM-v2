@@ -163,13 +163,35 @@ const AccountHeader: React.FC = () => {
                 <Link
                   className={
                     `nav-link text-active-primary me-6 ` +
+                    (location.pathname === '/crafted/account/profile' && 'active')
+                  }
+                  to='/crafted/account/profile'
+                >
+                  Profile
+                </Link>
+              </li>
+              <li className='nav-item'>
+                <Link
+                  className={
+                    `nav-link text-active-primary me-6 ` +
+                    (location.pathname === '/crafted/account/viewpayslip' && 'active')
+                  }
+                  to='/crafted/account/viewpayslip'
+                >
+                  Viewpayslip
+                </Link>
+              </li>
+              {/* <li className='nav-item'>
+                <Link
+                  className={
+                    `nav-link text-active-primary me-6 ` +
                     (location.pathname === '/crafted/account/settings' && 'active')
                   }
                   to='/crafted/account/settings'
                 >
                   Settings
                 </Link>
-              </li>
+              </li> */}
             </ul>
           </div>
         </div>
