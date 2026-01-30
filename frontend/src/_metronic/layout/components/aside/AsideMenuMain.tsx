@@ -93,6 +93,18 @@ export function AsideMenuMain() {
         icon='people'
         title='User management'
         fontIcon='bi-layers'
+      />  
+         <AsideMenuItem
+        to='/apps/request-ot-and-field_work'
+        icon='people'
+        title='Request OT/Field Work'
+        fontIcon='bi-layers'
+      />  
+       <AsideMenuItem
+        to='/apps/request-day-off'
+        icon='people'
+        title='Request Day-Off'
+        fontIcon='bi-layers'
       />
       <AsideMenuItem
         to='/apps/user/user-profile'
