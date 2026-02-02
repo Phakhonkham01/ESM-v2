@@ -94,6 +94,12 @@ export function AsideMenuMain() {
         title='User management'
         fontIcon='bi-layers'
       />
+          <AsideMenuItem
+        to='/apps/request-ot'
+        icon='people'
+        title='Request OT'
+        fontIcon='bi-layers'
+      />
       <AsideMenuItem
         to='/apps/user/user-profile'
         icon='calendar-edit'
