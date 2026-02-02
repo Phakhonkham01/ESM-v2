@@ -9,6 +9,7 @@ import authRoutes from './routes/authRoutes';
 import departmentRoutes from './routes/departmentRoutes';
 import userRoutes from './routes/userRoutes';
 import requestRoutes from "./routes/requestRoutes.js";
+import dayOffRoutes from './routes/dayOffRequestRoutes'
 
 // Connect to Database
 await connectDB();
@@ -36,6 +37,7 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/users', userRoutes);
 app.use("/api/requests", requestRoutes);
+app.use('/api/dayoff-request',dayOffRoutes)
 
 // Health Check Route
 app.get('/api/health', (req: Request, res: Response) => {

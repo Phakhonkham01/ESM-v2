@@ -1,4 +1,4 @@
-import {Route, Routes, Outlet, Navigatio} from 'react-router-dom'
+import {Route, Routes, Outlet} from 'react-router-dom'
 import {PageLink, PageTitle} from '../../../../_metronic/layout/core'
 import {EventsListWrapper} from './users-list/EventsList'
 

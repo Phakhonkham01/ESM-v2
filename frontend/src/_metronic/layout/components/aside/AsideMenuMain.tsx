@@ -54,7 +54,7 @@ export function AsideMenuMain() {
         fontIcon='bi-person'
       >
         <AsideMenuItem to='/crafted/account/overview' title='Overview' hasBullet={true} />
-        <AsideMenuItem to='/crafted/account/settings' title='Settings' hasBullet={true} />
+        {/* <AsideMenuItem to='/crafted/account/settings' title='Settings' hasBullet={true} /> */}
       </AsideMenuItemWithSub>
       <AsideMenuItemWithSub to='/error' title='Errors' fontIcon='bi-sticky' icon='cross-circle'>
         <AsideMenuItem to='/error/404' title='Error 404' hasBullet={true} />
@@ -93,6 +93,18 @@ export function AsideMenuMain() {
         icon='people'
         title='User management'
         fontIcon='bi-layers'
+      />  
+         <AsideMenuItem
+        to='/apps/request-ot-and-field_work'
+        icon='people'
+        title='Request OT/Field Work'
+        fontIcon='bi-layers'
+      />  
+       <AsideMenuItem
+        to='/apps/request-day-off'
+        icon='people'
+        title='Request Day-Off'
+        fontIcon='bi-layers'
       />
           <AsideMenuItem
         to='/apps/request-ot'
@@ -101,7 +113,7 @@ export function AsideMenuMain() {
         fontIcon='bi-layers'
       />
       <AsideMenuItem
-        to='/apps/user/user-profile'
+        to='/crafted/account/overview'
         icon='calendar-edit'
         title='User-Profile'
         fontIcon='bi-calendar-event'
