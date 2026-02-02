@@ -24,11 +24,11 @@ const requestSchema = new Schema<IRequest>(
       required: true,
     },
 
-    supervisor_id: {
+     supervisor_id: [{  
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-    },
+    }],
 
     date: {
       type: Date,

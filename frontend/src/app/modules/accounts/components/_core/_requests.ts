@@ -10,7 +10,7 @@ const API_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:8001/api'
 export interface OTFieldWorkRequest {
   _id?: string
   user_id: string
-  supervisor_id: string
+  supervisor_id: string[]
   date: string | Date
   title: 'OT' | 'FIELD_WORK'
   start_hour: string // Format: "HH:mm"
@@ -37,7 +37,7 @@ export const createOTFieldWorkRequest = async (
   data: Omit<OTFieldWorkRequest, '_id' | 'status' | 'created_at'>
 ): Promise<OTFieldWorkResponse> => {
   try {
-    const response = await axios.post(`${API_URL}/requests`, data)
+    const response = await axios.post(`${API_URL}/requestOTandFieldWorkRoutes`, data)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to create request')
@@ -58,7 +58,7 @@ export const getAllOTFieldWorkRequests = async (filters?: {
     if (filters?.status) params.append('status', filters.status)
     if (filters?.title) params.append('title', filters.title)
 
-    const response = await axios.get(`${API_URL}/requests?${params.toString()}`)
+    const response = await axios.get(`${API_URL}/requestOTandFieldWorkRoutes?${params.toString()}`)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to fetch requests')
@@ -70,7 +70,7 @@ export const getOTFieldWorkRequestsByUser = async (
   userId: string
 ): Promise<OTFieldWorkResponse> => {
   try {
-    const response = await axios.get(`${API_URL}/requests/user/${userId}`)
+    const response = await axios.get(`${API_URL}/requestOTandFieldWorkRoutes/user/${userId}`)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to fetch user requests')
@@ -82,7 +82,7 @@ export const getOTFieldWorkRequestsBySupervisor = async (
   supervisorId: string
 ): Promise<OTFieldWorkResponse> => {
   try {
-    const response = await axios.get(`${API_URL}/requests/supervisor/${supervisorId}`)
+    const response = await axios.get(`${API_URL}/requestOTandFieldWorkRoutes/supervisor/${supervisorId}`)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to fetch supervisor requests')
@@ -94,7 +94,7 @@ export const getOTFieldWorkRequestById = async (
   id: string
 ): Promise<OTFieldWorkResponse> => {
   try {
-    const response = await axios.get(`${API_URL}/requests/${id}`)
+    const response = await axios.get(`${API_URL}/requestOTandFieldWorkRoutes/${id}`)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to fetch request')
@@ -107,7 +107,7 @@ export const updateOTFieldWorkRequestStatus = async (
   status: 'Pending' | 'Accept' | 'Reject'
 ): Promise<OTFieldWorkResponse> => {
   try {
-    const response = await axios.patch(`${API_URL}/requests/${id}/status`, { status })
+    const response = await axios.patch(`${API_URL}/requestOTandFieldWorkRoutes/${id}/status`, { status })
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to update status')
@@ -120,7 +120,7 @@ export const updateOTFieldWorkRequest = async (
   data: Partial<Omit<OTFieldWorkRequest, '_id' | 'user_id' | 'supervisor_id' | 'status' | 'created_at'>>
 ): Promise<OTFieldWorkResponse> => {
   try {
-    const response = await axios.put(`${API_URL}/requests/${id}`, data)
+    const response = await axios.put(`${API_URL}/requestOTandFieldWorkRoutes/${id}`, data)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to update request')
@@ -130,7 +130,7 @@ export const updateOTFieldWorkRequest = async (
 // DELETE OT/Field Work Request
 export const deleteOTFieldWorkRequest = async (id: string): Promise<OTFieldWorkResponse> => {
   try {
-    const response = await axios.delete(`${API_URL}/requests/${id}`)
+    const response = await axios.delete(`${API_URL}/requestOTandFieldWorkRoutes/${id}`)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to delete request')
@@ -140,7 +140,7 @@ export const deleteOTFieldWorkRequest = async (id: string): Promise<OTFieldWorkR
 // GET OT/Field Work Request Stats
 export const getOTFieldWorkRequestStats = async (): Promise<OTFieldWorkResponse> => {
   try {
-    const response = await axios.get(`${API_URL}/requests/stats`)
+    const response = await axios.get(`${API_URL}/requestOTandFieldWorkRoutes/stats`)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to fetch stats')

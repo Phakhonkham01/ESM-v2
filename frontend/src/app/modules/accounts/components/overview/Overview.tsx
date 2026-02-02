@@ -9,8 +9,7 @@ import {
 } from '../../../../../_metronic/partials/widgets'
 import { useAuth } from '../../../auth'
 import LeaveDayForm from './allForm/LeaveDayForm'
-import OtForm from './allForm/OtForm'
-import FieldWork from './allForm/Field-work'
+import OtandFieldWork from './allForm/OtandField-work'
 
 export function Overview() {
   const [selectedForm, setSelectedForm] = useState<string | null>(null)
@@ -41,14 +40,7 @@ export function Overview() {
       color: 'warning',
       iconBg: 'light-warning'
     },
-    {
-      id: 'document-request',
-      title: 'Document Request',
-      description: 'Request official documents',
-      icon: 'document',
-      color: 'info',
-      iconBg: 'light-info'
-    }
+    
   ]
 
   const handleCardClick = (formId: string) => {
@@ -71,15 +63,15 @@ export function Overview() {
     console.log('Request submitted successfully')
   }
 
-  const renderFormContent = () => {
-    switch (selectedForm) {
-      case 'leave-request':
-        return <LeaveDayForm onClose={handleCloseModal} onSuccess={handleSuccess} />
-      case 'overtime-request':
-        return <OtForm onClose={handleCloseModal} onSuccess={handleSuccess} />
-      case 'field-work':
-        return <FieldWork onClose={handleCloseModal} onSuccess={handleSuccess} />
-      case 'document-request':
+ const renderFormContent = () => {
+  switch (selectedForm) {
+    case 'leave-request':
+      return <LeaveDayForm onClose={handleCloseModal} onSuccess={handleSuccess} />
+    case 'overtime-request':
+      return <OtandFieldWork type="OT" onClose={handleCloseModal} onSuccess={handleSuccess} />
+    case 'field-work':
+      return <OtandFieldWork type="FIELD_WORK" onClose={handleCloseModal} onSuccess={handleSuccess} />
+    case 'document-request':
         return (
           <div className='card'>
             <div className='card-header' style={{ background: 'linear-gradient(135deg, #7239ea 0%, #5e2fc1 100%)' }}>

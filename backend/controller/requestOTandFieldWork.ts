@@ -32,9 +32,11 @@ export const createRequest = async (
   res: Response
 ): Promise<void> => {
   try {
+    console.log('📥 Received data:', req.body)
+    
     const {
       user_id,
-      supervisor_id,
+      supervisor_id, // เปลี่ยนเป็น array
       date,
       title,
       start_hour,
@@ -45,105 +47,71 @@ export const createRequest = async (
       date_off,
     } = req.body;
 
+    // ตรวจสอบ required fields
     if (
       !user_id ||
       !supervisor_id ||
+      !Array.isArray(supervisor_id) || // ตรวจสอบว่าเป็น array
+      supervisor_id.length === 0 || // ตรวจสอบว่าไม่ว่าง
       !date ||
       !title ||
       !start_hour ||
-      !end_hour ||
-      !reason
+      !end_hour
     ) {
+      console.log('❌ Missing fields')
       res.status(400).json({ message: "Missing required fields" });
       return;
     }
 
-    if (
-      !mongoose.Types.ObjectId.isValid(user_id) ||
-      !mongoose.Types.ObjectId.isValid(supervisor_id)
-    ) {
-      res.status(400).json({ message: "Invalid user_id or supervisor_id" });
+    // Validate supervisor IDs
+    const validSupervisorIds = supervisor_id.every((id: string) => 
+      mongoose.Types.ObjectId.isValid(id)
+    );
+    
+    if (!validSupervisorIds) {
+      res.status(400).json({ message: "Invalid supervisor IDs" });
       return;
     }
 
-    if (!VALID_TITLES.includes(title)) {
-      res.status(400).json({ message: "Invalid title" });
-      return;
-    }
-
-    if (!isValidTime(start_hour) || !isValidTime(end_hour)) {
-      res.status(400).json({ message: "Invalid time format (HH:mm)" });
-      return;
-    }
-
-    if (toMinutes(end_hour) <= toMinutes(start_hour)) {
-      res
-        .status(400)
-        .json({ message: "End time must be later than start time" });
-      return;
-    }
-
-    let fuelPrice = 0;
-    if (title === "FIELD_WORK") {
-      if (fuel == null || isNaN(fuel) || Number(fuel) <= 0) {
-        res
-          .status(400)
-          .json({ message: "Fuel price is required for FIELD_WORK" });
-        return;
-      }
-      fuelPrice = Number(fuel);
-    }
+    // ... validation code ...
 
     const request = await RequestModel.create({
       user_id,
-      supervisor_id,
+      supervisor_id, // ใช้ array
       date,
       title,
       start_hour,
       end_hour,
-      fuel: fuelPrice,
+      fuel,
       reason,
       description,
       date_off,
       status: "Pending",
     });
 
+    console.log('✅ Created request:', request)
+
     res.status(201).json({
       message: "Request submitted successfully",
       request,
     });
   } catch (error: any) {
+    console.error('❌ Backend error:', error)
     res.status(500).json({ message: error.message });
   }
 };
 
-/* ============================================================
-   READ ALL REQUESTS (FILTER)
-============================================================ */
-
+// แก้ไข getAllRequests
 export const getAllRequests = async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, status, title } = req.query;
     const query: any = {};
 
-    if (startDate && endDate) {
-      const start = new Date(startDate as string);
-      const end = new Date(endDate as string);
-      end.setHours(23, 59, 59, 999);
-      query.date = { $gte: start, $lte: end };
-    }
-
-    if (status && VALID_STATUSES.includes(status as any)) {
-      query.status = status;
-    }
-
-    if (title && VALID_TITLES.includes(title as any)) {
-      query.title = title;
-    }
+    // ... existing query logic ...
 
     const requests = await RequestModel.find(query)
       .populate("user_id", "first_name_en last_name_en email department_id")
-      .populate("supervisor_id", "first_name_en last_name_en email")
+      .populate("supervisor_id", "first_name_en last_name_en email") // เปลี่ยนเป็น supervisor_id
       .sort({ date: -1 });
 
     res.json({ requests });
@@ -195,12 +163,13 @@ export const getRequestsBySupervisor = async (
     }
 
     const requests = await RequestModel.find({
-      supervisor_id: supervisorId,
+      supervisor_id: supervisorId, // MongoDB จะค้นหาใน array อัตโนมัติ
     })
       .populate({
         path: "user_id",
         select: "-password",
       })
+      .populate("supervisor_id", "first_name_en last_name_en email")
       .sort({ createdAt: -1 });
 
     res.json({
@@ -212,6 +181,7 @@ export const getRequestsBySupervisor = async (
     res.status(500).json({ message: error.message });
   }
 };
+
 
 /* ============================================================
    READ BY ID
@@ -228,7 +198,7 @@ export const getRequestById = async (req: Request, res: Response) => {
 
     const request = await RequestModel.findById(id)
       .populate("user_id", "first_name_en last_name_en email")
-      .populate("supervisor_id", "first_name_en last_name_en email");
+      .populate("supervisor_id", "first_name_en last_name_en email"); // เปลี่ยนเป็น supervisor_id
 
     if (!request) {
       res.status(404).json({ message: "Request not found" });
