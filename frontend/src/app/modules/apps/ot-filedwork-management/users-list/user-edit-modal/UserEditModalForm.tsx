@@ -109,7 +109,7 @@ const UserEditModalForm: FC<OvertimeFormProps> = ({ onClose, isEditMode = false,
           toast.success('Overtime request submitted successfully!');
         }
 
-        // queryClient.invalidateQueries([QUERIES.OVERTIME_LIST]);
+        queryClient.invalidateQueries([QUERIES.OVERTIME_LIST]);
         onClose();
       } catch (error: any) {
         console.error('Submit error:', error);
