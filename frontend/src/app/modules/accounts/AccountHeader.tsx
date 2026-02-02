@@ -143,7 +143,7 @@ const AccountHeader: React.FC = () => {
                     <a href='#'>
                       <KTIcon iconName='verify' className='fs-1 text-primary' />
                     </a>
-                    {userProfile?.role === 'employee' && (
+                    {/* {userProfile?.role === 'employee' && (
                       <a
                         href='#'
                         className='btn btn-sm btn-light-success fw-bolder ms-2 fs-8 py-1 px-3'
@@ -152,7 +152,7 @@ const AccountHeader: React.FC = () => {
                       >
                         Upgrade to Pro
                       </a>
-                    )}
+                    )} */}
                   </div>
 
                   <div className='d-flex flex-wrap fw-bold fs-6 mb-4 pe-2'>
