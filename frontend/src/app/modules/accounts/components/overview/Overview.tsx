@@ -8,9 +8,13 @@ import {
   TablesWidget5,
 } from '../../../../../_metronic/partials/widgets'
 import { useAuth } from '../../../auth'
+import LeaveDayForm from './allForm/LeaveDayForm'
+import OtForm from './allForm/OtForm'
+import FieldWork from './allForm/Field-work'
 
 export function Overview() {
   const [selectedForm, setSelectedForm] = useState<string | null>(null)
+  const [showModal, setShowModal] = useState(false)
 
   const formCards = [
     {
@@ -18,16 +22,16 @@ export function Overview() {
       title: 'Leave Request',
       description: 'Submit your leave application',
       icon: 'calendar',
-      color: 'primary',
-      iconBg: 'light-primary'
-    },
-    {
-      id: 'expense-claim',
-      title: 'Expense Claim',
-      description: 'Submit expense reimbursement',
-      icon: 'dollar',
       color: 'success',
       iconBg: 'light-success'
+    },
+    {
+      id: 'field-work',
+      title: 'Field Work',
+      description: 'Submit field work request',
+      icon: 'geolocation',
+      color: 'primary',
+      iconBg: 'light-primary'
     },
     {
       id: 'overtime-request',
@@ -48,9 +52,61 @@ export function Overview() {
   ]
 
   const handleCardClick = (formId: string) => {
+    console.log('Card clicked:', formId) // Debug log
     setSelectedForm(formId)
-    // TODO: Open modal or navigate to form page
-    console.log('Opening form:', formId)
+    setShowModal(true)
+    // Add body class to prevent scroll
+    document.body.classList.add('modal-open')
+  }
+
+  const handleCloseModal = () => {
+    setShowModal(false)
+    setSelectedForm(null)
+    // Remove body class
+    document.body.classList.remove('modal-open')
+  }
+
+  const handleSuccess = () => {
+    // Refresh data or show success message
+    console.log('Request submitted successfully')
+  }
+
+  const renderFormContent = () => {
+    switch (selectedForm) {
+      case 'leave-request':
+        return <LeaveDayForm onClose={handleCloseModal} onSuccess={handleSuccess} />
+      case 'overtime-request':
+        return <OtForm onClose={handleCloseModal} onSuccess={handleSuccess} />
+      case 'field-work':
+        return <FieldWork onClose={handleCloseModal} onSuccess={handleSuccess} />
+      case 'document-request':
+        return (
+          <div className='card'>
+            <div className='card-header' style={{ background: 'linear-gradient(135deg, #7239ea 0%, #5e2fc1 100%)' }}>
+              <h3 className='card-title text-white'>
+                <KTIcon iconName='document' className='fs-2 text-white me-2' />
+                Document Request
+              </h3>
+              <div className='card-toolbar'>
+                <button
+                  type='button'
+                  className='btn btn-sm btn-icon btn-light'
+                  onClick={handleCloseModal}
+                >
+                  <KTIcon iconName='cross' className='fs-2' />
+                </button>
+              </div>
+            </div>
+            <div className='card-body text-center py-20'>
+              <KTIcon iconName='document' className='fs-3x text-primary mb-5' />
+              <h3 className='text-gray-800 mb-3'>Document Request Form</h3>
+              <p className='text-gray-600 mb-0'>Coming soon...</p>
+            </div>
+          </div>
+        )
+      default:
+        return null
+    }
   }
 
   return (
@@ -134,15 +190,15 @@ export function Overview() {
 
       {/* Quick Actions Section */}
       <div className='mb-5 mb-xl-10'>
-        <div className='d-flex align-items-center mb-5'>
+        {/* <div className='d-flex align-items-center mb-5'>
           <h3 className='fw-bolder m-0'>Quick Actions</h3>
-        </div>
+        </div> */}
         
         <div className='row g-6 g-xl-9'>
           {formCards.map((card) => (
             <div key={card.id} className='col-md-6 col-xl-3'>
               <div
-                className='card card-flush h-100 cursor-pointer'
+                className='card h-100 cursor-pointer'
                 onClick={() => handleCardClick(card.id)}
                 style={{
                   transition: 'all 0.3s ease',
@@ -162,7 +218,7 @@ export function Overview() {
                     <div className='symbol-label'>
                       <KTIcon 
                         iconName={card.icon} 
-                        className={`fs-2x text-${card.color}`} 
+                        className={`fs-2x text-${card.color}`}
                       />
                     </div>
                   </div>
@@ -171,22 +227,59 @@ export function Overview() {
                     {card.title}
                   </div>
                   
-                  <div className='fs-6 fw-semibold text-gray-500'>
+                  <div className='fs-6 fw-semibold text-gray-500 mb-6'>
                     {card.description}
                   </div>
                   
-                  <div className='mt-6'>
-                    <button className={`btn btn-sm btn-${card.color}`}>
-                      Open Form
-                      <KTIcon iconName='arrow-right' className='fs-4 ms-2' />
-                    </button>
-                  </div>
+                  <button 
+                    className={`btn btn-sm btn-${card.color}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleCardClick(card.id)
+                    }}
+                  >
+                    Open Form
+                    <KTIcon iconName='arrow-right' className='fs-4 ms-2' />
+                  </button>
                 </div>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Modal */}
+      {showModal && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className='modal-backdrop fade show'
+            onClick={handleCloseModal}
+            style={{ zIndex: 1050 }}
+          />
+          
+          {/* Modal */}
+          <div 
+            className='modal fade show' 
+            tabIndex={-1}
+            style={{ 
+              display: 'block',
+              zIndex: 1055
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleCloseModal()
+              }
+            }}
+          >
+            <div className='modal-dialog modal-dialog-centered modal-lg'>
+              <div className='modal-content border-0 shadow-lg'>
+                {renderFormContent()}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }
