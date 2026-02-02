@@ -5,74 +5,84 @@ export interface IRequest extends Document {
   supervisor_id: Types.ObjectId;
   date: Date;
   title: "OT" | "FIELD_WORK";
-  start_hour: string; // ✅ "08:00"
-  end_hour: string; // ✅ "17:30"
-  fuel?: number;   // ✅ fuel price (money)
-  date_off?: Date;        // ✅ เพิ่ม
-  description?: string;  // ✅ เพิ่ม
+  start_hour: string;
+  end_hour: string;
+  fuel: number;
+  date_off?: Date;
+  description?: string;
   reason: string;
-  
-  status: "Pending" | "Accept" | "Reject";
-  created_at: Date;
+  status: "Pending" | "Accepted" | "Rejected";
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const requestSchema = new Schema<IRequest>({
-  user_id: {
-    type: Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-  },
+const requestSchema = new Schema<IRequest>(
+  {
+    user_id: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-  supervisor_id: {
-    type: Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-  },
+    supervisor_id: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-  date: {
-    type: Date,
-    required: true,
-  },
+    date: {
+      type: Date,
+      required: true,
+    },
 
-  title: {
-    type: String,
-    enum: ["OT", "FIELD_WORK"],
-    required: true,
-  },
+    title: {
+      type: String,
+      enum: ["OT", "FIELD_WORK"],
+      required: true,
+    },
 
-  // ✅ Store as HH:mm
-  start_hour: {
-    type: String,
-    required: true,
-  },
+    start_hour: {
+      type: String,
+      required: true,
+      match: [/^\d{2}:\d{2}$/, "Invalid time format (HH:mm)"],
+    },
 
-  // ✅ Store as HH:mm
-  end_hour: {
-    type: String,
-    required: true,
-  },
-  fuel: {
-    type: Number,
-    min: [0, "Fuel price must be >= 0"],
-    default: 0,
-  },
-  reason: {
-    type: String,
-    required: [true, "Reason is required"],
-    trim: true,
-    minlength: [3, "Reason must be at least 3 characters"],
-  },
+    end_hour: {
+      type: String,
+      required: true,
+      match: [/^\d{2}:\d{2}$/, "Invalid time format (HH:mm)"],
+    },
 
-  status: {
-    type: String,
-    enum: ["Pending", "Accept", "Reject"],
-    default: "Pending",
-  },
+    fuel: {
+      type: Number,
+      min: [0, "Fuel price must be >= 0"],
+      default: 0,
+    },
 
-  created_at: {
-    type: Date,
-    default: Date.now,
-  },
-});
+    date_off: Date,
 
-export default mongoose.model<IRequest>("requestOTandFieldWork", requestSchema);
+    description: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
+
+    reason: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 3,
+    },
+
+    status: {
+      type: String,
+      enum: ["Pending", "Accepted", "Rejected"],
+      default: "Pending",
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+export default mongoose.model<IRequest>("RequestOTFieldWork", requestSchema);

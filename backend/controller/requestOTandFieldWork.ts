@@ -1,10 +1,16 @@
-// ==================== requestController.ts ====================
 import { Request, Response } from "express";
-import RequestModel from "../models/requestOTandFieldWork";
 import mongoose from "mongoose";
+import RequestModel from "../models/requestOTandFieldWork";
 
 /* ============================================================
-   Helpers
+   CONSTANTS
+============================================================ */
+
+const VALID_TITLES = ["OT", "FIELD_WORK"] as const;
+const VALID_STATUSES = ["Pending", "Accepted", "Rejected"] as const;
+
+/* ============================================================
+   HELPERS
 ============================================================ */
 
 const isValidTime = (time: string): boolean => {
@@ -18,7 +24,7 @@ const toMinutes = (time: string): number => {
 };
 
 /* ============================================================
-   CREATE
+   CREATE REQUEST
 ============================================================ */
 
 export const createRequest = async (
@@ -35,6 +41,8 @@ export const createRequest = async (
       end_hour,
       fuel,
       reason,
+      description,
+      date_off,
     } = req.body;
 
     if (
@@ -43,7 +51,8 @@ export const createRequest = async (
       !date ||
       !title ||
       !start_hour ||
-      !end_hour
+      !end_hour ||
+      !reason
     ) {
       res.status(400).json({ message: "Missing required fields" });
       return;
@@ -57,7 +66,7 @@ export const createRequest = async (
       return;
     }
 
-    if (!["OT", "FIELD_WORK"].includes(title)) {
+    if (!VALID_TITLES.includes(title)) {
       res.status(400).json({ message: "Invalid title" });
       return;
     }
@@ -68,20 +77,24 @@ export const createRequest = async (
     }
 
     if (toMinutes(end_hour) <= toMinutes(start_hour)) {
-      res.status(400).json({ message: "End time must be later than start time" });
+      res
+        .status(400)
+        .json({ message: "End time must be later than start time" });
       return;
     }
 
     let fuelPrice = 0;
     if (title === "FIELD_WORK") {
       if (fuel == null || isNaN(fuel) || Number(fuel) <= 0) {
-        res.status(400).json({ message: "Fuel price is required" });
+        res
+          .status(400)
+          .json({ message: "Fuel price is required for FIELD_WORK" });
         return;
       }
       fuelPrice = Number(fuel);
     }
 
-    const newRequest = await RequestModel.create({
+    const request = await RequestModel.create({
       user_id,
       supervisor_id,
       date,
@@ -90,12 +103,14 @@ export const createRequest = async (
       end_hour,
       fuel: fuelPrice,
       reason,
+      description,
+      date_off,
       status: "Pending",
     });
 
     res.status(201).json({
       message: "Request submitted successfully",
-      request: newRequest,
+      request,
     });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -103,196 +118,202 @@ export const createRequest = async (
 };
 
 /* ============================================================
-   READ
+   READ ALL REQUESTS (FILTER)
 ============================================================ */
+
 export const getAllRequests = async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, status, title } = req.query;
-
     const query: any = {};
 
-    // Filter by date (frontend ส่ง startDate / endDate)
     if (startDate && endDate) {
       const start = new Date(startDate as string);
       const end = new Date(endDate as string);
-      // ให้รวมวันสุดท้ายเต็มวัน
       end.setHours(23, 59, 59, 999);
-
       query.date = { $gte: start, $lte: end };
     }
 
-    // Filter by status
-    if (status && typeof status === "string") {
+    if (status && VALID_STATUSES.includes(status as any)) {
       query.status = status;
     }
 
-    // Filter by title
-    if (title && typeof title === "string") {
+    if (title && VALID_TITLES.includes(title as any)) {
       query.title = title;
     }
 
     const requests = await RequestModel.find(query)
       .populate("user_id", "first_name_en last_name_en email department_id")
       .populate("supervisor_id", "first_name_en last_name_en email")
-      .sort({ date: -1 }); // ใช้ date ไม่ใช่ created_at
+      .sort({ date: -1 });
 
     res.json({ requests });
   } catch (error: any) {
-    console.error("Error fetching requests:", error);
     res.status(500).json({ message: "Failed to fetch requests" });
   }
 };
+
+/* ============================================================
+   READ BY USER
+============================================================ */
 
 export const getRequestsByUser = async (
   req: Request,
   res: Response
 ) => {
-  const { userId } = req.params;
+  try {
+    const { userId } = req.params;
 
-  if (!mongoose.Types.ObjectId.isValid(userId)) {
-    res.status(400).json({ message: "Invalid userId" });
-    return;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).json({ message: "Invalid userId" });
+      return;
+    }
+
+    const requests = await RequestModel.find({ user_id: userId })
+      .populate("supervisor_id", "first_name_en last_name_en email")
+      .sort({ createdAt: -1 });
+
+    res.json({ requests });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
   }
-
-  const requests = await RequestModel.find({ user_id: userId })
-    .populate("supervisor_id", "first_name_en last_name_en email")
-    .sort({ created_at: -1 });
-
-  res.json({ requests });
 };
-// ในไฟล์ requestController.ts
+
+/* ============================================================
+   READ BY SUPERVISOR
+============================================================ */
+
 export const getRequestsBySupervisor = async (
   req: Request,
   res: Response
 ) => {
-  const { supervisorId } = req.params;
-
-  if (!mongoose.Types.ObjectId.isValid(supervisorId)) {
-    res.status(400).json({ message: "Invalid supervisorId" });
-    return;
-  }
-
   try {
-    // วิธีที่ 1: Populate ข้อมูลทั้งหมดของ user
+    const { supervisorId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(supervisorId)) {
+      res.status(400).json({ message: "Invalid supervisorId" });
+      return;
+    }
+
     const requests = await RequestModel.find({
       supervisor_id: supervisorId,
     })
-    .populate({
-      path: 'user_id',
-      select: '-password', // ไม่เอา password
-    })
-    .sort({ created_at: -1 });
+      .populate({
+        path: "user_id",
+        select: "-password",
+      })
+      .sort({ createdAt: -1 });
 
-    res.json({ 
+    res.json({
       message: "Successfully fetched requests",
+      count: requests.length,
       requests,
-      count: requests.length 
     });
   } catch (error: any) {
-    console.error('❌ Error in getRequestsBySupervisor:', error);
-    res.status(500).json({ 
-      message: "Error fetching supervisor requests", 
-      error: error.message 
-    });
+    res.status(500).json({ message: error.message });
   }
-};
-
-export const getRequestById = async (req: Request, res: Response) => {
-  const { id } = req.params;
-
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    res.status(400).json({ message: "Invalid request ID" });
-    return;
-  }
-
-  const request = await RequestModel.findById(id)
-    .populate("user_id", "first_name_en last_name_en email")
-    .populate("supervisor_id", "first_name_en last_name_en email");
-
-  if (!request) {
-    res.status(404).json({ message: "Request not found" });
-    return;
-  }
-
-  res.json({ request });
 };
 
 /* ============================================================
-   UPDATE
+   READ BY ID
+============================================================ */
+
+export const getRequestById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ message: "Invalid request ID" });
+      return;
+    }
+
+    const request = await RequestModel.findById(id)
+      .populate("user_id", "first_name_en last_name_en email")
+      .populate("supervisor_id", "first_name_en last_name_en email");
+
+    if (!request) {
+      res.status(404).json({ message: "Request not found" });
+      return;
+    }
+
+    res.json({ request });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ============================================================
+   UPDATE STATUS
 ============================================================ */
 
 export const updateRequestStatus = async (
   req: Request,
   res: Response
 ) => {
-  const { id } = req.params;
-  const { status } = req.body;
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
 
-  if (!["Pending", "Accept", "Reject"].includes(status)) {
-    res.status(400).json({ message: "Invalid status" });
-    return;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ message: "Invalid request ID" });
+      return;
+    }
+
+    if (!VALID_STATUSES.includes(status)) {
+      res.status(400).json({ message: "Invalid status" });
+      return;
+    }
+
+    const updated = await RequestModel.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    );
+
+    if (!updated) {
+      res.status(404).json({ message: "Request not found" });
+      return;
+    }
+
+    res.json({ message: "Status updated", request: updated });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
   }
-
-  const updated = await RequestModel.findByIdAndUpdate(
-    id,
-    { status },
-    { new: true }
-  );
-
-  res.json({ message: "Status updated", request: updated });
 };
 
-//update edit request
+/* ============================================================
+   UPDATE REQUEST (EDIT)
+============================================================ */
+
 export const updateRequest = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const {
-      title,
-      start_hour,
-      end_hour,
-      fuel,
-      reason,
-      date,
-    } = req.body;
+    const { title, start_hour, end_hour, fuel, reason, date } = req.body;
 
-    /* =====================
-       Validate ID
-    ===================== */
     if (!mongoose.Types.ObjectId.isValid(id)) {
       res.status(400).json({ message: "Invalid request ID" });
       return;
     }
 
-    /* =====================
-       Find existing request
-    ===================== */
     const existing = await RequestModel.findById(id);
     if (!existing) {
       res.status(404).json({ message: "Request not found" });
       return;
     }
 
-    /* =====================
-       Validate title
-    ===================== */
-    if (title && !["OT", "FIELD_WORK"].includes(title)) {
+    const finalTitle = title ?? existing.title;
+    if (!VALID_TITLES.includes(finalTitle)) {
       res.status(400).json({ message: "Invalid title" });
       return;
     }
 
-    const finalTitle = title ?? existing.title;
-
-    /* =====================
-       Validate time
-    ===================== */
     const finalStart = start_hour ?? existing.start_hour;
     const finalEnd = end_hour ?? existing.end_hour;
 
     if (!isValidTime(finalStart) || !isValidTime(finalEnd)) {
-      res.status(400).json({ message: "Invalid time format (HH:mm)" });
+      res.status(400).json({ message: "Invalid time format" });
       return;
     }
 
@@ -303,11 +324,7 @@ export const updateRequest = async (
       return;
     }
 
-    /* =====================
-       Fuel logic
-    ===================== */
-    let finalFuel = existing.fuel;
-
+    let finalFuel = 0;
     if (finalTitle === "FIELD_WORK") {
       if (fuel == null || isNaN(fuel) || Number(fuel) <= 0) {
         res.status(400).json({
@@ -316,14 +333,8 @@ export const updateRequest = async (
         return;
       }
       finalFuel = Number(fuel);
-    } else {
-      // OT â†’ fuel always 0
-      finalFuel = 0;
     }
 
-    /* =====================
-       Update request
-    ===================== */
     const updated = await RequestModel.findByIdAndUpdate(
       id,
       {
@@ -334,10 +345,7 @@ export const updateRequest = async (
         reason: reason ?? existing.reason,
         date: date ?? existing.date,
       },
-      {
-        new: true,
-        runValidators: true,
-      }
+      { new: true, runValidators: true }
     )
       .populate("user_id", "first_name_en last_name_en email")
       .populate("supervisor_id", "first_name_en last_name_en email");
@@ -351,7 +359,6 @@ export const updateRequest = async (
   }
 };
 
-
 /* ============================================================
    DELETE
 ============================================================ */
@@ -360,9 +367,19 @@ export const deleteRequest = async (
   req: Request,
   res: Response
 ) => {
-  const { id } = req.params;
-  const deleted = await RequestModel.findByIdAndDelete(id);
-  res.json({ message: "Request deleted", request: deleted });
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ message: "Invalid request ID" });
+      return;
+    }
+
+    const deleted = await RequestModel.findByIdAndDelete(id);
+    res.json({ message: "Request deleted", request: deleted });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 /* ============================================================
@@ -373,15 +390,19 @@ export const getRequestStats = async (
   _: Request,
   res: Response
 ) => {
-  const total = await RequestModel.countDocuments();
-  const pending = await RequestModel.countDocuments({ status: "Pending" });
-  const accepted = await RequestModel.countDocuments({ status: "Accept" });
-  const rejected = await RequestModel.countDocuments({ status: "Reject" });
+  try {
+    const total = await RequestModel.countDocuments();
+    const pending = await RequestModel.countDocuments({ status: "Pending" });
+    const accepted = await RequestModel.countDocuments({ status: "Accepted" });
+    const rejected = await RequestModel.countDocuments({ status: "Rejected" });
 
-  res.json({
-    total,
-    pending,
-    accepted,
-    rejected,
-  });
+    res.json({
+      total,
+      pending,
+      accepted,
+      rejected,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 };

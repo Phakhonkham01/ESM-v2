@@ -1,11 +1,11 @@
-import {FC, lazy, Suspense} from 'react'
-import {Navigate, Route, Routes} from 'react-router-dom'
-import {MasterLayout} from '../../_metronic/layout/MasterLayout'
+import { FC, lazy, Suspense } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { MasterLayout } from '../../_metronic/layout/MasterLayout'
 import TopBarProgress from 'react-topbar-progress-indicator'
-import {DashboardWrapper} from '../pages/dashboard/DashboardWrapper'
-import {MenuTestPage} from '../pages/MenuTestPage'
-import {getCSSVariableValue} from '../../_metronic/assets/ts/_utils'
-import {WithChildren} from '../../_metronic/helpers'
+import { DashboardWrapper } from '../pages/dashboard/DashboardWrapper'
+import { MenuTestPage } from '../pages/MenuTestPage'
+import { getCSSVariableValue } from '../../_metronic/assets/ts/_utils'
+import { WithChildren } from '../../_metronic/helpers'
 import BuilderPageWrapper from '../pages/layout-builder/BuilderPageWrapper'
 
 const PrivateRoutes = () => {
@@ -15,13 +15,10 @@ const PrivateRoutes = () => {
   const ChatPage = lazy(() => import('../modules/apps/chat/ChatPage'))
   const UsersPage = lazy(() => import('../modules/apps/user-management/UsersPage'))
   const EventsPage = lazy(() => import('../modules/apps/event/EventsPage'))
-  const RequestOT = lazy(() => import('../modules/apps/ot-filedwork-management/UsersPage'))
+  const Overtime = lazy(() => import('../modules/apps/overtime-information/UsersPage'))
   const Request = lazy(() => import('../modules/apps/request-ot-field-work/UsersPage'))
   const RequestDayOff = lazy(() => import('../modules/apps/request-day-off/UsersPage'))
-  
-  
-  
-  
+
   return (
     <Routes>
       <Route element={<MasterLayout />}>
@@ -39,8 +36,8 @@ const PrivateRoutes = () => {
               <ProfilePage />
             </SuspensedView>
           }
-        />   
-        
+        />
+
         <Route
           path='apps/event/*'
           element={
@@ -49,15 +46,18 @@ const PrivateRoutes = () => {
             </SuspensedView>
           }
         />
+
+        {/* Attendance */}
         <Route
-          path='apps/request-ot/*'
+          path='apps/overtime/*'
           element={
             <SuspensedView>
-              <RequestOT />
+              <Overtime />
             </SuspensedView>
           }
         />
-          <Route
+
+        <Route
           path='apps/request-day-off/*'
           element={
             <SuspensedView>
@@ -113,7 +113,7 @@ const PrivateRoutes = () => {
   )
 }
 
-const SuspensedView: FC<WithChildren> = ({children}) => {
+const SuspensedView: FC<WithChildren> = ({ children }) => {
   const baseColor = getCSSVariableValue('--bs-primary')
   TopBarProgress.config({
     barColors: {
@@ -125,4 +125,4 @@ const SuspensedView: FC<WithChildren> = ({children}) => {
   return <Suspense fallback={<TopBarProgress />}>{children}</Suspense>
 }
 
-export {PrivateRoutes}
+export { PrivateRoutes }
