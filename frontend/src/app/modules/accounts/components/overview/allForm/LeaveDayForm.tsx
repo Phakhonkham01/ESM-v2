@@ -229,9 +229,9 @@ const matchingSupervisors = useMemo(() => {
     return (
         <div className='card'>
             {/* Header */}
-            <div className='card-header' style={{ background: 'linear-gradient(135deg, #17c653 0%, #14b047 100%)' }}>
-                <h3 className='card-title text-white'>
-                    <KTIcon iconName='calendar' className='fs-2 text-white me-2' />
+            <div className='card-header'>
+                <h3 className='card-title'>
+                    <KTIcon iconName='calendar' className='fs-2 text-primary me-2' />
                     Leave Day Request
                 </h3>
                 <div className='card-toolbar'>
