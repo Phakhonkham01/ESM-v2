@@ -4,8 +4,8 @@ import {UsersListWrapper} from './users-list/UsersList'
 
 const usersBreadcrumbs: Array<PageLink> = [
   {
-    title: 'Request OT',
-    path: '/apps/request-ot',
+    title: 'overtime',
+    path: '/apps/overtime',
     isSeparator: false,
     isActive: false,
   },
@@ -17,23 +17,23 @@ const usersBreadcrumbs: Array<PageLink> = [
   },
 ]
 
-const RequestOT = () => {
+const Overtime = () => {
   return (
     <Routes>
       <Route element={<Outlet />}>
         <Route
-          path='ot'
+          path='overtime'
           element={
             <>
-              <PageTitle breadcrumbs={usersBreadcrumbs}>Request OT</PageTitle>
+              <PageTitle breadcrumbs={usersBreadcrumbs}>Overtime</PageTitle>
               <UsersListWrapper />
             </>
           }
         />
       </Route>
-      <Route index element={<Navigate to='/apps/request-ot/ot'/>} />
+      <Route index element={<Navigate to='/apps/overtime/overtime'/>} />
     </Routes>
   )
 }
 
-export default RequestOT
+export default Overtime

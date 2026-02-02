@@ -14,30 +14,30 @@ import {
 
 const router = express.Router();
 
-/**
- * CREATE
- * POST /api/requests
- */
+/* ============================================================
+   CREATE
+   POST /api/requests
+============================================================ */
 router.post("/", createRequest);
 
-/**
- * READ
- */
+/* ============================================================
+   READ
+============================================================ */
 router.get("/", getAllRequests);
+router.get("/analytics/stats", getRequestStats);
 router.get("/user/:userId", getRequestsByUser);
 router.get("/supervisor/:supervisorId", getRequestsBySupervisor);
-router.get("/analytics/stats", getRequestStats);
 router.get("/:id", getRequestById);
 
-/**
- * UPDATE
- */
+/* ============================================================
+   UPDATE
+============================================================ */
 router.put("/:id/status", updateRequestStatus);
 router.put("/:id", updateRequest);
 
-/**
- * DELETE
- */
+/* ============================================================
+   DELETE
+============================================================ */
 router.delete("/:id", deleteRequest);
 
 export default router;
