@@ -1,124 +1,135 @@
+// supervisor-day-off/users-list/table/columns/_columns.tsx
 import { Column } from 'react-table'
-import { UserInfoCell } from './UserInfoCell'
-import { UserEmailCell } from './UserEmailCell'
-import { UserLeaveDaysCell } from './UserLeaveDaysCell'
-import { UserActionsCell } from './UserActionsCell'
-import { UserStatusCell } from './UserStatusCell'
-import { UserCustomHeader } from './UserCustomHeader'
-import { UserDepartmentCell } from './UserDepartmentCell'
-import { UserPositionCell } from './UserPositionCell' // ✅ เพิ่มบรรทัดนี้
-import { User } from '../../core/_models'
+import { DayOffItem } from '../../core/_models'
+import { DayOffInfoCell } from './DayOffInfoCell'
+import { DayOffActionsCell } from './DayOffActionsCell'
+import { DayOffStatusCell } from './DayOffStatusCell'
+import { DayOffCustomHeader } from './DayOffCustomHeader'
+import { getEmployeeDisplayName, formatDate } from '../../core/_requests'
 
-const usersColumns: ReadonlyArray<Column<User>> = [
-  // NO (ไม่ sortable)
+const dayOffColumns: ReadonlyArray<Column<DayOffItem>> = [
+  // NO
   {
     Header: () => <th className="min-w-50px text-center">No</th>,
     id: 'no',
     Cell: ({ row }) => <div className="text-center">{row.index + 1}</div>,
   },
 
-  // ✅ แก้ไข Name ให้แสดง Full Name (EN)
+  // Employee
   {
     Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Name" className="min-w-150px" />
+      <DayOffCustomHeader tableProps={props} title="Employee" className="min-w-150px" />
     ),
-    id: 'user_name',
-    accessor: 'user_name',
+    id: 'employee',
     Cell: ({ row }) => {
-      const user = row.original
-      // แสดง first_name + last_name ถ้ามี, ไม่งั้นแสดง user_name
-      const displayName = user.first_name_en && user.last_name_en
-        ? `${user.first_name_en} ${user.last_name_en}`
-        : user.user_name
-      return <UserInfoCell name={displayName} />
-    },
+      const item = row.original
+      const employeeName = getEmployeeDisplayName(item)
+      return (
+        <div className="d-flex align-items-center">
+          <div className="symbol symbol-50px me-5">
+            <span className="symbol-label bg-light-primary">
+              <span className="svg-icon svg-icon-2x svg-icon-primary">
+                <i className="fas fa-user fs-2"></i>
+              </span>
+            </span>
+          </div>
+          <div className="d-flex flex-column">
+            <span className="text-gray-800 fw-bold">{employeeName}</span>
+            <span className="text-muted fw-semibold d-block fs-7">
+              {typeof item.employee_id === 'object' && item.employee_id.employee_id 
+                ? `ID: ${item.employee_id.employee_id}`
+                : ''}
+            </span>
+          </div>
+        </div>
+      )
+    }
   },
 
-  // Role
+  // Type
   {
     Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Role" className="min-w-100px" />
+      <DayOffCustomHeader tableProps={props} title="Type" className="min-w-100px" />
     ),
-    accessor: 'role',
+    accessor: 'day_off_type',
     Cell: ({ value }) => (
-      <div className="badge badge-light-primary fw-bold">
-        {value?.toUpperCase()}
+      <div className={`badge badge-light-${value === 'HALF_DAY' ? 'warning' : 'info'}`}>
+        {value === 'HALF_DAY' ? 'Half Day' : 'Full Day'}
       </div>
-    ),
+    )
   },
 
-  // Email
+  // Start Date
   {
     Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Email" className="min-w-150px" />
+      <DayOffCustomHeader tableProps={props} title="Start Date" className="min-w-100px" />
     ),
-    accessor: 'user_email',
-    Cell: ({ value }) => <UserEmailCell email={value} />,
-  },
-
-  // Department
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Department" className="min-w-125px" />
-    ),
-    accessor: 'department_id',
-    Cell: ({ value }) => <UserDepartmentCell department_id={value} />,
-  },
-
-  // ✅ เพิ่ม Position Column
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Position" className="min-w-125px" />
-    ),
-    accessor: 'position_id',
-    Cell: ({ value, row }) => {
-      // แสดง position เฉพาะ employee เท่านั้น
-      if (row.original.role !== 'employee') {
-        return <div className="text-muted">-</div>
-      }
-      return <UserPositionCell position_id={value} />
-    },
-  },
-
-  // ✅ เพิ่ม Gender Column (Optional)
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Gender" className="min-w-80px" />
-    ),
-    accessor: 'gender',
+    accessor: 'start_date_time',
     Cell: ({ value }) => (
-      <div className="">
-        {value === 'male' ? 'Male' : value === 'female' ? 'Female' : 'Other'}
-      </div>
-    ),
+      <span className="text-gray-700 fw-bold">
+        {formatDate(value)}
+      </span>
+    )
   },
 
-  // Leave Days
+  // End Date
   {
     Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Leave Days" className="min-w-100px" />
+      <DayOffCustomHeader tableProps={props} title="End Date" className="min-w-100px" />
     ),
-    accessor: 'leave_days',
-    Cell: ({ value }) => <UserLeaveDaysCell leave_days={value} />,
+    accessor: 'end_date_time',
+    Cell: ({ value }) => (
+      <span className="text-gray-700 fw-bold">
+        {formatDate(value)}
+      </span>
+    )
+  },
+
+  // Duration
+  {
+    Header: (props) => (
+      <DayOffCustomHeader tableProps={props} title="Duration" className="min-w-100px" />
+    ),
+    accessor: 'date_off_number',
+    Cell: ({ value }) => (
+      <span className="fw-bold">
+        {value === 0.5 ? '0.5' : value} day(s)
+      </span>
+    )
+  },
+
+  // Reason
+  {
+    Header: (props) => (
+      <DayOffCustomHeader tableProps={props} title="Reason" className="min-w-150px" />
+    ),
+    accessor: 'title',
+    Cell: ({ value }) => (
+      <div className="w-150px min-w-100px">
+        <div className="text-dark fw-bold text-hover-primary mb-1 fs-6" title={value}>
+          {value.length > 30 ? `${value.substring(0, 30)}...` : value}
+        </div>
+      </div>
+    )
   },
 
   // Status
   {
     Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Status" className="min-w-100px" />
+      <DayOffCustomHeader tableProps={props} title="Status" className="min-w-100px" />
     ),
     accessor: 'status',
-    Cell: ({ value }) => <UserStatusCell status={value} />,
+    Cell: ({ value }) => <DayOffStatusCell status={value} />
   },
 
   // Actions
   {
     Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Actions" className="text-end min-w-100px" />
+      <DayOffCustomHeader tableProps={props} title="Actions" className="text-end min-w-150px" />
     ),
     id: 'actions',
-    Cell: ({ row }) => <UserActionsCell id={row.original.id} />,
+    Cell: ({ row }) => <DayOffActionsCell item={row.original} />,
   },
 ]
 
-export { usersColumns }
+export { dayOffColumns }

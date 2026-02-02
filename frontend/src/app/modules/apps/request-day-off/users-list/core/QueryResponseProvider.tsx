@@ -1,3 +1,4 @@
+// supervisor-day-off/users-list/core/QueryResponseProvider.tsx
 /* eslint-disable react-refresh/only-export-components */
 /* eslint-disable react-hooks/exhaustive-deps */
 import {FC, useContext, useState, useEffect, useMemo} from 'react'
@@ -11,11 +12,11 @@ import {
   stringifyRequestQuery,
   WithChildren,
 } from '../../../../../../_metronic/helpers'
-import {getUsers} from './_requests'
-import {User} from './_models'
+import {DayOffItem} from './_models'
+import {getDayOffRequests} from './_requests'
 import {useQueryRequest} from './QueryRequestProvider'
 
-const QueryResponseContext = createResponseContext<User>(initialQueryResponse)
+const QueryResponseContext = createResponseContext<DayOffItem>(initialQueryResponse)
 const QueryResponseProvider: FC<WithChildren> = ({children}) => {
   const {state} = useQueryRequest()
   const [query, setQuery] = useState<string>(stringifyRequestQuery(state))
@@ -32,9 +33,9 @@ const QueryResponseProvider: FC<WithChildren> = ({children}) => {
     refetch,
     data: response,
   } = useQuery(
-    `${QUERIES.USERS_LIST}-${query}`,
+    `${QUERIES.DAY_OFF_LIST}-${query}`,
     () => {
-      return getUsers(query)
+      return getDayOffRequests(query)
     },
     {cacheTime: 0, keepPreviousData: true, refetchOnWindowFocus: false}
   )
@@ -71,6 +72,21 @@ const useQueryResponsePagination = () => {
   return response.payload.pagination
 }
 
+const useQueryResponseStats = () => {
+  const {response} = useQueryResponse()
+  return response?.payload?.stats || {
+    pending: 0,
+    accepted: 0,
+    rejected: 0,
+    total: 0
+  }
+}
+
+const useQueryResponseSupervisor = () => {
+  const {response} = useQueryResponse()
+  return response?.payload?.supervisor || null
+}
+
 const useQueryResponseLoading = (): boolean => {
   const {isLoading} = useQueryResponse()
   return isLoading
@@ -81,5 +97,7 @@ export {
   useQueryResponse,
   useQueryResponseData,
   useQueryResponsePagination,
+  useQueryResponseStats,
+  useQueryResponseSupervisor,
   useQueryResponseLoading,
 }

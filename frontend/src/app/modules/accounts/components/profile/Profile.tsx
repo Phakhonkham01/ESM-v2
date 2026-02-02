@@ -273,7 +273,7 @@ const ProfileWithContext = () => {
                     </div>
 
                     {/* Base Salary */}
-                    {/* {userProfile.base_salary && userProfile.base_salary > 0 && (
+                    {userProfile.base_salary && userProfile.base_salary > 0 && (
                         <div className='row mb-7'>
                             <label className='col-lg-4 fw-bold text-muted'>Base Salary</label>
                             <div className='col-lg-8'>
@@ -282,7 +282,7 @@ const ProfileWithContext = () => {
                                 </span>
                             </div>
                         </div>
-                    )} */}
+                    )}
 
                     {/* Created At */}
                     <div className='row mb-10'>
