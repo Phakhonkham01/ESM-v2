@@ -106,6 +106,12 @@ export function AsideMenuMain() {
         title='Request Day-Off'
         fontIcon='bi-layers'
       />
+          <AsideMenuItem
+        to='/apps/request-ot'
+        icon='people'
+        title='Request OT'
+        fontIcon='bi-layers'
+      />
       <AsideMenuItem
         to='/crafted/account/overview'
         icon='calendar-edit'

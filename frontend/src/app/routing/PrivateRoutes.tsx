@@ -15,6 +15,7 @@ const PrivateRoutes = () => {
   const ChatPage = lazy(() => import('../modules/apps/chat/ChatPage'))
   const UsersPage = lazy(() => import('../modules/apps/user-management/UsersPage'))
   const EventsPage = lazy(() => import('../modules/apps/event/EventsPage'))
+  const RequestOT = lazy(() => import('../modules/apps/ot-filedwork-management/UsersPage'))
   const Request = lazy(() => import('../modules/apps/request-ot-field-work/UsersPage'))
   const RequestDayOff = lazy(() => import('../modules/apps/request-day-off/UsersPage'))
   
@@ -45,6 +46,14 @@ const PrivateRoutes = () => {
           element={
             <SuspensedView>
               <EventsPage />
+            </SuspensedView>
+          }
+        />
+        <Route
+          path='apps/request-ot/*'
+          element={
+            <SuspensedView>
+              <RequestOT />
             </SuspensedView>
           }
         />
