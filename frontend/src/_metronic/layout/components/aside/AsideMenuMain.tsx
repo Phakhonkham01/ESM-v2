@@ -107,16 +107,16 @@ export function AsideMenuMain() {
         fontIcon='bi-layers'
       />
 
-      {/* Atteendace management sidber */}
+      {/* Atteendace management sidebar */}
       <AsideMenuItemWithSub
-        to='/crafted/pages2'
+        to=''
         title='Attendance management'
         fontIcon='bi-archive'
         icon='element-plus'
       >
         <AsideMenuItem
           to='/apps/attendace'
-          title='Attendance'
+          title='Attendance information'
           hasBullet={true}
         />
         <AsideMenuItem
@@ -129,7 +129,13 @@ export function AsideMenuMain() {
           title='Field Work information'
           hasBullet={true}
         />
+        <AsideMenuItem
+          to='/apps/day-off'
+          title='Dayoff information'
+          hasBullet={true}
+        />
       </AsideMenuItemWithSub>
+      {/* End Atteendace management sidebar */}
 
       <AsideMenuItem
         to='/crafted/account/overview'

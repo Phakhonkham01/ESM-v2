@@ -15,7 +15,12 @@ const PrivateRoutes = () => {
   const ChatPage = lazy(() => import('../modules/apps/chat/ChatPage'))
   const UsersPage = lazy(() => import('../modules/apps/user-management/UsersPage'))
   const EventsPage = lazy(() => import('../modules/apps/event/EventsPage'))
+  // Attendance
+  const Attendace = lazy(() => import('../modules/apps/attendace-information/UsersPage'))
+  const FieldWork = lazy(() => import('../modules/apps/field-work-information/UsersPage'))
   const Overtime = lazy(() => import('../modules/apps/overtime-information/UsersPage'))
+  const DayOff = lazy(() => import('../modules/apps/day-off-information/UsersPage'))
+  // End Attendance
   const Request = lazy(() => import('../modules/apps/request-ot-field-work/UsersPage'))
   const RequestDayOff = lazy(() => import('../modules/apps/request-day-off/UsersPage'))
 
@@ -56,6 +61,32 @@ const PrivateRoutes = () => {
             </SuspensedView>
           }
         />
+        <Route
+          path='apps/attendace/*'
+          element={
+            <SuspensedView>
+              <Attendace />
+            </SuspensedView>
+          }
+        />
+        <Route
+          path='apps/field-work/*'
+          element={
+            <SuspensedView>
+              <FieldWork />
+            </SuspensedView>
+          }
+        />
+        <Route
+          path='apps/day-off/*'
+          element={
+            <SuspensedView>
+              <DayOff />
+            </SuspensedView>
+          }
+        />
+
+        {/* End Attendance */}
 
         <Route
           path='apps/request-day-off/*'

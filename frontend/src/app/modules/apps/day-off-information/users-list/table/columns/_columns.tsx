@@ -12,7 +12,7 @@ import { User } from '../../core/_models'
 const usersColumns: ReadonlyArray<Column<User>> = [
   // NO (ไม่ sortable)
   {
-    Header: () => <th className="min-w-50px text-center">No1</th>,
+    Header: () => <th className="min-w-50px text-center">No</th>,
     id: 'no',
     Cell: ({ row }) => <div className="text-center">{row.index + 1}</div>,
   },
@@ -34,6 +34,19 @@ const usersColumns: ReadonlyArray<Column<User>> = [
     },
   },
 
+  // Role
+  {
+    Header: (props) => (
+      <UserCustomHeader tableProps={props} title="Role" className="min-w-100px" />
+    ),
+    accessor: 'role',
+    Cell: ({ value }) => (
+      <div className="badge badge-light-primary fw-bold">
+        {value?.toUpperCase()}
+      </div>
+    ),
+  },
+
   // Email
   {
     Header: (props) => (
@@ -52,10 +65,38 @@ const usersColumns: ReadonlyArray<Column<User>> = [
     Cell: ({ value }) => <UserDepartmentCell department_id={value} />,
   },
 
-  // Hour
+  // ✅ เพิ่ม Position Column
   {
     Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Hour" className="min-w-100px" />
+      <UserCustomHeader tableProps={props} title="Position" className="min-w-125px" />
+    ),
+    accessor: 'position_id',
+    Cell: ({ value, row }) => {
+      // แสดง position เฉพาะ employee เท่านั้น
+      if (row.original.role !== 'employee') {
+        return <div className="text-muted">-</div>
+      }
+      return <UserPositionCell position_id={value} />
+    },
+  },
+
+  // ✅ เพิ่ม Gender Column (Optional)
+  {
+    Header: (props) => (
+      <UserCustomHeader tableProps={props} title="Gender" className="min-w-80px" />
+    ),
+    accessor: 'gender',
+    Cell: ({ value }) => (
+      <div className="">
+        {value === 'male' ? 'Male' : value === 'female' ? 'Female' : 'Other'}
+      </div>
+    ),
+  },
+
+  // Leave Days
+  {
+    Header: (props) => (
+      <UserCustomHeader tableProps={props} title="Leave Days" className="min-w-100px" />
     ),
     accessor: 'leave_days',
     Cell: ({ value }) => <UserLeaveDaysCell leave_days={value} />,
