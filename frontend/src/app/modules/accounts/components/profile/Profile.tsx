@@ -37,10 +37,10 @@ const ProfileWithContext = () => {
     const formatDate = (date?: string | Date) => {
         if (!date) return '-'
         const d = new Date(date)
-        return d.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
+        return d.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
         })
     }
 
@@ -64,36 +64,36 @@ const ProfileWithContext = () => {
 
     const formatDepartments = (department_id?: any) => {
         if (!department_id) return 'No Department'
-        
+
         // ถ้าเป็น array
         if (Array.isArray(department_id)) {
             if (department_id.length === 0) return 'No Department'
-            
+
             // แสดงชื่อ department
             const departmentNames = department_id
                 .map(dept => typeof dept === 'object' ? dept.department_name : dept)
                 .filter(Boolean)
                 .join(', ')
-            
+
             return departmentNames || `${department_id.length} Department(s)`
         }
-        
+
         // ถ้าเป็น object
         if (typeof department_id === 'object' && department_id.department_name) {
             return department_id.department_name
         }
-        
+
         return 'No Department'
     }
 
     const formatPosition = (position_id?: any) => {
         if (!position_id) return 'No Position'
-        
+
         // ถ้าเป็น object
         if (typeof position_id === 'object' && position_id.position_name) {
             return position_id.position_name
         }
-        
+
         return 'No Position'
     }
 
@@ -119,7 +119,7 @@ const ProfileWithContext = () => {
                     <div className='alert alert-danger'>
                         {error}
                     </div>
-                    <button 
+                    <button
                         className='btn btn-primary'
                         onClick={() => window.location.reload()}
                     >
@@ -283,6 +283,16 @@ const ProfileWithContext = () => {
                             </div>
                         </div>
                     )}
+                    <div className='row mb-7'>
+                        <label className='col-lg-4 fw-bold text-muted'>Base Salary</label>
+                        <div className='col-lg-8'>
+                            <span className='fw-bold fs-6 text-primary'>
+                                {userProfile.base_salary
+                                    ? `${(userProfile.base_salary).toLocaleString('en-US')} LAK`
+                                    : '0 LAK'}
+                            </span>
+                        </div>
+                    </div>
 
                     {/* Created At */}
                     <div className='row mb-10'>

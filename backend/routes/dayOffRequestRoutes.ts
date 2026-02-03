@@ -14,10 +14,10 @@ const router = express.Router();
 // POST /api/day-off-requests
 router.post("/", createDayOffRequest);
 
-router.get("/allrequests", getAllDayOffRequests);
+router.get("/", getAllDayOffRequests);
 
 // GET /api/day-off-requests/user/:userId
-router.get("/allusers", getDayOffRequestsAllUser);
+router.get("/all-users", getDayOffRequestsAllUser);
 
 // GET /api/day-off-requests/user/:userId
 router.get("/user/:userId", getDayOffRequestsByUser);

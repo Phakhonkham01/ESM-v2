@@ -39,7 +39,7 @@ export const createDayOffRequest = async (
   try {
     const {
       user_id,
-      supervisor_id,
+      supervisor_id, // รับเป็น array
       employee_id,
       day_off_type,
       start_date_time,
@@ -47,10 +47,12 @@ export const createDayOffRequest = async (
       title,
     } = req.body;
 
-    // ================= VALIDATION =================
+    // Validation - ตรวจสอบว่าเป็น array
     if (
       !user_id ||
       !supervisor_id ||
+      !Array.isArray(supervisor_id) ||
+      supervisor_id.length === 0 ||
       !employee_id ||
       !day_off_type ||
       !start_date_time ||
@@ -100,7 +102,7 @@ export const createDayOffRequest = async (
     // ================= CREATE REQUEST =================
     const request = await DayOffRequestModel.create({
       user_id,
-      supervisor_id,
+      supervisor_id, // บันทึกเป็น array
       employee_id,
       day_off_type,
       start_date_time,

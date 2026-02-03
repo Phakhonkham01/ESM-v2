@@ -1,9 +1,9 @@
 import React from 'react'
-import {Navigate, Outlet, Route, Routes} from 'react-router-dom'
-import {PageLink, PageTitle} from '../../../_metronic/layout/core'
-import {Overview} from './components/overview/Overview'
-import {Settings} from './components/settings/Settings'
-import {AccountHeader} from './AccountHeader'
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { PageLink, PageTitle } from '../../../_metronic/layout/core'
+import { Overview } from './components/overview/Overview'
+import { Settings } from './components/settings/Settings'
+import { AccountHeader } from './AccountHeader'
 import Profile from './components/profile/Profile'
 import ViewPaySlip from './components/viewpayslip/ViewPaySlip'
 
@@ -43,20 +43,20 @@ const AccountPage: React.FC = () => {
           }
         />
         <Route
-        path='profile'
-        element={
-          <>
-          <Profile/>
-          </>
-        }
+          path='profile'
+          element={
+            <>
+              <Profile />
+            </>
+          }
         />
         <Route
-        path='viewpayslip'
-        element={
-          <>
-          <ViewPaySlip/>
-          </>
-        }
+          path='viewpayslip'
+          element={
+            <>
+              <ViewPaySlip />
+            </>
+          }
         />
         <Route
           path='settings'

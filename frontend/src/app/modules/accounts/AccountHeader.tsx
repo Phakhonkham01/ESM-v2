@@ -42,9 +42,9 @@ const AccountHeader: React.FC = () => {
 
   const getPosition = () => {
     if (!userProfile?.position_id) return 'Employee'
-    if (typeof userProfile.position_id === 'object' && 
-        userProfile.position_id !== null && 
-        'position_name' in userProfile.position_id) {
+    if (typeof userProfile.position_id === 'object' &&
+      userProfile.position_id !== null &&
+      'position_name' in userProfile.position_id) {
       return userProfile.position_id.position_name
     }
     return 'Employee'
@@ -52,21 +52,21 @@ const AccountHeader: React.FC = () => {
 
   const getLocation = () => {
     if (!userProfile?.department_id) return 'Vientiane, Laos'
-    
+
     if (Array.isArray(userProfile.department_id) && userProfile.department_id.length > 0) {
       const dept = userProfile.department_id[0]
       if (typeof dept === 'object' && dept !== null && 'department_name' in dept) {
         return dept.department_name
       }
     }
-    
-    if (typeof userProfile.department_id === 'object' && 
-        userProfile.department_id !== null && 
-        !Array.isArray(userProfile.department_id) && 
-        'department_name' in userProfile.department_id) {
+
+    if (typeof userProfile.department_id === 'object' &&
+      userProfile.department_id !== null &&
+      !Array.isArray(userProfile.department_id) &&
+      'department_name' in userProfile.department_id) {
       return userProfile.department_id.department_name
     }
-    
+
     return 'Vientiane, Laos'
   }
 
@@ -76,7 +76,7 @@ const AccountHeader: React.FC = () => {
 
   const getProfileCompletion = () => {
     if (!userProfile) return 0
-    
+
     const fields = [
       userProfile.first_name_en,
       userProfile.last_name_en,
@@ -87,7 +87,7 @@ const AccountHeader: React.FC = () => {
       userProfile.position_id,
       userProfile.start_work,
     ]
-    
+
     const completedFields = fields.filter(field => field !== null && field !== undefined && field !== '').length
     return Math.round((completedFields / fields.length) * 100)
   }
@@ -114,7 +114,7 @@ const AccountHeader: React.FC = () => {
           <div className='d-flex flex-wrap flex-sm-nowrap mb-3'>
             <div className='me-7 mb-4'>
               <div className='symbol symbol-100px symbol-lg-160px symbol-fixed position-relative'>
-                <div 
+                <div
                   className='symbol-label fs-3x fw-bold text-white'
                   style={{
                     backgroundColor: '#17c653',
@@ -143,7 +143,7 @@ const AccountHeader: React.FC = () => {
                     <a href='#'>
                       <KTIcon iconName='verify' className='fs-1 text-primary' />
                     </a>
-                    {userProfile?.role === 'employee' && (
+                    {/* {userProfile?.role === 'employee' && (
                       <a
                         href='#'
                         className='btn btn-sm btn-light-success fw-bolder ms-2 fs-8 py-1 px-3'
@@ -152,7 +152,7 @@ const AccountHeader: React.FC = () => {
                       >
                         Upgrade to Pro
                       </a>
-                    )}
+                    )} */}
                   </div>
 
                   <div className='d-flex flex-wrap fw-bold fs-6 mb-4 pe-2'>
@@ -219,8 +219,8 @@ const AccountHeader: React.FC = () => {
                       <div className='d-flex align-items-center'>
                         <KTIcon iconName='arrow-up' className='fs-3 text-success me-2' />
                         <div className='fs-2 fw-bolder'>
-                          {userProfile?.base_salary 
-                            ? `${(userProfile.base_salary / 1000).toFixed(0)}K` 
+                          {userProfile?.base_salary
+                            ? `${(userProfile.base_salary).toLocaleString('en-US')} LAK`
                             : '-'}
                         </div>
                       </div>
@@ -239,13 +239,23 @@ const AccountHeader: React.FC = () => {
                     {/* Status */}
                     <div className='border border-gray-300 border-dashed rounded min-w-125px py-3 px-4 me-6 mb-3'>
                       <div className='d-flex align-items-center'>
-                        <KTIcon 
-                          iconName={userProfile?.status === 'Active' ? 'check-circle' : 'information'} 
-                          className={`fs-3 me-2 ${userProfile?.status === 'Active' ? 'text-success' : 'text-warning'}`} 
+                        <KTIcon
+                          iconName={userProfile?.status === 'Active' ? 'check-circle' : 'information'}
+                          className={`fs-3 me-2 ${userProfile?.status === 'Active' ? 'text-success' : 'text-warning'}`}
                         />
                         <div className='fs-2 fw-bolder'>{userProfile?.status || 'Active'}</div>
                       </div>
                       <div className='fw-bold fs-6 text-gray-500'>Status</div>
+                    </div>
+                    <div className='border border-gray-300 border-dashed rounded min-w-125px py-3 px-4 me-6 mb-3'>
+                      <div className='d-flex align-items-center'>
+                        <KTIcon
+                          iconName={userProfile?.role === 'employee' ? 'check-circle' : 'information'}
+                          className={`fs-3 me-2 ${userProfile?.role === 'employee' ? 'text-success' : 'text-warning'}`}
+                        />
+                        <div className='fs-2 fw-bolder'>{userProfile?.role || 'User'}</div>
+                      </div>
+                      <div className='fw-bold fs-6 text-gray-500'>Role</div>
                     </div>
                   </div>
                 </div>
@@ -276,13 +286,7 @@ const AccountHeader: React.FC = () => {
                     (location.pathname === '/crafted/account/overview' && 'active')
                   }
                   to='/crafted/account/overview'
-                  style={{
-                    borderBottom: location.pathname === '/crafted/account/overview'
-                      ? '5px solid #17c653'
-                      : '5px solid transparent',
-                    paddingBottom: '1.25rem',
-                    transition: 'all 0.3s ease'
-                  }}
+                 
                 >
                   Overview
                 </Link>
@@ -294,13 +298,7 @@ const AccountHeader: React.FC = () => {
                     (location.pathname === '/crafted/account/profile' && 'active')
                   }
                   to='/crafted/account/profile'
-                  style={{
-                    borderBottom: location.pathname === '/crafted/account/profile'
-                      ? '5px solid #17c653'
-                      : '5px solid transparent',
-                    paddingBottom: '1.25rem',
-                    transition: 'all 0.3s ease'
-                  }}
+                 
                 >
                   Profile
                 </Link>
@@ -312,18 +310,25 @@ const AccountHeader: React.FC = () => {
                     (location.pathname === '/crafted/account/viewpayslip' && 'active')
                   }
                   to='/crafted/account/viewpayslip'
-                  style={{
-                    borderBottom: location.pathname === '/crafted/account/viewpayslip'
-                      ? '5px solid #17c653'
-                      : '5px solid transparent',
-                    paddingBottom: '1.25rem',
-                    transition: 'all 0.3s ease'
-                  }}
+                  
                 >
                   Viewpayslip
                 </Link>
               </li>
+              {/* <li className='nav-item'>
+                <Link
+                  className={
+                    `nav-link text-active-primary me-6 ` +
+                    (location.pathname === '/crafted/account/settings' && 'active')
+                  }
+                  to='/crafted/account/settings'
+                >
+                  Settings22222
+                </Link>
+              </li> */}
             </ul>
+
+
           </div>
         </div>
       </div>
