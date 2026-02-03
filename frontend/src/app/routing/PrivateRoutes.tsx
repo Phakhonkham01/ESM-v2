@@ -18,7 +18,7 @@ const PrivateRoutes = () => {
   const EventsPage = lazy(() => import('../modules/apps/event/EventsPage'))
   const Overtime = lazy(() => import('../modules/apps/overtime-information/UsersPage'))
   const Request = lazy(() => import('../modules/apps/request-ot-field-work/UsersPage'))
-  const RequestDayOff = lazy(() => import('../modules/apps/request-day-off/UsersPage'))
+  
   const RequestDayOffUser = lazy(() => import('../modules/apps/request-day-off-user/UsersPage'))
 
   const SupervosorDayOffPage = lazy(() => import('../modules/apps/request-day-off/SupervisorDayOffPage'))

@@ -29,4 +29,4 @@ const DayOffActionsCell: FC<Props> = ({ dayOff }) => {
   )
 }
 
-export { DayOffActionsCell }
+export { DayOffActionsCell }  

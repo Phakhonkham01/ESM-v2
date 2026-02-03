@@ -216,7 +216,42 @@ export const getDayOffRequestsAllUser = async (
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+// ✅ เพิ่มฟังก์ชันนี้
+export const getDayOffRequestById = async (
+  req: Request,
+  res: Response,
+  next: Function
+): Promise<void> => {
+  try {
+    const { id } = req.params
 
+    const request = await DayOffRequestModel.findById(id)
+      .populate({
+        path: 'employee_id',
+        select: 'employee_id first_name_en last_name_en email',
+      })
+      .populate({
+        path: 'supervisor_id',
+        select: 'employee_id first_name_en last_name_en email',
+      })
+      .lean()
+
+    if (!request) {
+      res.status(404).json({
+        success: false,
+        message: 'Day off request not found',
+      })
+      return
+    }
+
+    res.status(200).json({
+      success: true,
+      data: request,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
 /**
  * ======================================================
  * GET ALL DAY OFF REQUESTS
