@@ -11,7 +11,7 @@ const UsersListHeader = () => {
       {/* begin::Card toolbar */}
       <div className='card-toolbar'>
         {/* begin::Group actions */}
-        <h1>dnfivjnbdjivbn</h1>
+        <h1></h1>
         {/* end::Group actions */}
       </div>
       {/* end::Card toolbar */}

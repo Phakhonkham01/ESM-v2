@@ -19,14 +19,14 @@ const dayOffColumns: ReadonlyArray<Column<DayOffRequest>> = [
     id: 'employee_name',
     Cell: ({ row }) => {
       const name = getEmployeeDisplayName(row.original)
-      return <div className="fw-bold text-gray-800">{name}</div>
+      return <div className="fw-bold ">{name}</div>
     },
   },
 
   // Type
   {
     Header: (props) => (
-      <DayOffCustomHeader tableProps={props} title="Type" className="min-w-100px" />
+      <DayOffCustomHeader tableProps={props} title="Type" className="" />
     ),
     accessor: 'day_off_type',
     Cell: ({ value }) => (
@@ -46,7 +46,7 @@ const dayOffColumns: ReadonlyArray<Column<DayOffRequest>> = [
       <DayOffCustomHeader tableProps={props} title="Start Date" className="min-w-125px" />
     ),
     accessor: 'start_date_time',
-    Cell: ({ value }) => <div className="text-gray-800">{formatDate(value)}</div>,
+    Cell: ({ value }) => <div className="">{formatDate(value)}</div>,
   },
 
   // End Date
@@ -55,7 +55,7 @@ const dayOffColumns: ReadonlyArray<Column<DayOffRequest>> = [
       <DayOffCustomHeader tableProps={props} title="End Date" className="min-w-125px" />
     ),
     accessor: 'end_date_time',
-    Cell: ({ value }) => <div className="text-gray-800">{formatDate(value)}</div>,
+    Cell: ({ value }) => <div className="">{formatDate(value)}</div>,
   },
 
   // Duration
@@ -65,7 +65,7 @@ const dayOffColumns: ReadonlyArray<Column<DayOffRequest>> = [
     ),
     accessor: 'date_off_number',
     Cell: ({ value }) => (
-      <div className="badge badge-light-dark">
+      <div className="">
         {value === 0.5 ? '0.5' : value} day(s)
       </div>
     ),
@@ -78,7 +78,7 @@ const dayOffColumns: ReadonlyArray<Column<DayOffRequest>> = [
     ),
     accessor: 'title',
     Cell: ({ value }) => (
-      <div className="text-gray-700" title={value}>
+      <div className="" title={value}>
         {value.length > 50 ? `${value.substring(0, 50)}...` : value}
       </div>
     ),

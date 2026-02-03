@@ -6,7 +6,7 @@ import {UsersListHeader} from './components/header/UsersListHeader'
 import {DayOffTable} from './table/DayOffTable'
 // import {DayOffEditModal} from './user-edit-modal/UserEditModalForm'
 import {KTCard} from '../../../../../_metronic/helpers'
-
+import { DayOffViewModal } from './user-edit-modal/DayOffViewModal' // ✅ Import Modal
 const SupervisorDayOffList = () => {
   const {itemIdForUpdate} = useListView()
   return (
@@ -15,7 +15,7 @@ const SupervisorDayOffList = () => {
         <UsersListHeader />
         <DayOffTable />
       </KTCard>
-      {itemIdForUpdate !== undefined && {}}
+           {itemIdForUpdate !== undefined && <DayOffViewModal />}
     </>
   )
 }

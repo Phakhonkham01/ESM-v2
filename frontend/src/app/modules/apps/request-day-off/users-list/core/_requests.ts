@@ -17,10 +17,19 @@ export const getDayOffRequests = async (query: string): Promise<DayOffQueryRespo
 
 // ✅ GET DAY OFF BY ID
 export const getDayOffById = async (id: ID): Promise<DayOffRequest> => {
-  const { data }: AxiosResponse<DayOffRequest> = await axios.get(`${DAY_OFF_URL}/${id}`)
-  return data
-}
+  const { data }: AxiosResponse<{ success: boolean; requests: DayOffRequest[] }> = 
+    await axios.get(`${DAY_OFF_URL}/allusers`)
 
+  const found = data.requests.find(
+    (item) => (item._id || item.id) === id
+  )
+
+  if (!found) {
+    throw new Error('Day off request not found')
+  }
+
+  return found
+}
 // ✅ APPROVE DAY OFF
 export const approveDayOff = async (id: ID): Promise<void> => {
   await axios.patch(`${DAY_OFF_URL}/${id}/status`, { status: 'Accepted' })
