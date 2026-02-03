@@ -37,7 +37,7 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/users', userRoutes);
 app.use("/api/requestOTandFieldWorkRoutes", requestOTandFieldWorkRoutes);
-app.use('/api/dayoff-request',dayOffRoutes)
+app.use('/api/day-off-requests',dayOffRoutes)
 
 // Health Check Route
 app.get('/api/health', (req: Request, res: Response) => {

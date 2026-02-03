@@ -1,116 +1,106 @@
-import {ID, Response} from '../../../../../../_metronic/helpers'
+import { ID, Response } from '../../../../../../_metronic/helpers'
 
-// ✅ ประกาศ interface ก่อน
-export interface Department {
+// ✅ DayOff Model
+export type DayOffRequest = {
   _id?: string
-  id?: string
-  department_name: string
-  createdAt?: Date
-  updatedAt?: Date
-}
-
-export interface Position {
-  _id?: string
-  id?: string
-  position_name: string
-  department_id: string | Department
-  createdAt?: Date
-  updatedAt?: Date
-}
-
-// ✅ ประกาศ Type หลังจาก interface
-export type DepartmentIdType = 
-  | string 
-  | string[] 
-  | Department 
-  | Department[]
-  | null
-  | undefined
-
-export type PositionIdType = 
-  | string 
-  | Position 
-  | null
-  | undefined
-
-// ✅ ตอนนี้สามารถใช้ DepartmentIdType และ PositionIdType ได้แล้ว
-export type User = {
   id?: ID
-  user_name: string
-  user_email: string
-  password?: string
-  role: 'admin' | 'employee' | 'supervisor'
-  department_id?: DepartmentIdType
-  leave_days: number
-  status: 'Active' | 'Inactive' | 'On Leave' | 'work day' | 'leave day'
-  // ฟิลด์ใหม่ที่เพิ่ม
-  first_name_en: string
-  last_name_en: string
-  nickname_en?: string
-  first_name_la: string
-  last_name_la: string
-  nickname_la?: string
-  date_of_birth: string
-  start_work: string
-  gender: 'male' | 'female' | 'other'
-  position_id?: PositionIdType
-  base_salary?: number
-}
-
-export type UsersQueryResponse = Response<Array<User>>
-
-export const initialUser: User = {
-  user_name: '',
-  user_email: '',
-  role: 'employee',
-  department_id: null,
-  leave_days: 15,
-  status: 'Active',
-  // ค่าเริ่มต้นสำหรับฟิลด์ใหม่
-  first_name_en: '',
-  last_name_en: '',
-  nickname_en: '',
-  first_name_la: '',
-  last_name_la: '',
-  nickname_la: '',
-  date_of_birth: '',
-  start_work: '',
-  gender: 'male',
-  position_id: null,
-  base_salary: 0,
-}
-
-// Helper functions สำหรับการแปลง type
-export const extractDepartmentId = (departmentId: DepartmentIdType): string | string[] | null => {
-  if (!departmentId) return null
-  
-  if (Array.isArray(departmentId)) {
-    return departmentId.map(dept => 
-      typeof dept === 'string' ? dept : dept._id || dept.id || ''
-    ).filter(Boolean) as string[]
+  employee_name?: string
+  supervisor_name?: string
+  user_id: string | {
+    _id: string
+    first_name_en?: string
+    last_name_en?: string
+    email?: string
   }
-  
-  if (typeof departmentId === 'object' && departmentId !== null) {
-    return departmentId._id || departmentId.id || ''
+  employee_id: string | {
+    _id: string
+    employee_id?: string
+    first_name_en?: string
+    last_name_en?: string
   }
-  
-  return departmentId as string
-}
-
-export const extractPositionId = (positionId: PositionIdType): string | null => {
-  if (!positionId) return null
-  
-  if (typeof positionId === 'object' && positionId !== null) {
-    return positionId._id || positionId.id || ''
+  supervisor_id: string | {
+    _id: string
+    employee_id?: string
+    first_name_en?: string
+    last_name_en?: string
   }
-  
-  return positionId as string
+  day_off_type: 'FULL_DAY' | 'HALF_DAY'
+  start_date_time: string
+  end_date_time: string
+  date_off_number: number
+  title: string
+  status: 'Pending' | 'Accepted' | 'Rejected'
+  created_at?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
-export const isDepartmentObject = (dept: unknown): dept is Department => {
-  return typeof dept === 'object' && dept !== null && 'department_name' in dept
+export type DayOffQueryResponse = Response<Array<DayOffRequest>>
+
+export const initialDayOff: DayOffRequest = {
+  employee_name: '',
+  supervisor_name: '',
+  user_id: '',
+  employee_id: '',
+  supervisor_id: '',
+  day_off_type: 'FULL_DAY',
+  start_date_time: '',
+  end_date_time: '',
+  date_off_number: 1,
+  title: '',
+  status: 'Pending',
 }
 
-export const isPositionObject = (pos: unknown): pos is Position => {
-  return typeof pos === 'object' && pos !== null && 'position_name' in pos
+// ✅ Helper Functions
+export const getEmployeeDisplayName = (d: DayOffRequest): string => {
+  if (d.employee_name) return d.employee_name
+
+  if (typeof d.employee_id === 'string') {
+    return d.employee_id
+  }
+
+  if (typeof d.employee_id === 'object' && d.employee_id !== null) {
+    return `${d.employee_id.first_name_en || ''} ${d.employee_id.last_name_en || ''}`.trim()
+  }
+
+  return '-'
+}
+
+export const getSupervisorName = (supervisorData: string | any): string => {
+  if (!supervisorData) return 'Unknown Supervisor'
+
+  if (typeof supervisorData === 'string') {
+    if (/^[0-9a-fA-F]{24}$/.test(supervisorData)) {
+      return `SPV-${supervisorData.substring(0, 6)}...`
+    }
+    return supervisorData
+  }
+
+  if (typeof supervisorData === 'object' && supervisorData !== null) {
+    const firstName = supervisorData.first_name_en || ''
+    const lastName = supervisorData.last_name_en || ''
+
+    if (firstName && lastName) {
+      return `${firstName} ${lastName}`
+    }
+
+    if (supervisorData.email) {
+      return supervisorData.email.split('@')[0]
+    }
+
+    if (supervisorData._id) {
+      return `SPV-${supervisorData._id.toString().substring(0, 6)}...`
+    }
+  }
+
+  return 'Unknown Supervisor'
+}
+
+export const formatDate = (dateStr: string) => {
+  if (!dateStr) return 'N/A'
+  const date = new Date(dateStr)
+  const day = date.getDate().toString().padStart(2, '0')
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
 }

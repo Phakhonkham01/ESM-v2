@@ -5,7 +5,7 @@ import {CustomRow} from './columns/CustomRow'
 import {useQueryResponseData, useQueryResponseLoading} from '../core/QueryResponseProvider'
 import {dayOffRequestsColumns} from './columns/_columns'
 import {DayOffRequest} from '../core/_models' // ใช้ DayOffRequest model
-import {dayoffrequestsListLoading} from '../components/loading/DayoffrequestsListtLoading'
+import {DayoffrequestsListLoading} from '../components/loading/DayoffrequestsListtLoading'
 import {UsersListPagination} from '../components/pagination/UsersListPagination'
 import {KTCardBody} from '../../../../../../_metronic/helpers'
 
@@ -54,7 +54,7 @@ const DayOffRequestsTable = () => {
         </table>
       </div>
       <UsersListPagination />
-      {isLoading && <dayoffrequestsListLoading />}
+      {isLoading && <DayoffrequestsListLoading />}
     </KTCardBody>
   )
 }

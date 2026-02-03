@@ -1,6 +1,6 @@
 import {useListView} from '../../core/ListViewProvider'
-import {UsersListToolbar} from './UserListToolbar'
-import {UsersListGrouping} from './UsersListGrouping'
+
+// import {UsersListGrouping} from './UsersListGrouping'
 import {UsersListSearchComponent} from './UsersListSearchComponent'
 
 const UsersListHeader = () => {
@@ -11,7 +11,7 @@ const UsersListHeader = () => {
       {/* begin::Card toolbar */}
       <div className='card-toolbar'>
         {/* begin::Group actions */}
-        {selected.length > 0 ? <UsersListGrouping /> : <UsersListToolbar />}
+        <h1>dnfivjnbdjivbn</h1>
         {/* end::Group actions */}
       </div>
       {/* end::Card toolbar */}

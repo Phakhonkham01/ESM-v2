@@ -4,6 +4,7 @@ const QUERIES = {
   HOLIDAYS_LIST: 'holidays-list',
   OVERTIME_LIST: 'overtime-list',
    DAY_OFF_REQUESTS_LIST: 'DAY_OFF_REQUESTS_LIST',
+    DAY_OFF_LIST: 'day-off-list', 
 }
 
 export {QUERIES}

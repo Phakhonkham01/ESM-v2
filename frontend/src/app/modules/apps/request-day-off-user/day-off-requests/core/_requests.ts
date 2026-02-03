@@ -5,7 +5,7 @@ import { DayOffRequest, DayOffRequestDTO, UpdateStatusDTO, FormattedDayOffReques
 
 // ใช้ environment variable หรือค่า default
 const API_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:8001/api'
-const DAY_OFF_REQUEST_URL = `${API_URL}/dayoffrequests`
+const DAY_OFF_REQUEST_URL = `${API_URL}/day-off-requests`
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
