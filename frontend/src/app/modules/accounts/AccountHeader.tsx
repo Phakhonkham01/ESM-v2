@@ -286,13 +286,7 @@ const AccountHeader: React.FC = () => {
                     (location.pathname === '/crafted/account/overview' && 'active')
                   }
                   to='/crafted/account/overview'
-                  style={{
-                    borderBottom: location.pathname === '/crafted/account/overview'
-                      ? '5px solid #17c653'
-                      : '5px solid transparent',
-                    paddingBottom: '1.25rem',
-                    transition: 'all 0.3s ease'
-                  }}
+                 
                 >
                   Overview
                 </Link>
@@ -304,13 +298,7 @@ const AccountHeader: React.FC = () => {
                     (location.pathname === '/crafted/account/profile' && 'active')
                   }
                   to='/crafted/account/profile'
-                  style={{
-                    borderBottom: location.pathname === '/crafted/account/profile'
-                      ? '5px solid #17c653'
-                      : '5px solid transparent',
-                    paddingBottom: '1.25rem',
-                    transition: 'all 0.3s ease'
-                  }}
+                 
                 >
                   Profile
                 </Link>
@@ -322,18 +310,12 @@ const AccountHeader: React.FC = () => {
                     (location.pathname === '/crafted/account/viewpayslip' && 'active')
                   }
                   to='/crafted/account/viewpayslip'
-                  style={{
-                    borderBottom: location.pathname === '/crafted/account/viewpayslip'
-                      ? '5px solid #17c653'
-                      : '5px solid transparent',
-                    paddingBottom: '1.25rem',
-                    transition: 'all 0.3s ease'
-                  }}
+                  
                 >
                   Viewpayslip
                 </Link>
               </li>
-              <li className='nav-item'>
+              {/* <li className='nav-item'>
                 <Link
                   className={
                     `nav-link text-active-primary me-6 ` +
@@ -343,7 +325,7 @@ const AccountHeader: React.FC = () => {
                 >
                   Settings22222
                 </Link>
-              </li>
+              </li> */}
             </ul>
 
 
