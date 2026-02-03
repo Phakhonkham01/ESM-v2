@@ -2,7 +2,7 @@ import axios from "axios";
 import { AuthModel, UserModel } from "./_models";
 
 // ตรวจสอบและตั้งค่า API_URL
-const API_URL = import.meta.env.VITE_APP_API_URL || "http://localhost:8000/api";
+const API_URL = import.meta.env.VITE_APP_API_URL || "http://localhost:8001/api";
 
 // เช็คว่า API_URL ถูกตั้งค่าหรือไม่
 if (!import.meta.env.VITE_APP_API_URL) {
