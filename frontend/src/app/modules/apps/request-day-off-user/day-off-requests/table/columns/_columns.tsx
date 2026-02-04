@@ -1,6 +1,33 @@
 import { Column } from 'react-table'
-import { FormattedDayOffRequest } from '../../core/_models' // เปลี่ยนเป็น FormattedDayOffRequest
+import { FormattedDayOffRequest } from '../../core/_models'
 import { UserCustomHeader } from './UserCustomHeader'
+import { useListView } from '../../core/ListViewProvider'
+
+const DayOffRequestActionsCell = ({ id }: { id: string }) => {
+  const { setItemIdForUpdate } = useListView()
+  
+  return (
+    <div className="d-flex justify-content-end ">
+      <button
+        className="btn btn-sm btn-light btn-active-primary view-btn-custom"
+        onClick={() => setItemIdForUpdate(id)}
+      >
+        <i className="bi bi-eye me-2"></i>
+        <span>View</span>
+      </button>
+      <style>{`
+        .view-btn-custom i,
+        .view-btn-custom span {
+          color: #198754 !important;
+        }
+        .view-btn-custom:hover i,
+        .view-btn-custom:hover span {
+          color: #ffffff !important;
+        }
+      `}</style>
+    </div>
+  )
+}
 
 const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
   {
@@ -8,23 +35,6 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
     id: 'no',
     Cell: ({ row }) => <div className="text-center">{row.index + 1}</div>,
   },
-  // {
-  //   Header: (props) => (
-  //     <UserCustomHeader tableProps={props} title="Employee" className="min-w-150px" />
-  //   ),
-  //   accessor: 'employee_name', // ใช้ accessor โดยตรง
-  //   Cell: ({ value, row }) => {
-  //     const request = row.original
-  //     return (
-  //       <div className="d-flex flex-column">
-  //         <span className="fw-semibold text-gray-800">{value || 'Unknown'}</span>
-  //         {request.employee_email && (
-  //           <span className="text-muted fs-7">{request.employee_email}</span>
-  //         )}
-  //       </div>
-  //     )
-  //   },
-  // },
   
   {
     Header: (props) => (
@@ -153,90 +163,80 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
     },
   },
   {
-  Header: (props) => (
-    <UserCustomHeader tableProps={props} title="Supervisor" className="min-w-150px" />
-  ),
-  accessor: 'supervisor_name',
-  Cell: ({ value, row }) => {
-    const request = row.original
-    
-    // แยกชื่อ supervisor
-    const parseSupervisorNames = () => {
-      if (!value || value === '' || value === 'N/A') {
+    Header: (props) => (
+      <UserCustomHeader tableProps={props} title="Supervisor" className="min-w-150px" />
+    ),
+    accessor: 'supervisor_name',
+    Cell: ({ value, row }) => {
+      const request = row.original
+      
+      // แยกชื่อ supervisor
+      const parseSupervisorNames = () => {
+        if (!value || value === '' || value === 'N/A') {
+          return []
+        }
+        
+        if (typeof value === 'string') {
+          if (value.includes(',')) {
+            return value.split(',').map(n => n.trim()).filter(n => n)
+          }
+          return [value]
+        }
+        
+        if (Array.isArray(value)) {
+          return value.filter(n => n)
+        }
+        
         return []
       }
       
-      if (typeof value === 'string') {
-        if (value.includes(',')) {
-          return value.split(',').map(n => n.trim()).filter(n => n)
-        }
-        return [value]
+      const names = parseSupervisorNames()
+      
+      // กำหนดสีตามจำนวน supervisor
+      const getBackgroundColor = () => {
+        if (names.length === 0) return 'bg-light-warning'
+        if (names.length === 1) return 'bg-light-success'
+        if (names.length === 2) return 'bg-light-primary'
+        return 'bg-light-info'
       }
       
-      if (Array.isArray(value)) {
-        return value.filter(n => n)
+      const getIconColor = () => {
+        if (names.length === 0) return 'text-warning'
+        if (names.length === 1) return 'text-success'
+        if (names.length === 2) return 'text-primary'
+        return 'text-info'
       }
       
-      return []
-    }
-    
-    const names = parseSupervisorNames()
-    
-    // กำหนดสีตามจำนวน supervisor
-    const getBackgroundColor = () => {
-      if (names.length === 0) return 'bg-light-warning'
-      if (names.length === 1) return 'bg-light-success'
-      if (names.length === 2) return 'bg-light-primary'
-      return 'bg-light-info'
-    }
-    
-    const getIconColor = () => {
-      if (names.length === 0) return 'text-warning'
-      if (names.length === 1) return 'text-success'
-      if (names.length === 2) return 'text-primary'
-      return 'text-info'
-    }
-    
-    if (names.length === 0) {
+      if (names.length === 0) {
+        return (
+          <div className={`d-flex align-items-center p-2 ${getBackgroundColor()} rounded`}>
+            <i className={`bi bi-person-x fs-5 ${getIconColor()} me-2`}></i>
+            <span className="text-title fw-bold">No supervisor assigned</span>
+          </div>
+        )
+      }
+      
       return (
-        <div className={`d-flex align-items-center p-2 ${getBackgroundColor()} rounded`}>
-          <i className={`bi bi-person-x fs-5 ${getIconColor()} me-2`}></i>
-          <span className="text-title fw-bold">No supervisor assigned</span>
+        <div className="d-flex flex-column">
+          {names.map((name, index) => (
+            <div 
+              key={index} 
+              className={`
+                d-flex align-items-center mb-1 p-2 rounded
+                ${getBackgroundColor()}
+              `}
+            >
+              <i className={`
+                bi ${names.length > 1 ? 'bi-people-fill' : 'bi-person-check-fill'} 
+                fs-5 ${getIconColor()} me-2
+              `}></i>
+              <span className="fw-bold fs-8 text-gray-900">{name}</span>
+            </div>
+          ))}
         </div>
       )
-    }
-    
-    return (
-      <div className="d-flex flex-column">
-        {names.map((name, index) => (
-          <div 
-            key={index} 
-            className={`
-              d-flex align-items-center mb-1 p-2 rounded
-              ${getBackgroundColor()}
-            `}
-          >
-            <i className={`
-              bi ${names.length > 1 ? 'bi-people-fill' : 'bi-person-check-fill'} 
-              fs-5 ${getIconColor()} me-2
-            `}></i>
-            <span className="fw-bold fs-8 text-gray-900">{name}</span>
-          </div>
-        ))}
-        
-        {/* แสดงจำนวน supervisor */}
-        {/* {names.length > 1 && (
-          <div className="mt-1">
-            <span className="badge badge-primary">
-              <i className="bi bi-people me-1"></i>
-              {names.length} supervisors
-            </span>
-          </div>
-        )} */}
-      </div>
-    )
+    },
   },
-},
   {
     Header: (props) => (
       <UserCustomHeader tableProps={props} title="Actions" className="text-end min-w-100px" />
@@ -246,46 +246,7 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
       const request = row.original
       const requestId = request._id || request._id
       
-      return (
-        <div className='d-flex justify-content-end flex-shrink-0'>
-          <button
-            className='btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1'
-            onClick={() => {
-              console.log('View request:', requestId)
-              // TODO: Implement view modal
-            }}
-            title='View Details'
-          >
-            <i className='bi bi-eye fs-4'></i>
-          </button>
-          
-          {request.status === 'Pending' && (
-            <>
-              <button
-                className='btn btn-icon btn-bg-light btn-active-color-success btn-sm me-1'
-                onClick={() => {
-                  console.log('Edit request:', requestId)
-                  // TODO: Implement edit modal
-                }}
-                title='Edit Request'
-              >
-                <i className='bi bi-pencil fs-4'></i>
-              </button>
-              
-              <button
-                className='btn btn-icon btn-bg-light btn-active-color-danger btn-sm'
-                onClick={() => {
-                  console.log('Delete request:', requestId)
-                  // TODO: Implement delete confirmation
-                }}
-                title='Delete Request'
-              >
-                <i className='bi bi-trash fs-4'></i>
-              </button>
-            </>
-          )}
-        </div>
-      )
+      return <DayOffRequestActionsCell id={requestId} />
     },
   },
 ]

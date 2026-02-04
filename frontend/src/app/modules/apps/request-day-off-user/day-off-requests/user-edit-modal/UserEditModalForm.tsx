@@ -6,7 +6,7 @@ import { isNotEmpty } from '../../../../../../_metronic/helpers'
 import { DayOffRequest, DayOffRequestDTO, initialDayOffRequest, FormattedDayOffRequest } from '../core/_models'
 import { useListView } from '../core/ListViewProvider'
 import { DayoffrequestsListLoading } from '../components/loading/DayoffrequestsListtLoading'
-import { createDayOffRequest, updateDayOffRequest, checkDateOverlap } from '../core/_requests'
+import { createDayOffRequest, updateDayOffRequest, checkDateOverlap, deleteDayOffRequest } from '../core/_requests'
 import { useQueryResponse } from '../core/QueryResponseProvider'
 import { QUERIES } from '../../../../../../_metronic/helpers/crud-helper/consts'
 import { useMutation, useQueryClient, QueryKey } from 'react-query'
@@ -76,6 +76,7 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
   const formik = useFormik<DayOffRequestDTO & { _id?: string; id?: string }>({
     initialValues: {
       ...initialDayOffRequest,
+      employee_id: currentUser?.id || currentUser?._id || '', // ✅ Set default employee_id
       _id: request?._id || (request as any)?.id,
       id: request?._id || (request as any)?.id,
     },
@@ -83,6 +84,9 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
     enableReinitialize: true,
     onSubmit: async (values, { setSubmitting, resetForm }: FormikHelpers<DayOffRequestDTO & { _id?: string; id?: string }>) => {
       try {
+        // ✅ Debug log
+        console.log('📝 Form values before submit:', values)
+        
         // ตรวจสอบวันที่ทับซ้อนอีกครั้งก่อนส่ง
         await checkForDateOverlap()
         if (dateOverlap.hasOverlap) {
@@ -101,9 +105,10 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
           }
         }
 
+        // ✅ Ensure all required fields are present
         const submitData: DayOffRequestDTO = {
           user_id: values.user_id || currentUser?.id || currentUser?._id || '',
-          employee_id: values.employee_id,
+          employee_id: values.employee_id || currentUser?.id || currentUser?._id || '',
           supervisor_id: values.supervisor_id,
           day_off_type: values.day_off_type,
           start_date_time: values.start_date_time,
@@ -112,6 +117,15 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
         }
 
         console.log('📤 Submitting day off request:', submitData)
+
+        // ✅ Validate before sending
+        if (!submitData.employee_id) {
+          throw new Error('Employee ID is missing')
+        }
+        
+        if (!submitData.supervisor_id || submitData.supervisor_id.length === 0) {
+          throw new Error('At least one supervisor must be selected')
+        }
 
         if (isNotEmpty(values._id || values.id)) {
           await updateMutation.mutateAsync({ id: (values._id || values.id)!, data: submitData })
@@ -132,6 +146,14 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
         setItemIdForUpdate(undefined)
       } catch (err: unknown) {
         console.error('❌ Submit error:', err)
+        
+        // ✅ Show error to user
+        Swal.fire({
+          icon: 'error',
+          title: 'Submission Error',
+          text: err instanceof Error ? err.message : 'Failed to submit request',
+          confirmButtonText: 'OK'
+        })
       } finally {
         setSubmitting(false)
       }
@@ -147,7 +169,7 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
       const res = await axios.get<{ data: User[] }>(`${API_URL}/users`)
       setUsers(res.data.data || [])
       
-      // ถ้ามี currentUser ให้ set เป็น employee_id โดย default
+      // ✅ ถ้ามี currentUser ให้ set เป็น employee_id โดย default
       if (currentUser && !formik.values.employee_id) {
         formik.setFieldValue('employee_id', currentUser.id || currentUser._id)
       }
@@ -212,6 +234,14 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
     fetchUsers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ✅ Set employee_id เมื่อมี currentUser
+  useEffect(() => {
+    if (currentUser && !formik.values.employee_id && !request) {
+      formik.setFieldValue('employee_id', currentUser.id || currentUser._id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser])
 
   // Filter supervisors เมื่อ employee เปลี่ยน
   useEffect(() => {
@@ -293,7 +323,7 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
 
       formik.setValues({
         user_id: userId || currentUser?.id || currentUser?._id || '',
-        employee_id: employeeId,
+        employee_id: employeeId || currentUser?.id || currentUser?._id || '',
         supervisor_id: supervisorIds,
         day_off_type: request.day_off_type || 'FULL_DAY',
         start_date_time: formatDate(request.start_date_time),
@@ -362,10 +392,58 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
     }
   )
 
+  const deleteMutation = useMutation(
+    (id: string) => deleteDayOffRequest(id),
+    {
+      onSuccess: () => {
+        Swal.fire({
+          icon: 'success',
+          title: '<span style="color: #10b981;">Request Deleted</span>',
+          text: 'The day off request has been successfully deleted.',
+          timer: 2000,
+          showConfirmButton: false,
+        }).then(() => {
+          invalidateRequests()
+          setItemIdForUpdate(undefined)
+        })
+      },
+      onError: (error: AxiosError<{ message?: string }>) => {
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to delete request'
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: errorMessage,
+          confirmButtonText: 'OK',
+        })
+      },
+    }
+  )
+
+  /* -------------------- Delete Handler -------------------- */
+  const handleDelete = async () => {
+    const requestId = request?._id || (request as any)?.id
+    if (!requestId) return
+
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    })
+
+    if (result.isConfirmed) {
+      deleteMutation.mutate(requestId)
+    }
+  }
+
   /* -------------------- Render Helpers -------------------- */
 
   const isEditMode = !!request
-  const isSubmitting = formik.isSubmitting || createMutation.isLoading || updateMutation.isLoading
+  const isSubmitting = formik.isSubmitting || createMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading
   
   const fieldClass = (name: keyof DayOffRequestDTO) =>
     clsx('form-control form-control-solid', {
@@ -385,6 +463,18 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
   return (
     <>
       <form className="form" onSubmit={formik.handleSubmit} noValidate>
+        {/* ✅ Debug Info - Remove in production */}
+        {/* {process.env.NODE_ENV === 'development' && (
+          <div className="alert alert-info mb-5">
+            <small>
+              <strong>Debug Info:</strong><br/>
+              Employee ID: {formik.values.employee_id || 'Not set'}<br/>
+              Supervisors: {formik.values.supervisor_id.length} selected<br/>
+              Valid: {formik.isValid ? 'Yes' : 'No'}
+            </small>
+          </div>
+        )} */}
+
         {/* Title */}
         <div className="fv-row mb-7">
           <label className="required fw-bold fs-6 mb-2">Title</label>
@@ -404,70 +494,97 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
           )}
         </div>
 
-        {/* Employee (Dropdown) */}
-        <div className="fv-row mb-7">
-          <label className="required fw-bold fs-6 mb-2">Employee</label>
-          <select
-            {...formik.getFieldProps('employee_id')}
-            className={fieldClass('employee_id')}
-            disabled={isSubmitting || isRequestLoading || loadingUsers || !!currentUser}
-          >
-            <option value="">Select Employee</option>
-            {users
-              .filter(user => user.role === 'employee' && user.status === 'Active')
-              .map(user => (
-                <option key={user.id || user._id} value={user.id || user._id}>
-                  {user.user_name || `${user.first_name_en} ${user.last_name_en}`} - {user.user_email}
-                </option>
-              ))}
-          </select>
-          {formik.touched.employee_id && formik.errors.employee_id && (
-            <div className="fv-plugins-message-container">
-              <span role="alert" className="fv-help-block text-danger">
-                {formik.errors.employee_id}
-              </span>
+        {/* Current User Info */}
+        {currentUser && (
+          <div className="alert alert-primary d-flex align-items-center mb-7">
+            <i className="bi bi-person-check-fill fs-2 me-3"></i>
+            <div>
+              <div className="fw-bold">Requesting for:</div>
+              <div className="text-gray-800">
+                {currentUser.user_name || `${currentUser.first_name_en} ${currentUser.last_name_en}`}
+              </div>
+              <div className="text-muted fs-7">{currentUser.user_email}</div>
             </div>
-          )}
-          {currentUser && (
-            <div className="text-muted fs-7 mt-1">
-              <i className="bi bi-info-circle me-1"></i>
-              You are requesting for yourself
-            </div>
-          )}
-        </div>
-
-        {/* Supervisors (Multiple Select) */}
-        <div className="fv-row mb-7">
-          <label className="required fw-bold fs-6 mb-2">Supervisor(s)</label>
-          <select
-            multiple
-            {...formik.getFieldProps('supervisor_id')}
-            className={`${fieldClass('supervisor_id')} form-select`}
-            disabled={isSubmitting || isRequestLoading || loadingUsers}
-            size={4}
-            value={formik.values.supervisor_id}
-            onChange={(e) => {
-              const options = e.target.options
-              const selectedValues: string[] = []
-              for (let i = 0; i < options.length; i++) {
-                if (options[i].selected) {
-                  selectedValues.push(options[i].value)
-                }
-              }
-              formik.setFieldValue('supervisor_id', selectedValues)
-            }}
-          >
-            <option value="" disabled>Select Supervisor(s) - Hold Ctrl/Cmd to select multiple</option>
-            {filteredSupervisors.map(user => (
-              <option key={user.id || user._id} value={user.id || user._id}>
-                {user.user_name || `${user.first_name_en} ${user.last_name_en}`} ({user.role})
-              </option>
-            ))}
-          </select>
-          <div className="text-muted fs-7 mt-1">
-            <i className="bi bi-info-circle me-1"></i>
-            Selected: {formik.values.supervisor_id.length} supervisor(s)
           </div>
+        )}
+
+        {/* Supervisors Selection */}
+        {/* <div className="fv-row mb-7">
+          <label className="required fw-bold fs-6 mb-2">
+            Supervisor(s)
+            {filteredSupervisors.length > 0 && (
+              <span className="badge badge-light-primary ms-2">
+                {filteredSupervisors.length} available
+              </span>
+            )}
+          </label>
+          
+          {filteredSupervisors.length === 0 ? (
+            <div className="alert alert-warning">
+              <i className="bi bi-exclamation-triangle me-2"></i>
+              No supervisors available. Please contact your administrator.
+            </div>
+          ) : (
+            <div className="row g-3">
+              {filteredSupervisors.map(supervisor => {
+                const supervisorId = supervisor.id || supervisor._id
+                const isSelected = formik.values.supervisor_id.includes(supervisorId || '')
+                
+                return (
+                  <div key={supervisorId} className="col-12">
+                    <div
+                      className={`card cursor-pointer border-2 ${isSelected
+                        ? 'border-success bg-light-success'
+                        : 'border-gray-300 hover-border-primary'
+                      }`}
+                      onClick={() => {
+                        if (!isSubmitting && !isRequestLoading) {
+                          const currentSupervisors = [...formik.values.supervisor_id]
+                          if (isSelected) {
+                            // Remove
+                            const filtered = currentSupervisors.filter(id => id !== supervisorId)
+                            formik.setFieldValue('supervisor_id', filtered)
+                          } else {
+                            // Add
+                            formik.setFieldValue('supervisor_id', [...currentSupervisors, supervisorId])
+                          }
+                        }
+                      }}
+                      style={{ 
+                        transition: 'all 0.3s ease',
+                        cursor: isSubmitting || isRequestLoading ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      <div className='card-body p-4'>
+                        <div className='d-flex align-items-center'>
+                          <div className={`symbol symbol-40px symbol-circle me-3 ${isSelected ? 'bg-success' : 'bg-light'}`}>
+                            <div className='symbol-label'>
+                              <i className={`bi ${isSelected ? 'bi-check-circle-fill' : 'bi-person'} fs-2 ${isSelected ? 'text-white' : 'text-gray-600'}`}></i>
+                            </div>
+                          </div>
+                          <div className='flex-grow-1'>
+                            <div className='fw-bold text-gray-800'>
+                              {supervisor.user_name || `${supervisor.first_name_en} ${supervisor.last_name_en}`}
+                            </div>
+                            <div className='text-muted fs-7'>{supervisor.user_email}</div>
+                          </div>
+                          {isSelected && (
+                            <div className='badge badge-success'>Selected</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          
+          <div className="text-muted fs-7 mt-2">
+            <i className="bi bi-info-circle me-1"></i>
+            {formik.values.supervisor_id.length} supervisor(s) selected
+          </div>
+          
           {formik.touched.supervisor_id && formik.errors.supervisor_id && (
             <div className="fv-plugins-message-container">
               <span role="alert" className="fv-help-block text-danger">
@@ -475,7 +592,7 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
               </span>
             </div>
           )}
-        </div>
+        </div> */}
 
         {/* Day Off Type */}
         <div className="fv-row mb-7">
@@ -600,10 +717,33 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
           >
             Cancel
           </button>
+          
+          {/* Delete Button - แสดงเฉพาะในโหมดแก้ไข */}
+          {isEditMode && (
+            <button
+              type="button"
+              className="btn btn-danger me-3"
+              onClick={handleDelete}
+              disabled={isSubmitting}
+            >
+              {deleteMutation.isLoading ? (
+                <>
+                  <span className='spinner-border spinner-border-sm align-middle me-2'></span>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-trash me-2"></i>
+                  Delete Request
+                </>
+              )}
+            </button>
+          )}
+          
           <button
             type='submit'
             className='btn btn-primary'
-            disabled={isSubmitting || isRequestLoading || !formik.isValid}
+            disabled={isSubmitting || isRequestLoading || !formik.isValid || formik.values.supervisor_id.length === 0}
           >
             {!isSubmitting && (
               <span className='indicator-label'>
