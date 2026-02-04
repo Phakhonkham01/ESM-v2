@@ -1,11 +1,11 @@
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useState, useMemo } from 'react'
 import * as Yup from 'yup'
 import { useFormik } from 'formik'
 import clsx from 'clsx'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import Swal from 'sweetalert2'
-import {useListView} from '../core/ListViewProvider'
+import { useListView } from '../core/ListViewProvider'
 
 /* -------------------- Types -------------------- */
 interface Department {
@@ -20,7 +20,7 @@ interface Employee {
   user_name: string
   first_name_en: string
   last_name_en: string
-  department_id?: string | Department[] // Can be string ID or populated Department array
+  department_id?: string | Department[]
   user_email?: string
   role?: string
 }
@@ -31,7 +31,7 @@ interface Supervisor {
   first_name_en: string
   last_name_en: string
   user_name?: string
-  department_id?: string | Department[] // Update this
+  department_id?: string | Department[]
   user_email?: string
   role?: string
 }
@@ -45,11 +45,51 @@ interface LeaveFormValues {
   employee_type: string
   start_date: string
   end_date: string
-  half_day_date: string // Added for half day single date
-  date_off_number: number // Added for calculating days
+  half_day_date: string
+  date_off_number: number
   half_day_period?: string
   reason?: string
 }
+
+/* -------------------- Date Utility Functions -------------------- */
+const getCurrentMonthRange = () => {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
+  // First day of current month
+  const firstDay = new Date(currentYear, currentMonth, 1);
+
+  // Last day of current month (for reference, not for selection)
+  const lastDay = new Date(currentYear, currentMonth + 1, 0);
+
+  // Format for min/max attributes
+  const formatDate = (date: Date) => {
+    return date.toISOString().split('T')[0];
+  };
+
+  return {
+    firstDay: formatDate(firstDay),
+    lastDay: formatDate(lastDay),
+    today: formatDate(now),
+  };
+};
+
+const isLastDayOfMonth = (dateString: string): boolean => {
+  const date = new Date(dateString);
+  const nextDay = new Date(date);
+  nextDay.setDate(date.getDate() + 1);
+
+  return nextDay.getMonth() !== date.getMonth();
+};
+
+const isInCurrentMonth = (dateString: string): boolean => {
+  const date = new Date(dateString);
+  const now = new Date();
+
+  return date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth();
+};
 
 /* -------------------- Validation Schema -------------------- */
 const leaveSchema = Yup.object().shape({
@@ -95,6 +135,128 @@ export const UserEditModalForm: FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { setItemIdForUpdate } = useListView()
 
+  /* -------------------- Date Restrictions -------------------- */
+  const currentMonthRange = useMemo(() => getCurrentMonthRange(), []);
+
+  // Custom validation for date restrictions
+  const validateDateRestrictions = (dateString: string, fieldName: string): string => {
+    if (!dateString) return '';
+
+    const date = new Date(dateString);
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    // Check if date is in current month
+    if (!isInCurrentMonth(dateString)) {
+      return `Please select a date from the current month only. Dates from last month or next month are not allowed.`;
+    }
+
+    // Check if date is the last day of the month
+    if (isLastDayOfMonth(dateString)) {
+      return 'Last day of the month cannot be selected.';
+    }
+
+    return '';
+  };
+
+  // Date filter function for input onChange
+  const filterDateInput = (dateString: string): string => {
+    if (!dateString) return '';
+
+    const date = new Date(dateString);
+    const now = new Date();
+
+    // Reset time for comparison
+    date.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+
+    // Check if date is in current month
+    const isCurrentMonth = date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth();
+
+    // Check if it's the last day of month
+    const nextDay = new Date(date);
+    nextDay.setDate(date.getDate() + 1);
+    const isLastDay = nextDay.getMonth() !== date.getMonth();
+
+    if (!isCurrentMonth || isLastDay) {
+      return '';
+    }
+
+    return dateString;
+  };
+
+  // Add this validation before submitting
+  const validateDateRange = (): boolean => {
+    if (formik.values.employee_type === 'FULL_DAY') {
+      const start = new Date(formik.values.start_date);
+      const end = new Date(formik.values.end_date);
+
+      // Check if dates are selected
+      if (!formik.values.start_date || !formik.values.end_date) {
+        return true; // Let formik validation handle empty fields
+      }
+
+      if (end < start) {
+        toast.error('End date cannot be before start date');
+        return false;
+      }
+
+      // Optional: Limit maximum days
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+      if (diffDays > 30) {
+        toast.error('Maximum 30 days allowed for continuous leave');
+        return false;
+      }
+
+      // Check if the range includes weekends (optional)
+      const weekendDays = calculateWeekendDays(start, end);
+      if (weekendDays > 0) {
+        toast.info(`Note: Your request includes ${weekendDays} weekend day(s)`);
+      }
+    }
+
+    return true;
+  }
+
+  // Optional helper function for weekend calculation
+  const calculateWeekendDays = (start: Date, end: Date): number => {
+    let weekendCount = 0;
+    const current = new Date(start);
+
+    while (current <= end) {
+      const day = current.getDay();
+      if (day === 0 || day === 6) {
+        weekendCount++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    return weekendCount;
+  }
+
+  const setHalfDayTime = (date: Date, period: string, timeType: 'start' | 'end'): Date => {
+    const newDate = new Date(date);
+
+    if (period === 'morning') {
+      if (timeType === 'start') {
+        newDate.setHours(8, 30, 0, 0);
+      } else {
+        newDate.setHours(12, 0, 0, 0);
+      }
+    } else {
+      if (timeType === 'start') {
+        newDate.setHours(13, 30, 0, 0);
+      } else {
+        newDate.setHours(17, 0, 0, 0);
+      }
+    }
+
+    return newDate;
+  }
 
   /* -------------------- Formik -------------------- */
   const formik = useFormik<LeaveFormValues>({
@@ -107,8 +269,8 @@ export const UserEditModalForm: FC = () => {
       employee_type: 'FULL_DAY',
       start_date: '',
       end_date: '',
-      half_day_date: '', // Initialize half day date
-      date_off_number: 0, // Initialize with 0
+      half_day_date: '',
+      date_off_number: 0,
       half_day_period: '',
       reason: '',
     },
@@ -117,46 +279,123 @@ export const UserEditModalForm: FC = () => {
     onSubmit: async (values, { resetForm }) => {
       setIsSubmitting(true)
 
+      // Validate date range first
+      if (!validateDateRange()) {
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Validate date restrictions
+      if (values.employee_type === 'FULL_DAY') {
+        const startDateError = validateDateRestrictions(values.start_date, 'start_date');
+        const endDateError = validateDateRestrictions(values.end_date, 'end_date');
+
+        if (startDateError) {
+          toast.error(`Start date: ${startDateError}`);
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (endDateError) {
+          toast.error(`End date: ${endDateError}`);
+          setIsSubmitting(false);
+          return;
+        }
+      } else if (values.employee_type === 'HALF_DAY') {
+        const halfDayError = validateDateRestrictions(values.half_day_date, 'half_day_date');
+        if (halfDayError) {
+          toast.error(`Half day date: ${halfDayError}`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       try {
+        // First check if there's an existing day off request
+        const conflictResult = await checkExistingDayOff(
+          values.employee_id,
+          values.employee_type === 'HALF_DAY' ? values.half_day_date : values.start_date,
+          values.employee_type === 'FULL_DAY' ? values.end_date : undefined,
+          values.employee_type
+        );
+
+        if (conflictResult.hasConflict) {
+          let conflictMessage = '';
+          if (conflictResult.conflicts && conflictResult.conflicts.length > 0) {
+            const conflict = conflictResult.conflicts[0];
+            if (values.employee_type === 'HALF_DAY') {
+              conflictMessage = `You already have a ${conflict.day_off_type === 'HALF_DAY' ? 'half day' : 'day off'} request for ${new Date(conflict.start_date).toLocaleDateString()}.`;
+            } else {
+              conflictMessage = `You already have a day off request from ${new Date(conflict.start_date).toLocaleDateString()} to ${new Date(conflict.end_date).toLocaleDateString()}.`;
+            }
+          } else {
+            conflictMessage = values.employee_type === 'HALF_DAY'
+              ? `You already have a day off request for ${new Date(values.half_day_date).toLocaleDateString()}. Please select a different date.`
+              : `You already have a day off request that overlaps with the selected period (${new Date(values.start_date).toLocaleDateString()} to ${new Date(values.end_date).toLocaleDateString()}).`;
+          }
+
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Duplicate Request',
+            html: conflictMessage,
+            confirmButtonText: 'OK'
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Prepare payload
         const payload = {
-          user_id: values.employee_id, // or logged-in user id
+          user_id: values.employee_id,
           employee_id: values.employee_id,
           supervisor_id: values.supervisor_id,
-
-          day_off_type: values.employee_type, // FULL_DAY | HALF_DAY
-
-          start_date_time:
-            values.employee_type === 'HALF_DAY'
-              ? new Date(values.half_day_date)
-              : new Date(values.start_date),
-
-          end_date_time:
-            values.employee_type === 'HALF_DAY'
-              ? new Date(values.half_day_date)
-              : new Date(values.end_date),
-
+          day_off_type: values.employee_type,
+          start_date_time: values.employee_type === 'HALF_DAY'
+            ? setHalfDayTime(new Date(values.half_day_date), values.half_day_period || 'morning', 'start')
+            : new Date(values.start_date),
+          end_date_time: values.employee_type === 'HALF_DAY'
+            ? setHalfDayTime(new Date(values.half_day_date), values.half_day_period || 'morning', 'end')
+            : new Date(values.end_date),
           date_off_number: values.date_off_number,
-
           title: values.reason || 'Day off request',
-
           status: 'Pending',
         }
 
-        await axios.post(`${API_URL}/dayoff-request`, payload)
+        const response = await axios.post(`${API_URL}/dayoff-request`, payload);
 
         await Swal.fire({
           icon: 'success',
           title: 'Success',
-          text: 'Day off request submitted',
+          text: 'Day off request submitted successfully',
           timer: 2000,
           showConfirmButton: false,
         })
 
         resetForm()
         setItemIdForUpdate(undefined)
-      } catch (error) {
-        console.error(error)
-        toast.error('Failed to submit request')
+      } catch (error: any) {
+        console.error('Submit error:', error);
+
+        if (error.response?.status === 409) {
+          const conflictDetails = error.response.data?.conflict_details;
+          if (conflictDetails) {
+            await Swal.fire({
+              icon: 'warning',
+              title: 'Conflict Detected',
+              html: conflictDetails.message || 'This request conflicts with an existing day off.',
+              confirmButtonText: 'OK'
+            });
+          } else {
+            toast.error('Duplicate day off request detected');
+          }
+        } else if (error.response?.status === 400) {
+          const message = error.response.data?.message || 'Invalid request data';
+          toast.error(message);
+        } else if (error.response?.status === 500) {
+          toast.error('Server error. Please try again later.');
+        } else {
+          toast.error('Failed to submit request. Please check your connection.');
+        }
       } finally {
         setIsSubmitting(false)
       }
@@ -174,11 +413,9 @@ export const UserEditModalForm: FC = () => {
   useEffect(() => {
     if (formik.values.department_id) {
       const filtered = employees.filter(employee => {
-        // Handle both string ID and array of departments
         if (typeof employee.department_id === 'string') {
           return employee.department_id === formik.values.department_id;
         } else if (Array.isArray(employee.department_id)) {
-          // Check if any department in the array matches the selected department
           return employee.department_id.some(
             dept => (dept._id || dept.id) === formik.values.department_id
           );
@@ -186,8 +423,6 @@ export const UserEditModalForm: FC = () => {
         return false;
       });
       setFilteredEmployees(filtered);
-
-      // Reset employee selection when department changes
       formik.setFieldValue('employee_id', '');
     } else {
       setFilteredEmployees([]);
@@ -209,19 +444,80 @@ export const UserEditModalForm: FC = () => {
   // Set default half day period when employee type changes
   useEffect(() => {
     if (formik.values.employee_type === 'HALF_DAY') {
-      // Set default half day period if not set
       if (!formik.values.half_day_period) {
         formik.setFieldValue('half_day_period', 'morning');
       }
-      // Clear full day dates
       formik.setFieldValue('start_date', '');
       formik.setFieldValue('end_date', '');
     } else {
-      // Clear half day date when switching to full day
       formik.setFieldValue('half_day_date', '');
       formik.setFieldValue('half_day_period', '');
     }
   }, [formik.values.employee_type]);
+
+  // Handle date changes with validation
+  const handleDateChange = (field: string, value: string) => {
+    const filteredValue = filterDateInput(value);
+
+    if (value && !filteredValue) {
+      const errorMessage = validateDateRestrictions(value, field);
+      if (errorMessage) {
+        toast.error(errorMessage);
+      }
+    }
+
+    formik.setFieldValue(field, filteredValue);
+  };
+
+  // Add this effect for background conflict check
+  useEffect(() => {
+    const validateDates = async () => {
+      if (!formik.values.employee_id) return;
+      toast.dismiss();
+
+      try {
+        if (formik.values.employee_type === 'FULL_DAY' &&
+          formik.values.start_date &&
+          formik.values.end_date) {
+
+          const result = await checkExistingDayOff(
+            formik.values.employee_id,
+            formik.values.start_date,
+            formik.values.end_date,
+            'FULL_DAY'
+          );
+
+          if (result.hasConflict && result.conflicts && result.conflicts.length > 0) {
+            toast.warning(`Warning: You have ${result.conflicts.length} conflicting day off request(s)`);
+          }
+        } else if (formik.values.employee_type === 'HALF_DAY' &&
+          formik.values.half_day_date) {
+
+          const result = await checkExistingDayOff(
+            formik.values.employee_id,
+            formik.values.half_day_date,
+            undefined,
+            'HALF_DAY'
+          );
+
+          if (result.hasConflict && result.conflicts && result.conflicts.length > 0) {
+            toast.warning(`Warning: You have a day off request on this date`);
+          }
+        }
+      } catch (error) {
+        console.debug('Background conflict check failed:', error);
+      }
+    };
+
+    const timeoutId = setTimeout(validateDates, 800);
+    return () => clearTimeout(timeoutId);
+  }, [
+    formik.values.employee_id,
+    formik.values.start_date,
+    formik.values.end_date,
+    formik.values.half_day_date,
+    formik.values.employee_type
+  ]);
 
   /* -------------------- API Functions -------------------- */
   const fetchDepartments = async () => {
@@ -267,7 +563,6 @@ export const UserEditModalForm: FC = () => {
     const { employee_type, half_day_date, start_date, end_date } = formik.values;
 
     if (employee_type === 'FULL_DAY') {
-      // Full day calculation
       if (!start_date || !end_date) {
         formik.setFieldValue('date_off_number', 0);
         return;
@@ -276,13 +571,11 @@ export const UserEditModalForm: FC = () => {
       const start = new Date(start_date);
       const end = new Date(end_date);
 
-      // Calculate difference in days
       const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both dates
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
       formik.setFieldValue('date_off_number', diffDays);
     } else if (employee_type === 'HALF_DAY') {
-      // Half day is always 0.5 days
       formik.setFieldValue('date_off_number', half_day_date ? 0.5 : 0);
     }
   }
@@ -319,11 +612,53 @@ export const UserEditModalForm: FC = () => {
       'is-invalid': formik.touched[fieldName] && formik.errors[fieldName],
     });
 
+  const checkExistingDayOff = async (
+    employeeId: string,
+    startDate: string,
+    endDate?: string,
+    employeeType: string = 'FULL_DAY'
+  ): Promise<{ hasConflict: boolean; conflicts?: any[] }> => {
+    try {
+      const params: any = {
+        employee_id: employeeId,
+      };
+
+      if (employeeType === 'HALF_DAY') {
+        params.date = startDate;
+      } else {
+        params.start_date = startDate;
+        if (endDate) {
+          params.end_date = endDate;
+        }
+      }
+
+      const response = await axios.get(`${API_URL}/dayoff-request/check-conflict`, {
+        params
+      });
+
+      return {
+        hasConflict: response.data.has_conflict || false,
+        conflicts: response.data.conflicts || []
+      };
+    } catch (error) {
+      console.error('Error checking existing day off:', error);
+
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 400) {
+          toast.warning('Please check your date selection');
+        } else if (error.response?.status === 500) {
+          toast.warning('Unable to verify existing requests. Please try again.');
+        }
+      }
+
+      return { hasConflict: false };
+    }
+  }
+
   /* -------------------- Render -------------------- */
   return (
     <>
       <form className="form" onSubmit={formik.handleSubmit} noValidate>
-        {/* Card Layout - Metronic Style */}
         <div>
           <div className="card-body">
             {/* Department */}
@@ -358,7 +693,7 @@ export const UserEditModalForm: FC = () => {
               )}
             </div>
 
-            {/* Employee (filtered by department) */}
+            {/* Employee */}
             <div className="fv-row mb-10">
               <label className="required fs-6 fw-bold mb-2">Employee</label>
               <div className="d-flex align-items-center gap-3">
@@ -458,6 +793,9 @@ export const UserEditModalForm: FC = () => {
                       {...formik.getFieldProps('start_date')}
                       className={fieldClass('start_date')}
                       disabled={isSubmitting}
+                      min={currentMonthRange.firstDay}
+                      max={currentMonthRange.lastDay}
+                      onChange={(e) => handleDateChange('start_date', e.target.value)}
                     />
                     {formik.touched.start_date && formik.errors.start_date && (
                       <div className="fv-plugins-message-container">
@@ -474,7 +812,9 @@ export const UserEditModalForm: FC = () => {
                       {...formik.getFieldProps('end_date')}
                       className={fieldClass('end_date')}
                       disabled={isSubmitting}
-                      min={formik.values.start_date}
+                      min={formik.values.start_date || currentMonthRange.firstDay}
+                      max={currentMonthRange.lastDay}
+                      onChange={(e) => handleDateChange('end_date', e.target.value)}
                     />
                     {formik.touched.end_date && formik.errors.end_date && (
                       <div className="fv-plugins-message-container">
@@ -491,7 +831,6 @@ export const UserEditModalForm: FC = () => {
             {/* Half Day: Single Date and Period */}
             {formik.values.employee_type === 'HALF_DAY' && (
               <>
-                {/* Single Date for Half Day */}
                 <div className="fv-row mb-10">
                   <label className="required fs-6 fw-bold mb-2">Date</label>
                   <input
@@ -499,6 +838,9 @@ export const UserEditModalForm: FC = () => {
                     {...formik.getFieldProps('half_day_date')}
                     className={fieldClass('half_day_date')}
                     disabled={isSubmitting}
+                    min={currentMonthRange.firstDay}
+                    max={currentMonthRange.lastDay}
+                    onChange={(e) => handleDateChange('half_day_date', e.target.value)}
                   />
                   {formik.touched.half_day_date && formik.errors.half_day_date && (
                     <div className="fv-plugins-message-container">
