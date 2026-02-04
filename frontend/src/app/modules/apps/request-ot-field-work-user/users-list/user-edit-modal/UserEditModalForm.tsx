@@ -6,7 +6,7 @@ import { isNotEmpty } from '../../../../../../_metronic/helpers'
 import { initialRequestOTFieldWork, RequestOTFieldWorkDTO, RequestOTFieldWork } from '../core/_models'
 import { useListView } from '../core/ListViewProvider'
 import { UsersListLoading } from '../components/loading/UsersListLoading'
-import { createRequest, updateRequest } from '../core/_requests'
+import { createRequest, updateRequest, deleteRequest } from '../core/_requests'
 import { useQueryResponse } from '../core/QueryResponseProvider'
 import { QUERIES } from '../../../../../../_metronic/helpers/crud-helper/consts'
 import { useMutation, useQueryClient, QueryKey } from 'react-query'
@@ -146,15 +146,14 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
         console.log('📤 Submitting request data:', submitData)
 
         if (request?._id || request?.id) {
-  // ✅ ส่งเป็น object ที่มี id และ data แยกกัน
-  const requestId = request._id || request.id || ''
-  await updateMutation.mutateAsync({ 
-    id: requestId, 
-    data: submitData  // ✅ ต้องใส่ data: ข้างหน้า
-  })
-} else {
-  await createMutation.mutateAsync(submitData)
-}
+          const requestId = request._id || request.id || ''
+          await updateMutation.mutateAsync({ 
+            id: requestId, 
+            data: submitData
+          })
+        } else {
+          await createMutation.mutateAsync(submitData)
+        }
 
         // ✅ Reset form after success
         if (!request?._id && !request?.id) {
@@ -182,7 +181,6 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
       const allUsers = res.data.data || []
       setUsers(allUsers)
 
-      // Filter supervisors
       const sups = allUsers.filter((u) => u.role === 'supervisor' || u.role === 'admin')
       setSupervisors(sups)
     } catch (err: unknown) {
@@ -253,9 +251,55 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
     },
   })
 
+  // ✅ Delete Mutation
+  const deleteMutation = useMutation(deleteRequest, {
+    onSuccess: () => {
+      Swal.fire({
+        icon: 'success',
+        title: '<span style="color: #10b981;">Request Deleted</span>',
+        text: 'The request has been successfully deleted.',
+        timer: 2000,
+        showConfirmButton: false,
+      }).then(() => {
+        invalidateRequests()
+        setItemIdForUpdate(undefined)
+      })
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.message || 'Failed to delete request'
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: errorMessage,
+        confirmButtonText: 'OK',
+      })
+    },
+  })
+
+  // ✅ Handle Delete with Confirmation
+  const handleDelete = async () => {
+    if (!request?._id && !request?.id) return
+
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    })
+
+    if (result.isConfirmed) {
+      const requestId = request._id || request.id || ''
+      await deleteMutation.mutateAsync(requestId)
+    }
+  }
+
   const isEditMode = !!request?._id || !!request?.id
   const isSubmitting =
-    formik.isSubmitting || createMutation.isLoading || updateMutation.isLoading
+    formik.isSubmitting || createMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading
 
   const fieldClass = (name: keyof RequestOTFieldWorkDTO) =>
     clsx('form-control form-control-solid', {
@@ -512,6 +556,8 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
 
         {/* Actions */}
         <div className="text-end pt-3">
+         
+          
           <button
             type="button"
             className="btn btn-light me-3"
@@ -520,6 +566,18 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
           >
             Cancel
           </button>
+           {/* ✅ Delete Button - แสดงเฉพาะ Edit Mode */}
+          {isEditMode && (
+            <button
+              type="button"
+              className="btn btn-danger me-3"
+              onClick={handleDelete}
+              disabled={isSubmitting}
+            >
+              <i className="bi bi-trash me-2"></i>
+              Delete
+            </button>
+          )}
           <button
             type="submit"
             className="btn btn-primary"

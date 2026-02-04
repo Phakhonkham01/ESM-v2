@@ -7,6 +7,7 @@ import {getRequestById} from '../core/_requests'
 const UserEditModalFormWrapper = () => {
   const {itemIdForUpdate, setItemIdForUpdate} = useListView()
   const enabledQuery: boolean = isNotEmpty(itemIdForUpdate)
+  
   const {
     isLoading,
     data: request,
@@ -26,15 +27,28 @@ const UserEditModalFormWrapper = () => {
     }
   )
 
+  // ✅ ถ้าไม่มี itemIdForUpdate แสดง form ว่างเปล่าสำหรับ create
   if (!itemIdForUpdate) {
     return <UserEditModalForm isUserLoading={isLoading} />
   }
 
-  if (!isLoading && !error && request) {
-    return <UserEditModalForm isUserLoading={isLoading} />
+  // ✅ ถ้ากำลัง loading
+  if (isLoading) {
+    return <UserEditModalForm isUserLoading={true} />
   }
 
-  return null
+  // ✅ ถ้ามี error
+  if (error) {
+    return <UserEditModalForm isUserLoading={false} />
+  }
+
+  // ✅ ถ้าโหลดเสร็จและมีข้อมูล ส่ง request ไปให้ form
+  if (!isLoading && request) {
+    return <UserEditModalForm isUserLoading={isLoading} request={request} />
+  }
+
+  // ✅ Fallback
+  return <UserEditModalForm isUserLoading={isLoading} />
 }
 
 export {UserEditModalFormWrapper}

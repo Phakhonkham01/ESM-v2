@@ -8,15 +8,58 @@ import {FormattedRequestOTFieldWork, formatRequestOTFieldWork} from '../core/_mo
 import {UsersListLoading} from '../components/loading/UsersListLoading'
 import {UsersListPagination} from '../components/pagination/UsersListPagination'
 import {KTCardBody} from '../../../../../../_metronic/helpers'
+import {useAuth} from '../../../../auth' // ✅ Import useAuth hook
 
 const UsersTable = () => {
   const requests = useQueryResponseData()
   const isLoading = useQueryResponseLoading()
+  const {currentUser} = useAuth() // ✅ ใช้ useAuth แทน localStorage
   
-  // ✅ Format data before using in table
+  // ✅ Filter and format data
   const data = useMemo(() => {
-    return requests.map(request => formatRequestOTFieldWork(request))
-  }, [requests])
+    // ✅ ดึง user ID จาก currentUser
+    const currentUserId = currentUser?._id || currentUser?._id
+    
+    if (!currentUserId) {
+      console.warn('⚠️ No user ID found in currentUser')
+      console.log('👤 currentUser:', currentUser)
+      return []
+    }
+
+    console.log('👤 Current User ID:', currentUserId)
+    console.log('📦 All Requests:', requests)
+
+    // Filter requests where user_id matches current user
+    const filteredRequests = requests.filter(request => {
+      console.log('🔍 Checking request:', request)
+      
+      // Extract user_id (could be string or object with _id/id)
+      let requestUserId = ''
+      
+      if (typeof request.user_id === 'string') {
+        requestUserId = request.user_id
+      } else if (typeof request.user_id === 'object' && request.user_id !== null) {
+        requestUserId = (request.user_id as any)._id || (request.user_id as any).id || ''
+      }
+
+      console.log(`   ├─ request.user_id (raw):`, request.user_id)
+      console.log(`   ├─ requestUserId (extracted):`, requestUserId)
+      console.log(`   ├─ currentUserId:`, currentUserId)
+      console.log(`   └─ Match?`, requestUserId === currentUserId)
+      
+      const isMatch = requestUserId === currentUserId
+      
+      if (isMatch) {
+        console.log('✅ Match found:', request)
+      }
+      
+      return isMatch
+    })
+
+    console.log('📊 Filtered Requests:', filteredRequests)
+
+    return filteredRequests.map(request => formatRequestOTFieldWork(request))
+  }, [requests, currentUser]) // ✅ เพิ่ม currentUser ใน dependencies
   
   const columns = useMemo(() => requestsColumns, [])
   
@@ -50,7 +93,7 @@ const UsersTable = () => {
               <tr>
                 <td colSpan={11}>
                   <div className='d-flex text-center w-100 align-content-center justify-content-center'>
-                    No matching records found
+                    {isLoading ? 'Loading...' : 'No matching records found'}
                   </div>
                 </td>
               </tr>
