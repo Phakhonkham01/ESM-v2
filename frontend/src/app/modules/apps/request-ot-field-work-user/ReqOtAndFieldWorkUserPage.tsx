@@ -1,11 +1,11 @@
 import {Route, Routes, Outlet, Navigate} from 'react-router-dom'
 import {PageLink, PageTitle} from '../../../../_metronic/layout/core'
-import {DayoffrequestsListWrapper} from './day-off-requests/DayoffrequestsList'
+import {UsersListWrapper} from './users-list/UsersList'
 
 const usersBreadcrumbs: Array<PageLink> = [
   {
-    title: 'Request Day-Off',
-    path: 'crafted/requestsdayoffuser/',
+    title: 'User Management',
+    path: 'crafted/reqotandfieldworkuser/',
     isSeparator: false,
     isActive: false,
   },
@@ -17,23 +17,23 @@ const usersBreadcrumbs: Array<PageLink> = [
   },
 ]
 
-const RequestDayOffUser = () => {
+const ReqOtAndFieldWorkUserPage = () => {
   return (
     <Routes>
       <Route element={<Outlet />}>
         <Route
-          path='dayofflist'
+          path='ot&fieldworklist'
           element={
             <>
-              <PageTitle breadcrumbs={usersBreadcrumbs}>Request Day-Off-user</PageTitle>
-              <DayoffrequestsListWrapper />
+              <PageTitle breadcrumbs={usersBreadcrumbs}>Users list</PageTitle>
+              <UsersListWrapper />
             </>
           }
         />
       </Route>
-      <Route index element={<Navigate to='/crafted/requestsdayoffuser' />} />
+      {/* <Route index element={<Navigate to='/apps/user-management/users' />} /> */}
     </Routes>
   )
 }
 
-export default RequestDayOffUser
+export default ReqOtAndFieldWorkUserPage

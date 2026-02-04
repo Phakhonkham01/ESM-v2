@@ -22,7 +22,7 @@ const PrivateRoutes = () => {
   const RequestDayOffUser = lazy(() => import('../modules/apps/request-day-off-user/UsersPage'))
 
   const SupervosorDayOffPage = lazy(() => import('../modules/apps/request-day-off/SupervisorDayOffPage'))
-  
+  const ReqOtAndFieldWorkUserPage = lazy(() => import('../modules/apps/request-ot-field-work-user/ReqOtAndFieldWorkUserPage'))
   
   
   
@@ -100,10 +100,18 @@ const PrivateRoutes = () => {
           }
         />
         <Route
-          path='crafted/*'
+          path='crafted/requestsdayoffuser/*'
           element={
             <SuspensedView>
               <RequestDayOffUser />
+            </SuspensedView>
+          }
+        />
+        <Route
+          path='crafted/reqotandfieldworkuser/*'
+          element={
+            <SuspensedView>
+              <ReqOtAndFieldWorkUserPage />
             </SuspensedView>
           }
         />
