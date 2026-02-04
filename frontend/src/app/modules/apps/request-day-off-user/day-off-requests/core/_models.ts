@@ -102,27 +102,34 @@ export const dayOffTypeOptions = [
 export const formatDayOffRequest = (request: DayOffRequest): FormattedDayOffRequest => {
   // Extract user info
   const extractUserInfo = (userField: any) => {
-    if (!userField) {
-      return { id: '', name: 'Unknown', email: '' }
-    }
-
-    if (typeof userField === 'string') {
-      return { id: userField, name: 'N/A', email: '' }
-    }
-
-    // ถ้าเป็น User object
-    if (userField && typeof userField === 'object') {
-      return {
-        id: userField.id || userField._id || '',
-        name: userField.user_name || 
-               `${userField.first_name_en || ''} ${userField.last_name_en || ''}`.trim() || 
-               'Unknown',
-        email: userField.user_email || ''
-      }
-    }
-
+  if (!userField) {
     return { id: '', name: 'Unknown', email: '' }
   }
+
+  if (typeof userField === 'string') {
+    // ถ้าเป็น string (ObjectId) แต่ยังไม่ได้ populate
+    return { id: userField, name: 'N/A', email: '' }
+  }
+
+  // ถ้าเป็น ObjectId object จาก MongoDB
+  if (userField && typeof userField === 'object' && userField._bsontype === 'ObjectId') {
+    return { id: userField.toString(), name: 'N/A', email: '' }
+  }
+
+  // ถ้าเป็น User object ที่ populate มาแล้ว
+  if (userField && typeof userField === 'object') {
+    return {
+      id: userField.id || userField._id || '',
+      name: userField.user_name || 
+             `${userField.first_name_en || ''} ${userField.last_name_en || ''}`.trim() || 
+             userField.name ||
+             'Unknown',
+      email: userField.user_email || userField.email || ''
+    }
+  }
+
+  return { id: '', name: 'Unknown', email: '' }
+}
 
   // Extract employee info
   const employeeInfo = extractUserInfo(request.employee_id)

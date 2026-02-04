@@ -1,75 +1,31 @@
 import { Column } from 'react-table'
-import { DayOffRequest } from '../../core/_models'
-import { UserCustomHeader } from './UserCustomHeader' // ใช้ UserCustomHeader เดิม
+import { FormattedDayOffRequest } from '../../core/_models' // เปลี่ยนเป็น FormattedDayOffRequest
+import { UserCustomHeader } from './UserCustomHeader'
 
-const dayOffRequestsColumns: ReadonlyArray<Column<DayOffRequest>> = [
+const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
   {
     Header: () => <th className="min-w-50px text-center">No</th>,
     id: 'no',
     Cell: ({ row }) => <div className="text-center">{row.index + 1}</div>,
   },
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Employee" className="min-w-150px" />
-    ),
-    id: 'employee',
-    Cell: ({ row }) => {
-      const request = row.original
-      // ตรวจสอบว่า employee_id เป็น object หรือ string
-      let employeeName = 'Unknown'
-      let employeeEmail = ''
-      
-      if (typeof request.employee_id === 'object' && request.employee_id !== null) {
-        // ถ้าเป็น User object
-        employeeName = request.employee_id.user_name || 
-                      `${request.employee_id.first_name_en || ''} ${request.employee_id.last_name_en || ''}`.trim()
-        employeeEmail = request.employee_id.user_email || ''
-      } else if (typeof request.employee_id === 'string') {
-        // ถ้าเป็น string (ID)
-        employeeName = request.employee_id
-      }
-      
-      return (
-        <div className="d-flex flex-column">
-          <span className="fw-semibold text-gray-800">{employeeName}</span>
-          {employeeEmail && <span className="text-muted fs-7">{employeeEmail}</span>}
-        </div>
-      )
-    },
-  },
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Supervisor" className="min-w-150px" />
-    ),
-    id: 'supervisor',
-    Cell: ({ row }) => {
-      const request = row.original
-      let supervisorName = 'N/A'
-      
-      if (Array.isArray(request.supervisor_id)) {
-        supervisorName = request.supervisor_id
-          .map(sup => {
-            if (typeof sup === 'object' && sup !== null) {
-              return sup.user_name || 
-                     `${sup.first_name_en || ''} ${sup.last_name_en || ''}`.trim()
-            }
-            return sup
-          })
-          .join(', ')
-      } else if (typeof request.supervisor_id === 'object' && request.supervisor_id !== null) {
-        supervisorName = request.supervisor_id.user_name || 
-                        `${request.supervisor_id.first_name_en || ''} ${request.supervisor_id.last_name_en || ''}`.trim()
-      } else if (typeof request.supervisor_id === 'string') {
-        supervisorName = request.supervisor_id
-      }
-      
-      return (
-        <div className="d-flex flex-column">
-          <span className="fw-semibold text-gray-800">{supervisorName}</span>
-        </div>
-      )
-    },
-  },
+  // {
+  //   Header: (props) => (
+  //     <UserCustomHeader tableProps={props} title="Employee" className="min-w-150px" />
+  //   ),
+  //   accessor: 'employee_name', // ใช้ accessor โดยตรง
+  //   Cell: ({ value, row }) => {
+  //     const request = row.original
+  //     return (
+  //       <div className="d-flex flex-column">
+  //         <span className="fw-semibold text-gray-800">{value || 'Unknown'}</span>
+  //         {request.employee_email && (
+  //           <span className="text-muted fs-7">{request.employee_email}</span>
+  //         )}
+  //       </div>
+  //     )
+  //   },
+  // },
+  
   {
     Header: (props) => (
       <UserCustomHeader tableProps={props} title="Title" className="min-w-150px" />
@@ -77,7 +33,7 @@ const dayOffRequestsColumns: ReadonlyArray<Column<DayOffRequest>> = [
     accessor: 'title',
     Cell: ({ value }) => (
       <div className="d-flex flex-column">
-        <span className="fw-semibold text-gray-800">{value}</span>
+        <span className="fw-semibold text-gray-800">{value || 'N/A'}</span>
       </div>
     ),
   },
@@ -98,11 +54,18 @@ const dayOffRequestsColumns: ReadonlyArray<Column<DayOffRequest>> = [
     ),
     accessor: 'start_date_time',
     Cell: ({ value }) => {
+      if (!value) return <span className="text-muted">N/A</span>
+      
       const date = new Date(value)
       return (
-        <span className="fw-semibold text-gray-800">
-          {date.toLocaleDateString('en-GB')}
-        </span>
+        <div className="d-flex flex-column">
+          <span className="fw-semibold text-gray-800">
+            {date.toLocaleDateString('en-GB')}
+          </span>
+          <span className="text-muted fs-7">
+            {date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
       )
     },
   },
@@ -112,11 +75,18 @@ const dayOffRequestsColumns: ReadonlyArray<Column<DayOffRequest>> = [
     ),
     accessor: 'end_date_time',
     Cell: ({ value }) => {
+      if (!value) return <span className="text-muted">N/A</span>
+      
       const date = new Date(value)
       return (
-        <span className="fw-semibold text-gray-800">
-          {date.toLocaleDateString('en-GB')}
-        </span>
+        <div className="d-flex flex-column">
+          <span className="fw-semibold text-gray-800">
+            {date.toLocaleDateString('en-GB')}
+          </span>
+          <span className="text-muted fs-7">
+            {date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
       )
     },
   },
@@ -127,7 +97,9 @@ const dayOffRequestsColumns: ReadonlyArray<Column<DayOffRequest>> = [
     accessor: 'date_off_number',
     Cell: ({ value }) => (
       <div className="text-center">
-        <span className="badge badge-light-primary fw-bold">{value || 0}</span>
+        <span className="badge badge-light-primary fw-bold">
+          {value || 0} {value === 1 ? 'day' : 'days'}
+        </span>
       </div>
     ),
   },
@@ -138,13 +110,25 @@ const dayOffRequestsColumns: ReadonlyArray<Column<DayOffRequest>> = [
     accessor: 'status',
     Cell: ({ value }) => {
       let className = 'badge-light-secondary'
-      if (value === 'Pending') className = 'badge-light-warning'
-      if (value === 'Accepted') className = 'badge-light-success'
-      if (value === 'Rejected') className = 'badge-light-danger'
+      let icon = 'bi-question-circle'
+      
+      if (value === 'Pending') {
+        className = 'badge-light-warning'
+        icon = 'bi-clock-history'
+      }
+      if (value === 'Accepted') {
+        className = 'badge-light-success'
+        icon = 'bi-check-circle'
+      }
+      if (value === 'Rejected') {
+        className = 'badge-light-danger'
+        icon = 'bi-x-circle'
+      }
       
       return (
         <span className={`badge ${className} fw-bold`}>
-          {value}
+          <i className={`bi ${icon} me-1`}></i>
+          {value || 'Unknown'}
         </span>
       )
     },
@@ -169,38 +153,134 @@ const dayOffRequestsColumns: ReadonlyArray<Column<DayOffRequest>> = [
     },
   },
   {
+  Header: (props) => (
+    <UserCustomHeader tableProps={props} title="Supervisor" className="min-w-150px" />
+  ),
+  accessor: 'supervisor_name',
+  Cell: ({ value, row }) => {
+    const request = row.original
+    
+    // แยกชื่อ supervisor
+    const parseSupervisorNames = () => {
+      if (!value || value === '' || value === 'N/A') {
+        return []
+      }
+      
+      if (typeof value === 'string') {
+        if (value.includes(',')) {
+          return value.split(',').map(n => n.trim()).filter(n => n)
+        }
+        return [value]
+      }
+      
+      if (Array.isArray(value)) {
+        return value.filter(n => n)
+      }
+      
+      return []
+    }
+    
+    const names = parseSupervisorNames()
+    
+    // กำหนดสีตามจำนวน supervisor
+    const getBackgroundColor = () => {
+      if (names.length === 0) return 'bg-light-warning'
+      if (names.length === 1) return 'bg-light-success'
+      if (names.length === 2) return 'bg-light-primary'
+      return 'bg-light-info'
+    }
+    
+    const getIconColor = () => {
+      if (names.length === 0) return 'text-warning'
+      if (names.length === 1) return 'text-success'
+      if (names.length === 2) return 'text-primary'
+      return 'text-info'
+    }
+    
+    if (names.length === 0) {
+      return (
+        <div className={`d-flex align-items-center p-2 ${getBackgroundColor()} rounded`}>
+          <i className={`bi bi-person-x fs-5 ${getIconColor()} me-2`}></i>
+          <span className="text-title fw-bold">No supervisor assigned</span>
+        </div>
+      )
+    }
+    
+    return (
+      <div className="d-flex flex-column">
+        {names.map((name, index) => (
+          <div 
+            key={index} 
+            className={`
+              d-flex align-items-center mb-1 p-2 rounded
+              ${getBackgroundColor()}
+            `}
+          >
+            <i className={`
+              bi ${names.length > 1 ? 'bi-people-fill' : 'bi-person-check-fill'} 
+              fs-5 ${getIconColor()} me-2
+            `}></i>
+            <span className="fw-bold fs-8 text-gray-900">{name}</span>
+          </div>
+        ))}
+        
+        {/* แสดงจำนวน supervisor */}
+        {/* {names.length > 1 && (
+          <div className="mt-1">
+            <span className="badge badge-primary">
+              <i className="bi bi-people me-1"></i>
+              {names.length} supervisors
+            </span>
+          </div>
+        )} */}
+      </div>
+    )
+  },
+},
+  {
     Header: (props) => (
       <UserCustomHeader tableProps={props} title="Actions" className="text-end min-w-100px" />
     ),
     id: 'actions',
     Cell: ({ row }) => {
       const request = row.original
+      const requestId = request._id || request._id
+      
       return (
         <div className='d-flex justify-content-end flex-shrink-0'>
           <button
             className='btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1'
-            onClick={() => console.log('View:', request._id || request.id)}
+            onClick={() => {
+              console.log('View request:', requestId)
+              // TODO: Implement view modal
+            }}
             title='View Details'
           >
-            <i className='fas fa-eye fs-4'></i>
+            <i className='bi bi-eye fs-4'></i>
           </button>
           
           {request.status === 'Pending' && (
             <>
               <button
                 className='btn btn-icon btn-bg-light btn-active-color-success btn-sm me-1'
-                onClick={() => console.log('Update:', request._id || request.id)}
-                title='Update Status'
+                onClick={() => {
+                  console.log('Edit request:', requestId)
+                  // TODO: Implement edit modal
+                }}
+                title='Edit Request'
               >
-                <i className='fas fa-edit fs-4'></i>
+                <i className='bi bi-pencil fs-4'></i>
               </button>
               
               <button
                 className='btn btn-icon btn-bg-light btn-active-color-danger btn-sm'
-                onClick={() => console.log('Delete:', request._id || request.id)}
-                title='Delete'
+                onClick={() => {
+                  console.log('Delete request:', requestId)
+                  // TODO: Implement delete confirmation
+                }}
+                title='Delete Request'
               >
-                <i className='fas fa-trash fs-4'></i>
+                <i className='bi bi-trash fs-4'></i>
               </button>
             </>
           )}

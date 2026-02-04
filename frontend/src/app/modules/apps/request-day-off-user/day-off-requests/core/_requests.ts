@@ -34,12 +34,61 @@ interface DayOffRequestsQueryResponseData {
   data: DayOffRequest[]
 }
 
+// Helper function to normalize user data
+const normalizeUserData = (userData: any): any => {
+  if (!userData) return null
+  
+  // If it's already a populated object
+  if (typeof userData === 'object' && userData !== null && !userData._bsontype) {
+    return {
+      _id: userData._id || userData.id,
+      id: userData._id || userData.id,
+      user_name: userData.user_name,
+      first_name_en: userData.first_name_en,
+      last_name_en: userData.last_name_en,
+      user_email: userData.user_email || userData.email,
+      employee_id: userData.employee_id,
+    }
+  }
+  
+  // If it's just an ID string
+  return userData
+}
+
 // Helper function to map day off request
+// ในไฟล์ _requests.ts
 const mapDayOffRequest = (request: any): DayOffRequest => {
+  console.log('🔍 Raw request data:', {
+    _id: request._id,
+    supervisor_id: request.supervisor_id,
+    supervisor_id_type: typeof request.supervisor_id,
+    is_supervisor_array: Array.isArray(request.supervisor_id)
+  })
+  
+  // ถ้า supervisor_id เป็น array ของ ObjectId ให้แสดงรายละเอียด
+  if (Array.isArray(request.supervisor_id)) {
+    console.log('📋 Supervisor IDs array:', request.supervisor_id.map((item: any) => {
+      if (item && typeof item === 'object') {
+        return {
+          type: typeof item,
+          _bsontype: item._bsontype,
+          toString: item.toString ? item.toString() : 'no toString',
+          value: item
+        }
+      }
+      return item
+    }))
+  }
+  
   return {
     ...request,
     id: request._id || request.id,
     _id: request._id || request.id,
+    employee_id: normalizeUserData(request.employee_id),
+    supervisor_id: Array.isArray(request.supervisor_id)
+      ? request.supervisor_id.map(normalizeUserData)
+      : normalizeUserData(request.supervisor_id),
+    user_id: normalizeUserData(request.user_id),
   }
 }
 
@@ -48,10 +97,24 @@ const mapDayOffRequest = (request: any): DayOffRequest => {
 ========================= */
 
 // GET ALL DAY OFF REQUESTS (FORMATTED) - สำหรับตาราง
+// ในไฟล์ _requests.ts ฟังก์ชัน getDayOffRequestsAllUser
 export const getDayOffRequestsAllUser = async (): Promise<DayOffRequestsAllUserResponse> => {
   try {
-    console.log('📋 Fetching formatted day off requests from:', `${DAY_OFF_REQUEST_URL}/all-users`)
-    const response = await axiosInstance.get<DayOffRequestsAllUserResponse>(`${DAY_OFF_REQUEST_URL}/all-users`)
+    console.log('📋 Fetching formatted day off requests from:', `${DAY_OFF_REQUEST_URL}/allusers`)
+    const response = await axiosInstance.get<DayOffRequestsAllUserResponse>(`${DAY_OFF_REQUEST_URL}/allusers`)
+    
+    // Debug: ตรวจสอบข้อมูล supervisor ใน response ตัวแรก
+    if (response.data.requests && response.data.requests.length > 0) {
+      const firstRequest = response.data.requests[0]
+      console.log('🔍 First request supervisor data:', {
+        supervisor_id: firstRequest.supervisor_id,
+        supervisor_name: firstRequest.supervisor_name,
+        supervisor_email: firstRequest.supervisor_email,
+        type: typeof firstRequest.supervisor_id,
+        isArray: Array.isArray(firstRequest.supervisor_id)
+      })
+    }
+    
     console.log('✅ Get all day off requests response:', response.data)
     return response.data
   } catch (error: any) {
@@ -65,28 +128,23 @@ export const getAllDayOffRequests = async (params?: any): Promise<Response<DayOf
   try {
     console.log('📋 Fetching raw day off requests with params:', params)
     
-    // ลองใช้ endpoint /all-users ก่อน ถ้าไม่ได้ค่อยใช้ endpoint หลัก
-    let response: AxiosResponse<any>
-    
+    // ลองใช้ endpoint /allusers ก่อน ถ้าไม่ได้ค่อยใช้ endpoint หลัก
     try {
-      // พยายามใช้ /all-users endpoint ที่รู้ว่าทำงานได้
-      const allUsersResponse = await axiosInstance.get<DayOffRequestsAllUserResponse>(`${DAY_OFF_REQUEST_URL}/all-users`)
+      // พยายามใช้ /allusers endpoint ที่รู้ว่าทำงานได้
+      const allUsersResponse = await axiosInstance.get<DayOffRequestsAllUserResponse>(`${DAY_OFF_REQUEST_URL}/allusers`)
       
-      // แปลง formatted response เป็น raw format
-      const rawData: DayOffRequest[] = allUsersResponse.data.requests.map((req: any) => ({
-        ...req,
-        id: req._id || req.id,
-        _id: req._id || req.id,
-      }))
+      // แปลง formatted response เป็น raw format พร้อม normalize user data
+      const rawData: DayOffRequest[] = allUsersResponse.data.requests.map(mapDayOffRequest)
       
-      console.log('✅ Get day off requests response (from all-users):', { data: rawData })
+      console.log('✅ Get day off requests response (from allusers):', { count: rawData.length })
+      console.log('📝 Sample data:', rawData[0])
       return { data: rawData }
       
     } catch (allUsersError) {
-      console.log('⚠️ /all-users endpoint failed, trying main endpoint...')
+      console.log('⚠️ /allusers endpoint failed, trying main endpoint...')
       
-      // ถ้า /all-users ไม่ได้ ให้ลองใช้ endpoint หลักโดยไม่มี query params
-      response = await axiosInstance.get<DayOffRequestsQueryResponseData>(DAY_OFF_REQUEST_URL)
+      // ถ้า /allusers ไม่ได้ ให้ลองใช้ endpoint หลักโดยไม่มี query params
+      const response = await axiosInstance.get<DayOffRequestsQueryResponseData>(DAY_OFF_REQUEST_URL)
       
       const formattedResponse: Response<DayOffRequest[]> = {
         data: response.data.data ? response.data.data.map(mapDayOffRequest) : []
