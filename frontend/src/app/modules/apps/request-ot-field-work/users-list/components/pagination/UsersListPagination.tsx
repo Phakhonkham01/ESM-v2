@@ -1,6 +1,6 @@
 
 import clsx from 'clsx'
-import {useQueryResponseLoading, useQueryResponsePagination} from '../../core/QueryResponseProvider'
+import {useQueryResponseLoading, useQueryResponseData} from '../../core/QueryResponseProvider'
 import {useQueryRequest} from '../../core/QueryRequestProvider'
 import {PaginationState} from '../../../../../../../_metronic/helpers'
 import {useMemo} from 'react'
@@ -18,7 +18,7 @@ const mappedLabel = (label: string): string => {
 }
 
 const UsersListPagination = () => {
-  const pagination = useQueryResponsePagination()
+  const pagination = useQueryResponseData()
   const isLoading = useQueryResponseLoading()
   const {updateState} = useQueryRequest()
   const updatePage = (page: number | undefined | null) => {

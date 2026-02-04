@@ -1,11 +1,11 @@
-import {Route, Routes, Outlet, Navigate} from 'react-router-dom'
-import {PageLink, PageTitle} from '../../../../_metronic/layout/core'
-import {UsersListWrapper} from './users-list/UsersList'
+import { Route, Routes, Outlet, Navigate } from 'react-router-dom'
+import { PageLink, PageTitle } from '../../../../_metronic/layout/core'
+import { SupervisorRequestsListWrapper } from './users-list/SupervisorRequestsList'
 
-const usersBreadcrumbs: Array<PageLink> = [
+const requestsBreadcrumbs: Array<PageLink> = [
   {
-    title: 'Request OT/Field Work',
-    path: '/apps/request-ot-and-field_work',
+    title: 'Supervisor Requests',
+    path: '/apps/supervisor-requests-management/requests',
     isSeparator: false,
     isActive: false,
   },
@@ -17,27 +17,25 @@ const usersBreadcrumbs: Array<PageLink> = [
   },
 ]
 
-const Request = () => {
+const SupervisorRequestsPage = () => {
   return (
     <Routes>
       <Route element={<Outlet />}>
         <Route
-          path='request'
+          index
           element={
             <>
-              <PageTitle breadcrumbs={usersBreadcrumbs}>Request OT/Field Work</PageTitle>
-              <UsersListWrapper />
+              <PageTitle breadcrumbs={requestsBreadcrumbs}>
+                Supervisor Requests
+              </PageTitle>
+              <SupervisorRequestsListWrapper />
             </>
           }
         />
       </Route>
-
-      <Route
-        index
-        element={<Navigate to='/apps/request-ot-and-field_work/request' />}
-      />
+      <Route index element={<Navigate to="/apps/supervisor-requests-management/requests" />} />
     </Routes>
   )
 }
 
-export default Request
+export default SupervisorRequestsPage

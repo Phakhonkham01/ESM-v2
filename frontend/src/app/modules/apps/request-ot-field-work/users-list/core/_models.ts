@@ -1,116 +1,76 @@
-import {ID, Response} from '../../../../../../_metronic/helpers'
+import { ID, Response } from '../../../../../../_metronic/helpers'
 
-// ✅ ประกาศ interface ก่อน
-export interface Department {
+export type RequestData = {
   _id?: string
-  id?: string
-  department_name: string
-  createdAt?: Date
-  updatedAt?: Date
-}
-
-export interface Position {
-  _id?: string
-  id?: string
-  position_name: string
-  department_id: string | Department
-  createdAt?: Date
-  updatedAt?: Date
-}
-
-// ✅ ประกาศ Type หลังจาก interface
-export type DepartmentIdType = 
-  | string 
-  | string[] 
-  | Department 
-  | Department[]
-  | null
-  | undefined
-
-export type PositionIdType = 
-  | string 
-  | Position 
-  | null
-  | undefined
-
-// ✅ ตอนนี้สามารถใช้ DepartmentIdType และ PositionIdType ได้แล้ว
-export type User = {
   id?: ID
-  user_name: string
-  user_email: string
-  password?: string
-  role: 'admin' | 'employee' | 'supervisor'
-  department_id?: DepartmentIdType
-  leave_days: number
-  status: 'Active' | 'Inactive' | 'On Leave' | 'work day' | 'leave day'
-  // ฟิลด์ใหม่ที่เพิ่ม
-  first_name_en: string
-  last_name_en: string
-  nickname_en?: string
-  first_name_la: string
-  last_name_la: string
-  nickname_la?: string
-  date_of_birth: string
-  start_work: string
-  gender: 'male' | 'female' | 'other'
-  position_id?: PositionIdType
-  base_salary?: number
+  user_id: {
+    _id: string
+    email: string
+    first_name_en?: string
+    last_name_en?: string
+    employee_id?: string
+  } | string
+  supervisor_id: string
+  date: string
+  title: 'OT' | 'FIELD_WORK'
+  start_hour: string | number
+  end_hour: string | number
+  fuel?: number
+  reason: string
+  status: 'Pending' | 'Accept' | 'Reject'
+  created_at?: string
 }
 
-export type UsersQueryResponse = Response<Array<User>>
+export type RequestsQueryResponse = Response<Array<RequestData>>
 
-export const initialUser: User = {
-  user_name: '',
-  user_email: '',
-  role: 'employee',
-  department_id: null,
-  leave_days: 15,
-  status: 'Active',
-  // ค่าเริ่มต้นสำหรับฟิลด์ใหม่
-  first_name_en: '',
-  last_name_en: '',
-  nickname_en: '',
-  first_name_la: '',
-  last_name_la: '',
-  nickname_la: '',
-  date_of_birth: '',
-  start_work: '',
-  gender: 'male',
-  position_id: null,
-  base_salary: 0,
+export const initialRequest: RequestData = {
+  user_id: '',
+  supervisor_id: '',
+  date: '',
+  title: 'OT',
+  start_hour: 0,
+  end_hour: 0,
+  reason: '',
+  status: 'Pending',
 }
 
-// Helper functions สำหรับการแปลง type
-export const extractDepartmentId = (departmentId: DepartmentIdType): string | string[] | null => {
-  if (!departmentId) return null
-  
-  if (Array.isArray(departmentId)) {
-    return departmentId.map(dept => 
-      typeof dept === 'string' ? dept : dept._id || dept.id || ''
-    ).filter(Boolean) as string[]
+// Helper functions
+export const formatDate = (dateString: string): string => {
+  const date = new Date(dateString)
+  const day = date.getDate().toString().padStart(2, '0')
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+export const formatHour = (hour: string | number): string => {
+  if (typeof hour === 'number') {
+    const hours = Math.floor(hour)
+    const minutes = Math.round((hour - hours) * 60)
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
   }
-  
-  if (typeof departmentId === 'object' && departmentId !== null) {
-    return departmentId._id || departmentId.id || ''
+  return hour.toString()
+}
+
+export const calculateDuration = (startHour: string | number, endHour: string | number): string => {
+  const toMinutes = (time: string | number): number => {
+    if (typeof time === 'number') {
+      const hours = Math.floor(time)
+      const minutes = Math.round((time - hours) * 60)
+      return hours * 60 + minutes
+    }
+    return 0
   }
-  
-  return departmentId as string
+  const durationMinutes = toMinutes(endHour) - toMinutes(startHour)
+  const durationHours = durationMinutes / 60
+  return `${durationHours.toFixed(1)} hrs`
 }
 
-export const extractPositionId = (positionId: PositionIdType): string | null => {
-  if (!positionId) return null
-  
-  if (typeof positionId === 'object' && positionId !== null) {
-    return positionId._id || positionId.id || ''
+export const getEmployeeName = (request: RequestData): string => {
+  if (typeof request.user_id === 'string') {
+    return `User-${request.user_id.substring(0, 6)}...`
   }
-  
-  return positionId as string
-}
-
-export const isDepartmentObject = (dept: unknown): dept is Department => {
-  return typeof dept === 'object' && dept !== null && 'department_name' in dept
-}
-
-export const isPositionObject = (pos: unknown): pos is Position => {
-  return typeof pos === 'object' && pos !== null && 'position_name' in pos
+  const firstName = request.user_id.first_name_en || ''
+  const lastName = request.user_id.last_name_en || ''
+  return `${firstName} ${lastName}`.trim() || request.user_id.email || 'Unknown'
 }
