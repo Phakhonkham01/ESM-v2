@@ -5,17 +5,13 @@ import { RequestData, RequestsQueryResponse } from './_models'
 const API_URL = import.meta.env.VITE_APP_API_URL
 const REQUEST_URL = `${API_URL}/requestOTandFieldWorkRoutes`
 
-// GET requests by supervisor
 export const getRequestsBySupervisor = async (supervisorId: ID): Promise<RequestsQueryResponse> => {
-  const { data }: AxiosResponse<{ message: string; requests: RequestData[]; count: number }> = 
+  const { data }: AxiosResponse<{ requests: RequestData[] }> = 
     await axios.get(`${REQUEST_URL}/supervisor/${supervisorId}`)
-  
-  return {
-    data: data.requests || [],
-  }
+  return { data: data.requests || [] }
 }
 
-// UPDATE request status
-export const updateRequestStatus = async (id: ID, status: 'Accept' | 'Reject'): Promise<void> => {
+export const updateRequestStatus = async (id: ID, status: 'Accepted' | 'Rejected'): Promise<void> => {
   await axios.put(`${REQUEST_URL}/${id}/status`, { status })
 }
+

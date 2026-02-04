@@ -89,6 +89,12 @@ export function AsideMenuMain() {
         <AsideMenuItem to='/apps/chat/drawer-chat' title='Drawer Chart' hasBullet={true} />
       </AsideMenuItemWithSub>
       <AsideMenuItem
+        to='/apps/salary-management'
+        icon='people'
+        title='Salary Management'
+        fontIcon='bi-layers'
+      />
+        <AsideMenuItem
         to='/apps/user-management/users'
         icon='people'
         title='User management'

@@ -20,6 +20,7 @@ const PrivateRoutes = () => {
   const Request = lazy(() => import('../modules/apps/request-ot-field-work/UsersPage'))
   
   const RequestDayOffUser = lazy(() => import('../modules/apps/request-day-off-user/UsersPage'))
+  const SalaryCalculationPage = lazy(() => import('../modules/apps/salary-calculator/SalaryCalculationPage'))
 
   const SupervosorDayOffPage = lazy(() => import('../modules/apps/request-day-off/SupervisorDayOffPage'))
   
@@ -55,7 +56,14 @@ const PrivateRoutes = () => {
             </SuspensedView>
           }
         />
-
+         <Route
+          path='apps/salary-management/*'
+          element={
+            <SuspensedView>
+              <SalaryCalculationPage />
+            </SuspensedView>
+          }
+        />
         {/* Attendance */}
         <Route
           path='apps/overtime/*'

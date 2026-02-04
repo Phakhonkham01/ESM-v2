@@ -23,17 +23,6 @@ export type RequestData = {
 
 export type RequestsQueryResponse = Response<Array<RequestData>>
 
-export const initialRequest: RequestData = {
-  user_id: '',
-  supervisor_id: '',
-  date: '',
-  title: 'OT',
-  start_hour: 0,
-  end_hour: 0,
-  reason: '',
-  status: 'Pending',
-}
-
 // Helper functions
 export const formatDate = (dateString: string): string => {
   const date = new Date(dateString)
@@ -49,7 +38,10 @@ export const formatHour = (hour: string | number): string => {
     const minutes = Math.round((hour - hours) * 60)
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
   }
-  return hour.toString()
+  if (typeof hour === 'string' && hour.includes(':')) {
+    return hour
+  }
+  return '--:--'
 }
 
 export const calculateDuration = (startHour: string | number, endHour: string | number): string => {
@@ -67,10 +59,18 @@ export const calculateDuration = (startHour: string | number, endHour: string | 
 }
 
 export const getEmployeeName = (request: RequestData): string => {
-  if (typeof request.user_id === 'string') {
-    return `User-${request.user_id.substring(0, 6)}...`
-  }
+  if (typeof request.user_id === 'string') return 'Unknown'
   const firstName = request.user_id.first_name_en || ''
   const lastName = request.user_id.last_name_en || ''
   return `${firstName} ${lastName}`.trim() || request.user_id.email || 'Unknown'
+}
+
+export const getEmployeeEmail = (request: RequestData): string => {
+  if (typeof request.user_id === 'string') return ''
+  return request.user_id.email || ''
+}
+
+export const getEmployeeId = (request: RequestData): string => {
+  if (typeof request.user_id === 'string') return ''
+  return request.user_id.employee_id || ''
 }

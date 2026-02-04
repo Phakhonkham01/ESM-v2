@@ -10,15 +10,8 @@ type Props = {
 }
 
 const RequestCustomHeader: FC<Props> = ({ className, title, tableProps }) => {
-  // ดึง key และ props อื่นๆ ออกมาแยกกัน
-  const { key, ...restProps } = tableProps.column.getHeaderProps()
-  
   return (
-    <th
-      key={key}
-      {...restProps}
-      className={clsx(className, 'text-start text-muted fw-bold fs-7 text-uppercase gs-0')}
-    >
+    <th {...tableProps.column.getHeaderProps()} className={clsx(className)}>
       {title}
     </th>
   )

@@ -5,7 +5,7 @@ import { SupervisorRequestsListWrapper } from './users-list/SupervisorRequestsLi
 const requestsBreadcrumbs: Array<PageLink> = [
   {
     title: 'Supervisor Requests',
-    path: '/apps/supervisor-requests-management/requests',
+    path: '/apps/request-ot-and-field_work',
     isSeparator: false,
     isActive: false,
   },
@@ -33,7 +33,7 @@ const SupervisorRequestsPage = () => {
           }
         />
       </Route>
-      <Route index element={<Navigate to="/apps/supervisor-requests-management/requests" />} />
+      <Route index element={<Navigate to="/apps/request-ot-and-field_work" />} />
     </Routes>
   )
 }
