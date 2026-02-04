@@ -19,7 +19,11 @@ const app: Express = express();
 // CORS Configuration
 app.use(
     cors({
-        origin: process.env.CLIENT_URL || "*",
+        origin: [
+            process.env.CLIENT_URL!, // The '!' tells TS this won't be undefined
+            'http://localhost:5173',
+            'http://localhost:5174'
+        ],
         methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
         allowedHeaders: ["Content-Type", "Authorization"],
         credentials: true

@@ -189,9 +189,9 @@ export const createDayOffRequest = async (
   data: Omit<DayOffRequest, '_id' | 'status' | 'created_at' | 'date_off_number'>
 ): Promise<DayOffResponse> => {
   try {
-    console.log('🚀 Sending request to:', `${API_URL}/dayoff-request`) // เพิ่ม log
+    console.log('🚀 Sending request to:', `${API_URL}/day-off-requests`) // เพิ่ม log
     console.log('📦 Request data:', data) // ดูข้อมูลที่ส่ง
-    const response = await axios.post(`${API_URL}/dayoff-request`, data) // เปลี่ยน dayoff-request เป็น dayoff-requests
+    const response = await axios.post(`${API_URL}/day-off-requests`, data)
     return response.data
   } catch (error: any) {
     console.error('❌ Error response:', error.response?.data) // ดู error จาก backend
@@ -202,7 +202,7 @@ export const createDayOffRequest = async (
 // GET ALL Day Off Requests (All Users)
 export const getAllDayOffRequestsForAllUsers = async (): Promise<DayOffResponse> => {
   try {
-    const response = await axios.get(`${API_URL}/dayoff-requests/all`)
+    const response = await axios.get(`${API_URL}/day-off-requests/all`)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to fetch all day off requests')
@@ -212,7 +212,7 @@ export const getAllDayOffRequestsForAllUsers = async (): Promise<DayOffResponse>
 // GET ALL Day Off Requests
 export const getAllDayOffRequests = async (): Promise<DayOffResponse> => {
   try {
-    const response = await axios.get(`${API_URL}/dayoff-requests`)
+    const response = await axios.get(`${API_URL}/day-off-requests`)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to fetch day off requests')
@@ -222,7 +222,7 @@ export const getAllDayOffRequests = async (): Promise<DayOffResponse> => {
 // GET Day Off Requests by User
 export const getDayOffRequestsByUser = async (userId: string): Promise<DayOffResponse> => {
   try {
-    const response = await axios.get(`${API_URL}/dayoff-requests/user/${userId}`)
+    const response = await axios.get(`${API_URL}/day-off-requests/user/${userId}`)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to fetch user day off requests')
@@ -234,7 +234,7 @@ export const getDayOffRequestsForSupervisor = async (
   supervisorId: string
 ): Promise<DayOffResponse> => {
   try {
-    const response = await axios.get(`${API_URL}/dayoff-requests/supervisor/${supervisorId}`)
+    const response = await axios.get(`${API_URL}/day-off-requests/supervisor/${supervisorId}`)
     return response.data
   } catch (error: any) {
     throw new Error(
@@ -249,7 +249,7 @@ export const updateDayOffRequestStatus = async (
   status: 'Pending' | 'Accepted' | 'Rejected'
 ): Promise<DayOffResponse> => {
   try {
-    const response = await axios.patch(`${API_URL}/dayoff-requests/${id}/status`, { status })
+    const response = await axios.patch(`${API_URL}/day-off-requests/${id}/status`, { status })
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to update status')
@@ -262,7 +262,7 @@ export const updateDayOffRequest = async (
   data: Partial<Omit<DayOffRequest, '_id' | 'user_id' | 'employee_id' | 'status' | 'created_at' | 'date_off_number'>>
 ): Promise<DayOffResponse> => {
   try {
-    const response = await axios.put(`${API_URL}/dayoff-requests/${id}`, data)
+    const response = await axios.put(`${API_URL}/day-off-requests/${id}`, data)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to update day off request')
@@ -272,7 +272,7 @@ export const updateDayOffRequest = async (
 // DELETE Day Off Request (Only Pending)
 export const deleteDayOffRequest = async (id: string): Promise<DayOffResponse> => {
   try {
-    const response = await axios.delete(`${API_URL}/dayoff-requests/${id}`)
+    const response = await axios.delete(`${API_URL}/day-off-requests/${id}`)
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to delete day off request')

@@ -5,11 +5,12 @@ import { RequestActionsCell } from './RequestActionsCell'
 
 const supervisorRequestsColumns: ReadonlyArray<Column<RequestData>> = [
   // NO
-  {
-    Header: () => <span>No</span>,
+ {
+    Header: () => <th className="min-w-50px text-center">No</th>,
     id: 'no',
-    Cell: ({ row }) => <span>{row.index + 1}</span>,
+    Cell: ({ row }) => <div className="text-center">{row.index + 1}</div>,
   },
+
 
   // EMPLOYEE
   {

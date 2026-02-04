@@ -1,6 +1,6 @@
 import {Route, Routes, Outlet, Navigate} from 'react-router-dom'
 import {PageLink, PageTitle} from '../../../../_metronic/layout/core'
-import {DayoffrequestsListWrapper} from './day-off-requests/dayoffrequestsList'
+import {DayoffrequestsListWrapper} from './day-off-requests/DayoffrequestsList'
 
 const usersBreadcrumbs: Array<PageLink> = [
   {

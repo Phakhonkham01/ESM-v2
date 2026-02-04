@@ -1,7 +1,6 @@
 import { ID, Response } from '../../../../../../_metronic/helpers'
 
 // ✅ DayOff Model
-// ✅ DayOff Model (รองรับทั้งสองแบบ)
 export type DayOffRequest = {
   _id?: string
   id?: ID
@@ -19,18 +18,12 @@ export type DayOffRequest = {
     first_name_en?: string
     last_name_en?: string
   }
-  // FIX: supervisor_id เปลี่ยนเป็น string[] หรือ array ของ object หรือ string เดิม
-  supervisor_id: string | string[] | {
+  supervisor_id: string | {
     _id: string
     employee_id?: string
     first_name_en?: string
     last_name_en?: string
-  } | {
-    _id: string
-    employee_id?: string
-    first_name_en?: string
-    last_name_en?: string
-  }[]
+  }
   day_off_type: 'FULL_DAY' | 'HALF_DAY'
   start_date_time: string
   end_date_time: string
@@ -40,17 +33,6 @@ export type DayOffRequest = {
   created_at?: string
   createdAt?: string
   updatedAt?: string
-}
-
-// ฟังก์ชันสำหรับแปลง supervisor ให้เป็น array เสมอ
-export const normalizeSupervisorId = (supervisorData: any): any[] => {
-  if (!supervisorData) return []
-  
-  if (Array.isArray(supervisorData)) {
-    return supervisorData
-  }
-  
-  return [supervisorData]
 }
 
 export type DayOffQueryResponse = Response<Array<DayOffRequest>>
