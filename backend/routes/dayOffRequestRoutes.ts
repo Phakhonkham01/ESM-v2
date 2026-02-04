@@ -4,6 +4,7 @@ import {
   getAllDayOffRequests,
   getDayOffRequestsAllUser,
   getDayOffRequestsByUser,
+  getDayOffRequestById,        // ✅ เพิ่มบรรทัดนี้
   updateDayOffRequestStatus,
   updateDayOffRequest,
   deleteDayOffRequest,
@@ -12,21 +13,14 @@ import {
 
 const router = express.Router();
 
-// POST /api/day-off-requests
 router.post("/", createDayOffRequest);
-
 router.get("/allrequests", getAllDayOffRequests);
-
-// GET /api/day-off-requests/user/:userId
 router.get("/allusers", getDayOffRequestsAllUser);
-
-// GET /api/day-off-requests/user/:userId
 router.get("/user/:userId", getDayOffRequestsByUser);
-
-// PATCH /api/day-off-requests/:id/status
+router.get("/:id", getDayOffRequestById);          // ✅ เพิ่มบรรทัดนี้
 router.patch("/:id/status", updateDayOffRequestStatus);
-router.put("/:id", updateDayOffRequest)
-router.delete("/:id", deleteDayOffRequest)
+router.put("/:id", updateDayOffRequest);
+router.delete("/:id", deleteDayOffRequest);
 
 router.get('/check-conflict', checkDayOffConflict);
 export default router;

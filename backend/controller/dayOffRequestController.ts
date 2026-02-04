@@ -39,7 +39,7 @@ export const createDayOffRequest = async (
   try {
     const {
       user_id,
-      supervisor_id,
+      supervisor_id, // รับเป็น array
       employee_id,
       day_off_type,
       start_date_time,
@@ -47,10 +47,12 @@ export const createDayOffRequest = async (
       title,
     } = req.body;
 
-    // ================= VALIDATION =================
+    // Validation - ตรวจสอบว่าเป็น array
     if (
       !user_id ||
       !supervisor_id ||
+      !Array.isArray(supervisor_id) ||
+      supervisor_id.length === 0 ||
       !employee_id ||
       !day_off_type ||
       !start_date_time ||
@@ -100,7 +102,7 @@ export const createDayOffRequest = async (
     // ================= CREATE REQUEST =================
     const request = await DayOffRequestModel.create({
       user_id,
-      supervisor_id,
+      supervisor_id, // บันทึกเป็น array
       employee_id,
       day_off_type,
       start_date_time,
@@ -144,65 +146,83 @@ export const getDayOffRequestsAllUser = async (
         model: User
       })
       .populate({
-        path: "supervisor_id",
-        select: "first_name_en last_name_en user_email employee_id",
-        model: User
-      })
-      .populate({
         path: "employee_id",
         select: "first_name_en last_name_en user_email employee_id",
         model: User
       })
-      .sort({ created_at: -1 });
+      // FIX: supervisor_id เป็น array ต้องใช้ path ที่ถูกต้อง
+      // ใช้ aggregate หรือ populate แบบพิเศษ
+      .lean(); // ใช้ lean() เพื่อได้ plain object
 
-    // Format the response
-    const formattedRequests = requests.map((request) => {
-      const reqObj = request.toObject() as PopulatedDayOffRequest;
-
-      // Helper function to extract user info
-      const extractUserInfo = (userData: Types.ObjectId | PopulatedUser) => {
-        if (!userData) {
-          return { id: '', name: 'Unknown', employeeId: '', email: '' };
+    // เนื่องจาก Mongoose populate ไม่รองรับ array โดยตรง ให้มาทำใน code
+    const formattedRequests = await Promise.all(
+      requests.map(async (request) => {
+        // ดึงข้อมูล supervisor จาก array ของ supervisor_id
+        let supervisors: PopulatedUser[] = [];
+        
+        if (request.supervisor_id && Array.isArray(request.supervisor_id)) {
+          // ถ้าเป็น array ของ ObjectIds
+          if (request.supervisor_id.length > 0) {
+            supervisors = await User.find({
+              _id: { $in: request.supervisor_id }
+            })
+            .select("first_name_en last_name_en user_email employee_id")
+            .lean();
+          }
         }
-
-        // If it's ObjectId (not populated)
-        if (userData instanceof Types.ObjectId || typeof userData === 'string') {
-          return { id: userData.toString(), name: 'Unknown', employeeId: '', email: '' };
-        }
-
-        // If it's populated object
-        const user = userData as PopulatedUser;
-        return {
-          id: user._id?.toString() || '',
-          name: `${user.first_name_en || ''} ${user.last_name_en || ''}`.trim(),
-          employeeId: user.employee_id || '',
-          email: user.user_email || ''
+        
+        // Format user info
+        const formatUserInfo = (user: any) => {
+          if (!user) return { id: '', name: 'Unknown', email: '', employeeId: '' };
+          
+          if (user._id) {
+            return {
+              id: user._id.toString(),
+              name: `${user.first_name_en || ''} ${user.last_name_en || ''}`.trim(),
+              email: user.user_email || '',
+              employeeId: user.employee_id || ''
+            };
+          }
+          
+          return { id: '', name: 'Unknown', email: '', employeeId: '' };
         };
-      };
 
-      const employeeInfo = extractUserInfo(reqObj.employee_id);
-      const supervisorInfo = extractUserInfo(reqObj.supervisor_id);
-      const userInfo = extractUserInfo(reqObj.user_id);
+        const userInfo = formatUserInfo(request.user_id);
+        const employeeInfo = formatUserInfo(request.employee_id);
+        
+        // Format supervisor info
+        let supervisorNames: string[] = [];
+        let supervisorEmails: string[] = [];
+        let supervisorIds: string[] = [];
+        
+        if (supervisors.length > 0) {
+          supervisorNames = supervisors.map(sup => 
+            `${sup.first_name_en || ''} ${sup.last_name_en || ''}`.trim()
+          );
+          supervisorEmails = supervisors.map(sup => sup.user_email || '');
+          supervisorIds = supervisors.map(sup => sup._id.toString());
+        }
 
-      return {
-        _id: reqObj._id,
-        user_id: userInfo.id,
-        user_name: userInfo.name,
-        employee_id: employeeInfo.employeeId || employeeInfo.id,
-        employee_name: employeeInfo.name,
-        employee_email: employeeInfo.email,
-        supervisor_id: supervisorInfo.employeeId || supervisorInfo.id,
-        supervisor_name: supervisorInfo.name,
-        supervisor_email: supervisorInfo.email,
-        day_off_type: reqObj.day_off_type,
-        start_date_time: reqObj.start_date_time,
-        end_date_time: reqObj.end_date_time,
-        date_off_number: reqObj.date_off_number,
-        title: reqObj.title,
-        status: reqObj.status,
-        created_at: reqObj.created_at,
-      };
-    });
+        return {
+          _id: request._id.toString(),
+          user_id: userInfo.id,
+          user_name: userInfo.name,
+          employee_id: employeeInfo.employeeId || employeeInfo.id,
+          employee_name: employeeInfo.name,
+          employee_email: employeeInfo.email,
+          supervisor_id: supervisorIds,
+          supervisor_name: supervisorNames,
+          supervisor_email: supervisorEmails,
+          day_off_type: request.day_off_type,
+          start_date_time: request.start_date_time,
+          end_date_time: request.end_date_time,
+          date_off_number: request.date_off_number,
+          title: request.title,
+          status: request.status,
+          created_at: request.created_at,
+        };
+      })
+    );
 
     res.status(200).json({
       success: true,
@@ -214,7 +234,42 @@ export const getDayOffRequestsAllUser = async (
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+// ✅ เพิ่มฟังก์ชันนี้
+export const getDayOffRequestById = async (
+  req: Request,
+  res: Response,
+  next: Function
+): Promise<void> => {
+  try {
+    const { id } = req.params
 
+    const request = await DayOffRequestModel.findById(id)
+      .populate({
+        path: 'employee_id',
+        select: 'employee_id first_name_en last_name_en email',
+      })
+      .populate({
+        path: 'supervisor_id',
+        select: 'employee_id first_name_en last_name_en email',
+      })
+      .lean()
+
+    if (!request) {
+      res.status(404).json({
+        success: false,
+        message: 'Day off request not found',
+      })
+      return
+    }
+
+    res.status(200).json({
+      success: true,
+      data: request,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
 /**
  * ======================================================
  * GET ALL DAY OFF REQUESTS

@@ -4,8 +4,8 @@ import {UsersListWrapper} from './users-list/UsersList'
 
 const usersBreadcrumbs: Array<PageLink> = [
   {
-    title: 'Request Day-Off',
-    path: '/apps/request-day-off',
+    title: 'User Management',
+    path: '/apps/user-management/users',
     isSeparator: false,
     isActive: false,
   },
@@ -17,23 +17,23 @@ const usersBreadcrumbs: Array<PageLink> = [
   },
 ]
 
-const RequestDayOff = () => {
+const UsersPage = () => {
   return (
     <Routes>
       <Route element={<Outlet />}>
         <Route
-          path='request-day-off'
+          path='users'
           element={
             <>
-              <PageTitle breadcrumbs={usersBreadcrumbs}>Request Day-Off</PageTitle>
+              <PageTitle breadcrumbs={usersBreadcrumbs}>Users list</PageTitle>
               <UsersListWrapper />
             </>
           }
         />
       </Route>
-      <Route index element={<Navigate to='/apps/request-day-off/request-day-off' />} />
+      <Route index element={<Navigate to='/apps/user-management/users' />} />
     </Routes>
   )
 }
 
-export default RequestDayOff
+export default UsersPage

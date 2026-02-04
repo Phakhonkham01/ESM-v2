@@ -3,8 +3,8 @@ const QUERIES = {
   EVENTS_LIST: 'events-list',
   HOLIDAYS_LIST: 'holidays-list',
   OVERTIME_LIST: 'overtime-list',
-  DAYOFF_LIST: 'dayoff-list',
-  DAY_OFF_REQUESTS_LIST: 'day-off-requests-list',
+   DAY_OFF_REQUESTS_LIST: 'DAY_OFF_REQUESTS_LIST',
+    DAY_OFF_LIST: 'day-off-list', 
 }
 
 export {QUERIES}

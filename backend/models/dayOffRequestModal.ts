@@ -20,11 +20,10 @@ const dayOffRequestSchema = new Schema<IDayOffRequest>({
     required: true,
   },
 
-  supervisor_id: {
-    type: Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-  },
+  supervisor_id: [{
+  type: Schema.Types.ObjectId,
+  ref: 'User'
+}],
 
   employee_id: {
     type: Schema.Types.ObjectId,

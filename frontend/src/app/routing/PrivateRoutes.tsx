@@ -8,6 +8,7 @@ import { getCSSVariableValue } from '../../_metronic/assets/ts/_utils'
 import { WithChildren } from '../../_metronic/helpers'
 import BuilderPageWrapper from '../pages/layout-builder/BuilderPageWrapper'
 
+
 const PrivateRoutes = () => {
   const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'))
   const AccountPage = lazy(() => import('../modules/accounts/AccountPage'))
@@ -22,8 +23,16 @@ const PrivateRoutes = () => {
   const DayOff = lazy(() => import('../modules/apps/day-off-information/UsersPage'))
   // End Attendance
   const Request = lazy(() => import('../modules/apps/request-ot-field-work/UsersPage'))
-  const RequestDayOff = lazy(() => import('../modules/apps/request-day-off/UsersPage'))
+  
+  const RequestDayOffUser = lazy(() => import('../modules/apps/request-day-off-user/UsersPage'))
 
+  const SupervosorDayOffPage = lazy(() => import('../modules/apps/request-day-off/SupervisorDayOffPage'))
+  
+  
+  
+  
+  
+  
   return (
     <Routes>
       <Route element={<MasterLayout />}>
@@ -92,7 +101,7 @@ const PrivateRoutes = () => {
           path='apps/request-day-off/*'
           element={
             <SuspensedView>
-              <RequestDayOff />
+            <SupervosorDayOffPage/>
             </SuspensedView>
           }
         />
@@ -118,6 +127,14 @@ const PrivateRoutes = () => {
           element={
             <SuspensedView>
               <AccountPage />
+            </SuspensedView>
+          }
+        />
+        <Route
+          path='crafted/*'
+          element={
+            <SuspensedView>
+              <RequestDayOffUser />
             </SuspensedView>
           }
         />

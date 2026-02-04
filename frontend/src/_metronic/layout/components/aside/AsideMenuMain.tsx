@@ -144,6 +144,12 @@ export function AsideMenuMain() {
         fontIcon='bi-calendar-event'
       />
       <AsideMenuItem
+        to='/crafted/requestsdayoffuser'
+        icon='calendar-edit'
+        title='Requests user'
+        fontIcon='bi-calendar-event'
+      />
+      <AsideMenuItem
         to='/apps/requests'
         icon='check-circle'
         title='Requests'
