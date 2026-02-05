@@ -79,19 +79,15 @@ const DayOffRequestsTable = () => {
     if (!Array.isArray(allRequests)) return []
     if (!currentUser) return []
 
-    // 👑 Admin / Supervisor → ALL requests
     if (currentUserRole === 'admin' || currentUserRole === 'supervisor') {
-      console.log('👑 Admin/Supervisor: show all requests')
       return allRequests
     }
 
-    // 👤 Normal user → own requests only
     const filtered = allRequests.filter((req) => {
       const requestUserId = extractUserId(req.user_id)
       return requestUserId === currentUserId
     })
 
-    console.log(`👤 User: ${filtered.length} requests`)
     return filtered
   }, [allRequests, currentUser, currentUserRole, currentUserId])
 

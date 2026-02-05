@@ -27,12 +27,12 @@ const UserEditModalFormWrapper = () => {
 
   // กรณีสร้างใหม่ (ไม่มี itemIdForUpdate)
   if (!itemIdForUpdate) {
-    return <DayOffRequestEditModalForm isRequestLoading={false} request={undefined} currentUser={undefined} />
+    return <DayOffRequestEditModalForm />
   }
 
   // กรณีกำลังโหลดข้อมูล
   if (isLoading) {
-    return <DayOffRequestEditModalForm isRequestLoading={true} request={undefined} currentUser={undefined} />
+    return <DayOffRequestEditModalForm />
   }
 
   // กรณีมี error
@@ -42,7 +42,7 @@ const UserEditModalFormWrapper = () => {
 
   // กรณีโหลดสำเร็จและมีข้อมูล
   if (user) {
-    return <DayOffRequestEditModalForm isRequestLoading={false} request={user} currentUser={undefined} />
+    return <DayOffRequestEditModalForm />
   }
 
   return null
