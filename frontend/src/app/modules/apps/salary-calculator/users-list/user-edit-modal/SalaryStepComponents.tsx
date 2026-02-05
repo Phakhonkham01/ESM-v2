@@ -6,7 +6,7 @@ import type React from 'react'
 import type { PrefillData, SalaryFormData, ManualOTState } from './interfaces'
 import { getMonthName } from './constants'
 
-interface Step5SummaryProps {
+interface Step5Summary {
     user: {
         email: string
         first_name_en: string
@@ -81,6 +81,7 @@ interface StepComponentsProps {
     calculateTotalIncome: () => number
     calculateTotalDeductions: () => number
     calculateNetSalary: () => number
+    handleCutOffDaysChange?: (days: number) => void  // ✅ Add this line
 
     // Manual OT Props
     manualOT: ManualOTState
@@ -1163,24 +1164,17 @@ export const Step3AdditionalIncome: React.FC<StepComponentsProps> = ({
     )
 }
 
+
 export const Step4Deductions: React.FC<StepComponentsProps> = ({
     formData,
     onInputChange,
     calculateTotalDeductions,
-   
+    handleCutOffDaysChange,  // ✅ Add this line to destructure the prop
 }) => {
-    // ✅ เปลี่ยนจากคำนวณอัตโนมัติเป็นรับค่า rate ที่ป้อนเข้ามา
+    // ✅ Calculate cut-off total
     const calculateCutOffTotal = () => {
-        // ใช้ cut_off_pay_amount เป็น rate ต่อวัน
         return formData.cut_off_pay_days * formData.cut_off_pay_amount
     }
-
-    // ✅ แก้ไขฟังก์ชันนี้ - ไม่ต้องคำนวณอัตโนมัติแล้ว
-    // const handleCutOffDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    //     const days = parseFloat(e.target.value) || 0
-    //     onInputChange(e) // อัพเดทจำนวนวัน
-    //     // ไม่ต้องคำนวณและอัพเดทจำนวนเงินอัตโนมัติอีกต่อไป
-    // }
 
     return (
         <div>
@@ -1205,7 +1199,7 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                             </div>
                             <div className="card-body">
                                 <div className="row g-4">
-                                    {/* ✅ Input 1: จำนวนวันที่ขาด */}
+                                    {/* ✅ Input 1: Number of days absent */}
                                     <div className="col-md-6">
                                         <label className="form-label">
                                             ຈຳນວນວັນທີ່ຂາດງານ (Days Off Work)
@@ -1214,7 +1208,15 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                                             type="number"
                                             name="cut_off_pay_days"
                                             value={formData.cut_off_pay_days === 0 ? "" : formData.cut_off_pay_days}
-                                            onChange={handleCutOffDaysChange}
+                                            onChange={(e) => {
+                                                const days = parseFloat(e.target.value) || 0
+                                                if (handleCutOffDaysChange) {
+                                                    handleCutOffDaysChange(days)
+                                                } else {
+                                                    // Fallback to regular input change
+                                                    onInputChange(e)
+                                                }
+                                            }}
                                             min="0"
                                             step="0.5"
                                             className="form-control"
@@ -1225,7 +1227,7 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* ✅ Input 2: อัตราการหักต่อวัน (ป้อนเอง) */}
+                                    {/* ✅ Input 2: Rate per day (manual input) */}
                                     <div className="col-md-6">
                                         <label className="form-label">
                                             ອັດຕາການຫັກຕໍ່ວັນ (Cut Off Rate per Day)
@@ -1234,7 +1236,7 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                                             <input
                                                 type="number"
                                                 name="cut_off_pay_amount"
-                                                value={formData.cut_off_pay_amount === 0 ? "": formData.cut_off_pay_amount}
+                                                value={formData.cut_off_pay_amount === 0 ? "" : formData.cut_off_pay_amount}
                                                 onChange={onInputChange}
                                                 min="0"
                                                 className="form-control"
@@ -1248,7 +1250,7 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                                     </div>
                                 </div>
 
-                                {/* ✅ Summary Box - แสดงยอดรวมที่หัก */}
+                                {/* ✅ Summary Box - Show total deduction */}
                                 {formData.cut_off_pay_days > 0 &&
                                     formData.cut_off_pay_amount > 0 && (
                                         <div className="mt-4 p-3 bg-white border border-danger rounded">
@@ -1380,14 +1382,12 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
         </div>
     )
 }
+// In SalaryStepComponents.tsx - Update Step5Summary
 
 export const Step5Summary: React.FC<StepComponentsProps> = ({
     user,
     prefillData,
     formData,
-    // calculateTotalIncome,
-    // calculateTotalDeductions,
-    // calculateNetSalary,
     manualOTDetails,
 }) => {
     const [svgRef, setSvgRef] = useState<HTMLDivElement | null>(null)
@@ -1459,12 +1459,41 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
         })
     }
 
-    // Extract name from user object
-    const userName =
-        `${user?.first_name_en || ''} ${user?.last_name_en || ''}`.trim()
+    // ✅ Better email extraction with multiple fallbacks
+    const getUserEmail = () => {
+        // Try different possible email field names
+        const email = user?.email || 
+                     user?.user_email || 
+                     user?.Email || 
+                     prefillData?.user?.email ||
+                     '';
+        
+        console.log('User object:', user); // Debug log
+        console.log('Extracted email:', email); // Debug log
+        
+        return email;
+    }
 
-    // Use actual email from user object
-    const userEmail = user?.email || 'employee@company.com'
+    const userEmail = getUserEmail()
+
+    // ✅ Better name extraction
+    const getUserName = () => {
+        const firstName = user?.first_name_en || user?.firstName || user?.first_name || '';
+        const lastName = user?.last_name_en || user?.lastName || user?.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+        
+        console.log('Extracted name:', fullName); // Debug log
+        
+        return fullName || 'Employee';
+    }
+
+    const userName = getUserName()
+
+    // ✅ Validate email before allowing send
+    const isValidEmail = (email: string) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        return emailRegex.test(email)
+    }
 
     // Function to export as PNG
     const exportToPNG = async () => {
@@ -1505,7 +1534,30 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
 
     // Function to send email with PNG
     const sendEmailWithPNG = async () => {
-        if (!svgRef) return
+        // ✅ Validate email before proceeding
+        if (!userEmail) {
+            setEmailStatus({
+                success: false,
+                message: '❌ Employee email not found. Please ensure user data is loaded properly.',
+            })
+            return
+        }
+
+        if (!isValidEmail(userEmail)) {
+            setEmailStatus({
+                success: false,
+                message: `❌ Invalid email address: ${userEmail}`,
+            })
+            return
+        }
+
+        if (!svgRef) {
+            setEmailStatus({
+                success: false,
+                message: '❌ Content not ready for export.',
+            })
+            return
+        }
 
         try {
             setIsSendingEmail(true)
@@ -1547,12 +1599,14 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                 fileName: `salary-summary-${userName.replace(/\s+/g, '-')}.jpg`,
             }
 
+            console.log('Sending email to:', userEmail); // Debug log
+
             // API base URL
-            const API_BASE_URL = 'http://localhost:8001'
+            const API_BASE_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:8001'
 
             // ส่งไปยัง backend API
             const response = await fetch(
-                `${API_BASE_URL}/api/salary/send-email`,
+                `${API_BASE_URL}/salary/send-email`,
                 {
                     method: 'POST',
                     headers: {
@@ -1578,7 +1632,7 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
             if (result.success) {
                 setEmailStatus({
                     success: true,
-                    message: `✅ Salary summary sent to ${userEmail}`,
+                    message: `✅ Salary summary sent successfully to ${userEmail}`,
                 })
             } else {
                 throw new Error(result.message || 'Failed to send email')
@@ -1596,7 +1650,7 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
     }
 
     return (
-        <div>
+  <div>
             {/* ✅ เพิ่ม style tag สำหรับ override oklch colors */}
             <style jsx>{`
                 .export-mode,

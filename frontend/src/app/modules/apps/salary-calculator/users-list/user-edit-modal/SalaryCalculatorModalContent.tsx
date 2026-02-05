@@ -23,6 +23,11 @@ import type {
   ExistingSalary
 } from './interfaces'
 
+// Add API URL configuration
+const API_URL = import.meta.env.VITE_APP_API_URL
+const USERS_URL = `${API_URL}/users`
+const SALARIES_URL = `${API_URL}/salaries`
+
 interface SalaryCalculatorModalContentProps {
   userId: string
   onClose: () => void
@@ -42,6 +47,11 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
   const [user, setUser] = useState<any>(propUser)
 
   const [existingSalaries, setExistingSalaries] = useState<ExistingSalary[]>([])
+  
+  // Add missing state variables for month and year
+  const currentDate = new Date()
+  const [selectedMonth, setSelectedMonth] = useState<number>(currentDate.getMonth() + 1) // 1-12
+  const [selectedYear, setSelectedYear] = useState<number>(currentDate.getFullYear())
   
   const queryClient = useQueryClient()
 
@@ -78,6 +88,15 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
 
   const [manualOTDetails, setManualOTDetails] = useState<any[]>([])
 
+  // Update formData when selectedMonth or selectedYear changes
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      month: selectedMonth,
+      year: selectedYear,
+    }))
+  }, [selectedMonth, selectedYear])
+
   // Fetch user data if not provided
   useEffect(() => {
     if (!propUser && userId) {
@@ -101,22 +120,24 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     }
   }, [userId, selectedMonth, selectedYear])
 
-  const fetchUserData = async () => {
-    try {
-      setLoading(true)
-      const response = await axios.get(`/api/users/${userId}`)
-      setUser(response.data.user)
-    } catch (err: any) {
-      setError('Failed to load user data')
-      console.error('Error fetching user:', err)
-    } finally {
-      setLoading(false)
-    }
+const fetchUserData = async () => {
+  try {
+    setLoading(true)
+    const response = await axios.get(`${USERS_URL}/${userId}`)
+    // Make sure we're extracting the user correctly from the response
+    const userData = response.data.user || response.data
+    setUser(userData)
+    console.log('User data loaded:', userData) // Debug log
+  } catch (err: any) {
+    setError('Failed to load user data')
+    console.error('Error fetching user:', err)
+  } finally {
+    setLoading(false)
   }
-
+}
   const fetchExistingSalaries = async () => {
     try {
-      const response = await axios.get(`/api/salaries?userId=${userId}`)
+      const response = await axios.get(`${SALARIES_URL}?userId=${userId}`)
       if (response.data && response.data.salaries) {
         setExistingSalaries(response.data.salaries)
       }
@@ -130,7 +151,7 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
       setLoading(true)
       setError(null)
       const response = await axios.get(
-        `/api/salaries/prefill/${userId}`,
+        `${SALARIES_URL}/prefill/${userId}`,
         {
           params: {
             month: selectedMonth,
@@ -159,6 +180,22 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     setFormData((prev) => ({
       ...prev,
       [name]: name === 'notes' ? value : parseFloat(value) || 0,
+    }))
+  }
+
+  // Add the missing handleCutOffDaysChange function
+  const handleCutOffDaysChange = (days: number) => {
+    if (!prefillData) return
+
+    const baseSalary = prefillData.user.base_salary || 0
+    const workingDays = formData.working_days || 22
+    const dailyRate = baseSalary / workingDays
+    const cutOffAmount = dailyRate * days
+
+    setFormData((prev) => ({
+      ...prev,
+      cut_off_pay_days: days,
+      cut_off_pay_amount: cutOffAmount,
     }))
   }
 
@@ -440,7 +477,7 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
           `Manual OT: ${manualOTDetails.length > 0 ? 'Yes' : 'No'}`,
       }
 
-      const response = await axios.post('/api/salaries', payload)
+      const response = await axios.post(SALARIES_URL, payload)
 
       if (response.status === 201 || response.status === 200) {
         // Update vacation days
@@ -458,7 +495,7 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
           }
 
           await axios.put(
-            `/api/users/${userId}/update-vacation-days`,
+            `${USERS_URL}/${userId}/update-vacation-days`,
             {
               vacation_days: remainingVacationDays,
               updated_by: created_by,
@@ -562,6 +599,7 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
       addManualOTDetail,
       clearManualOT,
       calculateManualOTSummary,
+      handleCutOffDaysChange, // Add this to the props
     }
 
     switch (step) {
