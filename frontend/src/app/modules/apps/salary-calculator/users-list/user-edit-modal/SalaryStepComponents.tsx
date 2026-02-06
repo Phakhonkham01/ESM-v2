@@ -100,16 +100,16 @@ interface StepComponentsProps {
     }
 }
 
-const getOtTypeEnglish = (type: string): string => {
-    switch (type) {
-        case 'weekday':
-            return 'Weekday'
-        case 'weekend':
-            return 'Weekend'
-        default:
-            return type
-    }
-}
+// const getOtTypeEnglish = (type: string): string => {
+//     switch (type) {
+//         case 'weekday':
+//             return 'Weekday'
+//         case 'weekend':
+//             return 'Weekend'
+//         default:
+//             return type
+//     }
+// }
 
 const getOtTypeColor = (type: string): string => {
     switch (type) {
@@ -673,10 +673,10 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
     calculated.remaining_vacation_days
     calculated.exceed_days
 
-    const remainingVacation =
-        prefillData.calculated.remaining_vacation_days ?? 0
+    // const remainingVacation =
+    //     prefillData.calculated.remaining_vacation_days ?? 0
 
-    const daysToDeduct = Math.max(0, remainingVacation)
+    // const daysToDeduct = Math.max(0, remainingVacation)
 
     return (
         <div>
@@ -867,66 +867,170 @@ export const Step2OtRates: React.FC<StepComponentsProps> = ({
     manualOTDetails,
     addManualOTDetail,
     clearManualOT,
-    calculateManualOTSummary,
 }) => {
+    const [copySuccess, setCopySuccess] = useState(false)
+    const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
     if (!prefillData) return null
 
-    const { totalHours, totalWeekendDays, totalAmount } =
-        calculateManualOTSummary()
+    // Calculate total amount locally
+    const calculateTotalAmount = () => {
+        const weekdayAmount = manualOT.weekday.hours * manualOT.weekday.rate_per_hour
+        const weekendHoursAmount = manualOT.weekend.hours * manualOT.weekend.rate_per_hour
+        const weekendDaysAmount = manualOT.weekend.days * manualOT.weekend.rate_per_day
+        return weekdayAmount + weekendHoursAmount + weekendDaysAmount
+    }
+
+    const totalAmount = calculateTotalAmount()
+
+    // Function to copy summary to clipboard
+    const copySummaryToClipboard = () => {
+        const summaryText = `
+OT Summary
+----------
+Weekday OT: ${manualOT.weekday.hours} hours × ${manualOT.weekday.rate_per_hour.toLocaleString()} Kip/hour
+Weekend OT Hours: ${manualOT.weekend.hours} hours × ${manualOT.weekend.rate_per_hour.toLocaleString()} Kip/hour
+Weekend OT Days: ${manualOT.weekend.days} days × ${manualOT.weekend.rate_per_day.toLocaleString()} Kip/day
+Total Amount: ${totalAmount.toLocaleString()} Kip
+        `.trim()
+
+        navigator.clipboard.writeText(summaryText)
+            .then(() => {
+                setCopySuccess(true)
+                setTimeout(() => setCopySuccess(false), 2000)
+            })
+            .catch(err => {
+                console.error('Failed to copy: ', err)
+            })
+    }
+
+    // Function to copy detailed OT table
+    const copyOTDetailsToClipboard = () => {
+        let detailsText = "OT Details\n-----------\n"
+        
+        if (manualOT.weekday.hours > 0) {
+            detailsText += `Weekday: ${manualOT.weekday.hours} hours × ${manualOT.weekday.rate_per_hour.toLocaleString()} Kip/hour = ${(manualOT.weekday.hours * manualOT.weekday.rate_per_hour).toLocaleString()} Kip\n`
+        }
+        
+        if (manualOT.weekend.hours > 0) {
+            detailsText += `Weekend Hours: ${manualOT.weekend.hours} hours × ${manualOT.weekend.rate_per_hour.toLocaleString()} Kip/hour = ${(manualOT.weekend.hours * manualOT.weekend.rate_per_hour).toLocaleString()} Kip\n`
+        }
+        
+        if (manualOT.weekend.days > 0) {
+            detailsText += `Weekend Days: ${manualOT.weekend.days} days × ${manualOT.weekend.rate_per_day.toLocaleString()} Kip/day = ${(manualOT.weekend.days * manualOT.weekend.rate_per_day).toLocaleString()} Kip\n`
+        }
+        
+        detailsText += `\nTotal: ${totalAmount.toLocaleString()} Kip`
+
+        navigator.clipboard.writeText(detailsText)
+            .then(() => {
+                setSuccessMessage('✓ OT details copied to clipboard!')
+                setTimeout(() => setSuccessMessage(null), 3000)
+            })
+            .catch(err => {
+                setSuccessMessage('✗ Failed to copy')
+                setTimeout(() => setSuccessMessage(null), 3000)
+            })
+    }
+
+    // Calculate manual OT summary for display
+    const calculateManualOTSummary = () => {
+        return {
+            totalHours: manualOT.weekday.hours + manualOT.weekend.hours,
+            totalWeekendDays: manualOT.weekend.days,
+            totalAmount: totalAmount
+        }
+    }
+
+    const { totalHours, totalWeekendDays } = calculateManualOTSummary()
 
     return (
         <div>
+            {/* Success Message */}
+            {successMessage && (
+                <div className="alert alert-success d-flex align-items-center mb-4">
+                    <KTIcon iconName="check-circle" className="fs-2 me-2" />
+                    <span className="fw-medium">{successMessage}</span>
+                </div>
+            )}
+
             <div>
-                <div className="d-flex align-items-center gap-2 mb-4 pb-3 border-bottom border-primary">
-                    <KTIcon iconName="clock" className="fs-2 text-primary" />
-                    <h3 className="fs-4 fw-semibold text-primary">
-                        Overtime (OT)
-                    </h3>
+                <div className="d-flex align-items-center justify-content-between mb-4 pb-3 border-bottom border-primary">
+                    <div className="d-flex align-items-center gap-2">
+                        <KTIcon iconName="clock" className="fs-2 text-primary" />
+                        <h3 className="fs-4 fw-semibold text-primary">
+                            Overtime (OT) Management
+                        </h3>
+                    </div>
+                    <button
+                        onClick={copyOTDetailsToClipboard}
+                        className="btn btn-light-success"
+                    >
+                        <KTIcon iconName="copy" className="fs-4 me-2" />
+                        Copy OT Details
+                    </button>
                 </div>
 
                 {/* System OT Summary */}
                 <div className="mb-6 card">
                     <div className="card-body">
-                        <div className="d-flex align-items-center gap-2 mb-4">
-                            <KTIcon iconName="calculator" className="fs-2 text-primary" />
-                            <h4 className="fw-bold text-primary uppercase tracking-wide fs-7">
-                                OT ທີ່ອະນຸມັດແລ້ວ (System Approved OT)
-                            </h4>
+                        <div className="d-flex align-items-center justify-content-between mb-4">
+                            <div className="d-flex align-items-center gap-2">
+                                <KTIcon iconName="calculator" className="fs-2 text-primary" />
+                                <h4 className="fw-bold text-primary uppercase tracking-wide fs-7">
+                                    System Approved OT
+                                </h4>
+                            </div>
+                            <span className="badge badge-light-success fs-7">
+                                Auto-calculated
+                            </span>
                         </div>
 
                         <div className="row g-3">
-                            {/* Weekday Card */}
                             <div className="col-md-6">
-                                <div className="d-flex justify-content-between align-items-center p-3 bg-primary rounded">
-                                    <span className="text-white fs-7 fw-medium">
-                                        ມື້ທຳມະດາ (Mon-Fri)
-                                    </span>
-                                    <div className="d-flex align-items-baseline gap-1">
-                                        <span className="fs-3 fw-bold text-white">
-                                            {prefillData.calculated.weekday_ot_hours ||
-                                                0}
-                                        </span>
-                                        <span className="fs-8 text-white fw-normal">
-                                            hrs
-                                        </span>
+                                <div className="card border border-primary">
+                                    <div className="card-header bg-primary">
+                                        <div className="d-flex align-items-center justify-content-between">
+                                            <span className="text-white fs-7 fw-medium">
+                                                Weekday OT (Mon-Fri)
+                                            </span>
+                                            <KTIcon iconName="clock" className="text-white fs-4" />
+                                        </div>
+                                    </div>
+                                    <div className="card-body">
+                                        <p className="fs-2x fw-bold text-primary mb-0">
+                                            {prefillData.calculated.weekday_ot_hours || 0}
+                                            <span className="fs-5 fw-medium text-muted ms-1">
+                                                hours
+                                            </span>
+                                        </p>
+                                        <p className="text-muted fs-7 mt-1">
+                                            Automatically calculated from attendance
+                                        </p>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Weekend Card */}
                             <div className="col-md-6">
-                                <div className="d-flex justify-content-between align-items-center p-3 bg-warning rounded">
-                                    <span className="text-white fs-7 fw-medium">
-                                        ມື້ພັກ (Sat-Sun)
-                                    </span>
-                                    <div className="d-flex align-items-baseline gap-1">
-                                        <span className="fs-3 fw-bold text-white">
-                                            {prefillData.calculated.weekend_ot_hours ||
-                                                0}
-                                        </span>
-                                        <span className="fs-8 text-white fw-normal">
-                                            hrs
-                                        </span>
+                                <div className="card border border-warning">
+                                    <div className="card-header bg-warning">
+                                        <div className="d-flex align-items-center justify-content-between">
+                                            <span className="text-white fs-7 fw-medium">
+                                                Weekend OT (Sat-Sun)
+                                            </span>
+                                            <KTIcon iconName="calendar-8" className="text-white fs-4" />
+                                        </div>
+                                    </div>
+                                    <div className="card-body">
+                                        <p className="fs-2x fw-bold text-warning mb-0">
+                                            {prefillData.calculated.weekend_ot_hours || 0}
+                                            <span className="fs-5 fw-medium text-muted ms-1">
+                                                hours
+                                            </span>
+                                        </p>
+                                        <p className="text-muted fs-7 mt-1">
+                                            Including holidays and weekends
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -936,6 +1040,18 @@ export const Step2OtRates: React.FC<StepComponentsProps> = ({
                 
                 {/* Manual OT Entry Section */}
                 <div className="mb-8">
+                    <div className="d-flex align-items-center justify-content-between mb-4">
+                        <div className="d-flex align-items-center gap-2">
+                            <KTIcon iconName="pencil" className="fs-2 text-primary" />
+                            <h4 className="fw-bold text-primary">
+                                Manual OT Entry
+                            </h4>
+                        </div>
+                        <span className="badge badge-light-primary fs-7">
+                            Enter additional OT here
+                        </span>
+                    </div>
+
                     <div className="row g-4 mb-6">
                         <div className="col-md-6">
                             <WeekdayOTCard
@@ -984,77 +1100,176 @@ export const Step2OtRates: React.FC<StepComponentsProps> = ({
                         </div>
                     </div>
 
-                    {/* Summary and Action Buttons */}
-                    <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-6 p-4 bg-light border rounded">
-                        <div className="mb-4 mb-md-0">
-                            <h5 className="fw-bold text-primary">
-                                ສະຫຼຸບ OT ທີ່ເພີ່ມມາ
-                            </h5>
-                            <div className="fs-7 text-muted mt-2 space-y-2 border-top border-gray-200 pt-3">
-                                {/* Weekday Row */}
-                                <div className="d-flex justify-content-between align-items-center">
-                                    <span className="text-muted">
-                                        ມື້ທຳມະດາ:
-                                    </span>
-                                    <span className="fw-semibold text-gray-800">
-                                        {manualOT.weekday.hours} ຊົ່ວໂມງ
-                                    </span>
-                                </div>
-
-                                {/* Weekend Hours Row */}
-                                <div className="d-flex justify-content-between align-items-center">
-                                    <span className="text-muted">
-                                        ມື້ພັກ (ຊົ່ວໂມງ):
-                                    </span>
-                                    <span className="fw-semibold text-gray-800">
-                                        {manualOT.weekend.hours} ຊົ່ວໂມງ
-                                    </span>
-                                </div>
-
-                                {/* Weekend Days Row */}
-                                <div className="d-flex justify-content-between align-items-center text-warning">
-                                    <span>ມື້ພັກ (ຈຳນວນມື້):</span>
-                                    <span className="fw-semibold">
-                                        {manualOT.weekend.days} ມື້
-                                    </span>
-                                </div>
-
-                                {/* Total Amount Row */}
-                                <div className="d-flex justify-content-between align-items-center fw-bold mt-3 pt-2 border-top border-dashed border-gray-300 text-primary fs-6">
-                                    <span>ລວມເງິນທັງໝົດ:</span>
-                                    <span className="fs-5">
-                                        {totalAmount.toLocaleString()} ກີບ
-                                    </span>
+                    {/* Summary Card with Copy Button */}
+                    <div className="card border border-primary">
+                        <div className="card-header bg-primary">
+                            <div className="d-flex align-items-center justify-content-between">
+                                <h5 className="card-title text-white m-0">
+                                    OT Summary
+                                </h5>
+                                <div className="d-flex align-items-center gap-2">
+                                    {copySuccess && (
+                                        <span className="badge badge-success fs-7">
+                                            <KTIcon iconName="check" className="me-1" />
+                                            Copied!
+                                        </span>
+                                    )}
+                                    <button
+                                        onClick={copySummaryToClipboard}
+                                        className="btn btn-sm btn-light-success"
+                                    >
+                                        <KTIcon iconName="copy" className="fs-5" />
+                                    </button>
                                 </div>
                             </div>
                         </div>
-                        <div className="d-flex gap-2">
-                            <button
-                                onClick={clearManualOT}
-                                className="btn btn-light-danger"
-                            >
-                                <KTIcon iconName="trash" className="fs-4" />
-                                Clear
-                            </button>
-                            <button
-                                onClick={addManualOTDetail}
-                                disabled={
-                                    (manualOT.weekday.hours === 0 &&
-                                        manualOT.weekend.hours === 0 &&
-                                        manualOT.weekend.days === 0) ||
-                                    (manualOT.weekday.hours > 0 &&
-                                        manualOT.weekday.rate_per_hour === 0) ||
-                                    (manualOT.weekend.hours > 0 &&
-                                        manualOT.weekend.rate_per_hour === 0) ||
-                                    (manualOT.weekend.days > 0 &&
-                                        manualOT.weekend.rate_per_day === 0)
-                                }
-                                className="btn btn-primary"
-                                disabled={false} // Metronic จะจัดการเอง
-                            >
-                                <KTIcon iconName="plus" className="fs-4" />
-                                Add OT
-                            </button>
+                        <div className="card-body">
+                            <div className="row">
+                                <div className="col-md-8">
+                                    <div className="space-y-3">
+                                        {/* Weekday Row */}
+                                        {manualOT.weekday.hours > 0 && (
+                                            <div className="d-flex align-items-center justify-content-between p-3 bg-light-primary rounded">
+                                                <div className="d-flex align-items-center gap-2">
+                                                    <KTIcon iconName="clock" className="fs-4 text-primary" />
+                                                    <div>
+                                                        <div className="fw-medium text-primary">
+                                                            Weekday OT
+                                                        </div>
+                                                        <div className="fs-7 text-muted">
+                                                            Regular working days
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-end">
+                                                    <div className="fs-8 text-muted">
+                                                        {manualOT.weekday.hours} hrs × {manualOT.weekday.rate_per_hour.toLocaleString()} Kip
+                                                    </div>
+                                                    <div className="fs-5 fw-bold text-primary">
+                                                        {(manualOT.weekday.hours * manualOT.weekday.rate_per_hour).toLocaleString()} Kip
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Weekend Hours Row */}
+                                        {manualOT.weekend.hours > 0 && (
+                                            <div className="d-flex align-items-center justify-content-between p-3 bg-light-warning rounded">
+                                                <div className="d-flex align-items-center gap-2">
+                                                    <KTIcon iconName="clock" className="fs-4 text-warning" />
+                                                    <div>
+                                                        <div className="fw-medium text-warning">
+                                                            Weekend OT Hours
+                                                        </div>
+                                                        <div className="fs-7 text-muted">
+                                                            Saturday/Sunday hours
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-end">
+                                                    <div className="fs-8 text-muted">
+                                                        {manualOT.weekend.hours} hrs × {manualOT.weekend.rate_per_hour.toLocaleString()} Kip
+                                                    </div>
+                                                    <div className="fs-5 fw-bold text-warning">
+                                                        {(manualOT.weekend.hours * manualOT.weekend.rate_per_hour).toLocaleString()} Kip
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Weekend Days Row */}
+                                        {manualOT.weekend.days > 0 && (
+                                            <div className="d-flex align-items-center justify-content-between p-3 bg-light-success rounded">
+                                                <div className="d-flex align-items-center gap-2">
+                                                    <KTIcon iconName="calendar-8" className="fs-4 text-success" />
+                                                    <div>
+                                                        <div className="fw-medium text-success">
+                                                            Weekend OT Days
+                                                        </div>
+                                                        <div className="fs-7 text-muted">
+                                                            Full/half day rates
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-end">
+                                                    <div className="fs-8 text-muted">
+                                                        {manualOT.weekend.days} days × {manualOT.weekend.rate_per_day.toLocaleString()} Kip
+                                                    </div>
+                                                    <div className="fs-5 fw-bold text-success">
+                                                        {(manualOT.weekend.days * manualOT.weekend.rate_per_day).toLocaleString()} Kip
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="col-md-4">
+                                    <div className="h-100 d-flex flex-column justify-content-center p-4 bg-light rounded border">
+                                        <div className="text-center mb-3">
+                                            <div className="text-muted fs-7 mb-1">
+                                                Total Summary
+                                            </div>
+                                            <div className="fs-3 fw-bold text-primary">
+                                                {totalAmount.toLocaleString()}
+                                                <span className="fs-6 text-muted ms-1">Kip</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="border-top pt-3">
+                                            <div className="d-flex justify-content-between mb-1">
+                                                <span className="text-muted fs-7">Total Hours:</span>
+                                                <span className="fw-medium">{totalHours}</span>
+                                            </div>
+                                            <div className="d-flex justify-content-between mb-1">
+                                                <span className="text-muted fs-7">Weekend Days:</span>
+                                                <span className="fw-medium">{totalWeekendDays}</span>
+                                            </div>
+                                            <div className="d-flex justify-content-between">
+                                                <span className="text-muted fs-7">Entries:</span>
+                                                <span className="fw-medium">
+                                                    {manualOTDetails.length} item{manualOTDetails.length !== 1 ? 's' : ''}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="d-flex justify-content-between align-items-center mt-4 pt-4 border-top">
+                                <div className="fs-7 text-muted">
+                                    <KTIcon iconName="shield-tick" className="me-2 text-success" />
+                                    Changes are saved automatically
+                                </div>
+                                <div className="d-flex gap-2">
+                                    <button
+                                        onClick={clearManualOT}
+                                        className="btn btn-light-danger"
+                                    >
+                                        <KTIcon iconName="trash" className="fs-4 me-2" />
+                                        Clear All
+                                    </button>
+                                    <button
+                                        onClick={addManualOTDetail}
+                                        disabled={
+                                            (manualOT.weekday.hours === 0 &&
+                                                manualOT.weekend.hours === 0 &&
+                                                manualOT.weekend.days === 0) ||
+                                            (manualOT.weekday.hours > 0 &&
+                                                manualOT.weekday.rate_per_hour === 0) ||
+                                            (manualOT.weekend.hours > 0 &&
+                                                manualOT.weekend.rate_per_hour === 0) ||
+                                            (manualOT.weekend.days > 0 &&
+                                                manualOT.weekend.rate_per_day === 0)
+                                        }
+                                        className="btn btn-primary"
+                                    >
+                                        <KTIcon iconName="plus" className="fs-4 me-2" />
+                                        Add to OT List
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1062,11 +1277,37 @@ export const Step2OtRates: React.FC<StepComponentsProps> = ({
                 {/* Display Manual OT Details */}
                 {manualOTDetails.length > 0 && (
                     <div className="mt-8">
+                        <div className="d-flex align-items-center justify-content-between mb-4">
+                            <h4 className="fw-bold text-primary">
+                                Manual OT Entries
+                            </h4>
+                            <span className="badge badge-primary">
+                                {manualOTDetails.length} entries
+                            </span>
+                        </div>
                         <OtDetailsTable
                             otDetails={manualOTDetails}
-                            title="Manual OT Entries"
+                            title="Manual OT Details"
                             showDate={false}
                         />
+                    </div>
+                )}
+
+                {/* Success Status Banner */}
+                {successMessage && (
+                    <div className="mt-4 p-4 bg-light-success border border-success rounded">
+                        <div className="d-flex align-items-center gap-3">
+                            <KTIcon iconName="shield-tick" className="fs-2 text-success" />
+                            <div>
+                                <div className="fw-bold text-success">
+                                    Success! OT details saved
+                                </div>
+                                <div className="text-muted fs-7">
+                                    The overtime calculation has been added to the salary calculation. 
+                                    You can proceed to the next step.
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -1651,7 +1892,7 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
 
     return (
   <div>
-            {/* ✅ เพิ่ม style tag สำหรับ override oklch colors */}
+            
             <style jsx>{`
                 .export-mode,
                 .export-mode * {
