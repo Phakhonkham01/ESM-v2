@@ -24,6 +24,31 @@ const toMinutes = (time: string): number => {
 };
 
 /* ============================================================
+   POPULATION HELPER - ✅ Centralized population config
+============================================================ */
+
+const getPopulateConfig = () => [
+  {
+    path: "user_id",
+    select: "user_name user_email first_name_en last_name_en nickname_en first_name_la last_name_la nickname_la department_id position_id",
+    populate: [
+      {
+        path: "department_id",
+        select: "department_name _id"
+      },
+      {
+        path: "position_id",
+        select: "position_name _id"
+      }
+    ]
+  },
+  {
+    path: "supervisor_id",
+    select: "user_name user_email first_name_en last_name_en first_name_la last_name_la _id"
+  }
+];
+
+/* ============================================================
    CREATE REQUEST
 ============================================================ */
 
@@ -36,7 +61,7 @@ export const createRequest = async (
     
     const {
       user_id,
-      supervisor_id, // เปลี่ยนเป็น array
+      supervisor_id, // array
       date,
       title,
       start_hour,
@@ -51,8 +76,8 @@ export const createRequest = async (
     if (
       !user_id ||
       !supervisor_id ||
-      !Array.isArray(supervisor_id) || // ตรวจสอบว่าเป็น array
-      supervisor_id.length === 0 || // ตรวจสอบว่าไม่ว่าง
+      !Array.isArray(supervisor_id) ||
+      supervisor_id.length === 0 ||
       !date ||
       !title ||
       !start_hour ||
@@ -60,6 +85,12 @@ export const createRequest = async (
     ) {
       console.log('❌ Missing fields')
       res.status(400).json({ message: "Missing required fields" });
+      return;
+    }
+
+    // Validate user ID
+    if (!mongoose.Types.ObjectId.isValid(user_id)) {
+      res.status(400).json({ message: "Invalid user ID" });
       return;
     }
 
@@ -73,27 +104,60 @@ export const createRequest = async (
       return;
     }
 
-    // ... validation code ...
+    // Validate title
+    if (!VALID_TITLES.includes(title)) {
+      res.status(400).json({ message: "Invalid title. Must be 'OT' or 'FIELD_WORK'" });
+      return;
+    }
 
+    // Validate time format
+    if (!isValidTime(start_hour) || !isValidTime(end_hour)) {
+      res.status(400).json({ message: "Invalid time format. Use HH:MM" });
+      return;
+    }
+
+    // Validate time logic
+    if (toMinutes(end_hour) <= toMinutes(start_hour)) {
+      res.status(400).json({ message: "End time must be later than start time" });
+      return;
+    }
+
+    // Validate fuel for FIELD_WORK
+    let finalFuel = 0;
+    if (title === "FIELD_WORK") {
+      if (fuel == null || isNaN(fuel) || Number(fuel) <= 0) {
+        res.status(400).json({
+          message: "Fuel price is required and must be greater than 0 for FIELD_WORK",
+        });
+        return;
+      }
+      finalFuel = Number(fuel);
+    }
+
+    // Create request
     const request = await RequestModel.create({
       user_id,
-      supervisor_id, // ใช้ array
+      supervisor_id,
       date,
       title,
       start_hour,
       end_hour,
-      fuel,
+      fuel: finalFuel,
       reason,
       description,
       date_off,
       status: "Pending",
     });
 
-    console.log('✅ Created request:', request)
+    // ✅ Populate before sending response
+    const populatedRequest = await RequestModel.findById(request._id)
+      .populate(getPopulateConfig());
+
+    console.log('✅ Created request:', populatedRequest)
 
     res.status(201).json({
       message: "Request submitted successfully",
-      request,
+      request: populatedRequest,
     });
   } catch (error: any) {
     console.error('❌ Backend error:', error)
@@ -101,27 +165,71 @@ export const createRequest = async (
   }
 };
 
-// แก้ไข getAllRequests
+/* ============================================================
+   GET ALL REQUESTS - ✅ UPDATED with proper population
+============================================================ */
+
 export const getAllRequests = async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, status, title } = req.query;
     const query: any = {};
 
-    // ... existing query logic ...
+    // Filter by date range
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate as string),
+        $lte: new Date(endDate as string)
+      };
+    }
 
+    // Filter by status
+    if (status && VALID_STATUSES.includes(status as any)) {
+      query.status = status;
+    }
+
+    // Filter by title
+    if (title && VALID_TITLES.includes(title as any)) {
+      query.title = title;
+    }
+
+    console.log('📋 Query filters:', query);
+
+    // ✅ Use centralized population config
     const requests = await RequestModel.find(query)
-      .populate("user_id", "first_name_en last_name_en email department_id")
-      .populate("supervisor_id", "first_name_en last_name_en email") // เปลี่ยนเป็น supervisor_id
-      .sort({ date: -1 });
+      .populate(getPopulateConfig())
+      .sort({ createdAt: -1 });
 
-    res.json({ requests });
+    console.log('✅ Found requests:', requests.length);
+    
+    // Log sample for debugging
+    if (requests.length > 0) {
+      const sample = requests[0] as any;
+      console.log('🔍 Sample request:', {
+        _id: sample._id,
+        user_id: sample.user_id,
+        user_name: sample.user_id?.user_name,
+        department: sample.user_id?.department_id,
+        title: sample.title
+      });
+    }
+
+    res.json({ 
+      success: true,
+      count: requests.length,
+      requests 
+    });
   } catch (error: any) {
-    res.status(500).json({ message: "Failed to fetch requests" });
+    console.error('❌ Get all requests error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to fetch requests",
+      error: error.message 
+    });
   }
 };
 
 /* ============================================================
-   READ BY USER
+   READ BY USER - ✅ UPDATED with proper population
 ============================================================ */
 
 export const getRequestsByUser = async (
@@ -136,18 +244,29 @@ export const getRequestsByUser = async (
       return;
     }
 
+    // ✅ Use centralized population config
     const requests = await RequestModel.find({ user_id: userId })
-      .populate("supervisor_id", "first_name_en last_name_en email")
+      .populate(getPopulateConfig())
       .sort({ createdAt: -1 });
 
-    res.json({ requests });
+    console.log(`✅ Found ${requests.length} requests for user ${userId}`);
+
+    res.json({ 
+      success: true,
+      count: requests.length,
+      requests 
+    });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Get requests by user error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
 /* ============================================================
-   READ BY SUPERVISOR
+   READ BY SUPERVISOR - ✅ UPDATED with proper population
 ============================================================ */
 
 export const getRequestsBySupervisor = async (
@@ -162,29 +281,33 @@ export const getRequestsBySupervisor = async (
       return;
     }
 
+    // ✅ Use centralized population config
+    // MongoDB will automatically search in array
     const requests = await RequestModel.find({
-      supervisor_id: supervisorId, // MongoDB จะค้นหาใน array อัตโนมัติ
+      supervisor_id: supervisorId,
     })
-      .populate({
-        path: "user_id",
-        select: "-password",
-      })
-      .populate("supervisor_id", "first_name_en last_name_en email")
+      .populate(getPopulateConfig())
       .sort({ createdAt: -1 });
 
+    console.log(`✅ Found ${requests.length} requests for supervisor ${supervisorId}`);
+
     res.json({
+      success: true,
       message: "Successfully fetched requests",
       count: requests.length,
       requests,
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Get requests by supervisor error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
-
 /* ============================================================
-   READ BY ID
+   READ BY ID - ✅ UPDATED with proper population
 ============================================================ */
 
 export const getRequestById = async (req: Request, res: Response) => {
@@ -196,23 +319,39 @@ export const getRequestById = async (req: Request, res: Response) => {
       return;
     }
 
+    // ✅ Use centralized population config
     const request = await RequestModel.findById(id)
-      .populate("user_id", "first_name_en last_name_en email")
-      .populate("supervisor_id", "first_name_en last_name_en email"); // เปลี่ยนเป็น supervisor_id
+      .populate(getPopulateConfig());
 
     if (!request) {
-      res.status(404).json({ message: "Request not found" });
+      res.status(404).json({ 
+        success: false,
+        message: "Request not found" 
+      });
       return;
     }
 
-    res.json({ request });
+    console.log('✅ Found request:', {
+      _id: request._id,
+      user: (request as any).user_id?.user_name,
+      department: (request as any).user_id?.department_id?.department_name
+    });
+
+    res.json({ 
+      success: true,
+      request 
+    });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Get request by ID error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
 /* ============================================================
-   UPDATE STATUS
+   UPDATE STATUS - ✅ UPDATED with proper population
 ============================================================ */
 
 export const updateRequestStatus = async (
@@ -237,21 +376,35 @@ export const updateRequestStatus = async (
       id,
       { status },
       { new: true }
-    );
+    )
+      .populate(getPopulateConfig()); // ✅ Add population
 
     if (!updated) {
       res.status(404).json({ message: "Request not found" });
       return;
     }
 
-    res.json({ message: "Status updated", request: updated });
+    console.log('✅ Updated request status:', {
+      _id: updated._id,
+      status: updated.status
+    });
+
+    res.json({ 
+      success: true,
+      message: "Status updated", 
+      request: updated 
+    });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Update status error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
 /* ============================================================
-   UPDATE REQUEST (EDIT)
+   UPDATE REQUEST (EDIT) - ✅ UPDATED with proper population
 ============================================================ */
 
 export const updateRequest = async (
@@ -317,20 +470,29 @@ export const updateRequest = async (
       },
       { new: true, runValidators: true }
     )
-      .populate("user_id", "first_name_en last_name_en email")
-      .populate("supervisor_id", "first_name_en last_name_en email");
+      .populate(getPopulateConfig()); // ✅ Use centralized population
+
+    console.log('✅ Updated request:', {
+      _id: updated?._id,
+      title: updated?.title
+    });
 
     res.json({
+      success: true,
       message: "Request updated successfully",
       request: updated,
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Update request error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
 /* ============================================================
-   DELETE
+   DELETE - ✅ UPDATED with better response
 ============================================================ */
 
 export const deleteRequest = async (
@@ -346,14 +508,33 @@ export const deleteRequest = async (
     }
 
     const deleted = await RequestModel.findByIdAndDelete(id);
-    res.json({ message: "Request deleted", request: deleted });
+    
+    if (!deleted) {
+      res.status(404).json({ 
+        success: false,
+        message: "Request not found" 
+      });
+      return;
+    }
+
+    console.log('✅ Deleted request:', deleted._id);
+
+    res.json({ 
+      success: true,
+      message: "Request deleted successfully", 
+      request: deleted 
+    });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Delete request error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
 /* ============================================================
-   ANALYTICS
+   ANALYTICS - ✅ UPDATED with better structure
 ============================================================ */
 
 export const getRequestStats = async (
@@ -365,14 +546,38 @@ export const getRequestStats = async (
     const pending = await RequestModel.countDocuments({ status: "Pending" });
     const accepted = await RequestModel.countDocuments({ status: "Accepted" });
     const rejected = await RequestModel.countDocuments({ status: "Rejected" });
+    const ot = await RequestModel.countDocuments({ title: "OT" });
+    const fieldWork = await RequestModel.countDocuments({ title: "FIELD_WORK" });
 
-    res.json({
+    console.log('📊 Request stats:', {
       total,
       pending,
       accepted,
       rejected,
+      ot,
+      fieldWork
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        total,
+        byStatus: {
+          pending,
+          accepted,
+          rejected,
+        },
+        byType: {
+          ot,
+          fieldWork,
+        }
+      }
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Get stats error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };

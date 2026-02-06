@@ -1,9 +1,10 @@
 import {FC} from 'react'
 import {ColumnInstance} from 'react-table'
-import {User} from '../../core/_models'
+import {FormattedRequestOTFieldWork} from '../../core/_models'
 
+// Type it specifically for FormattedRequestOTFieldWork
 type Props = {
-  column: ColumnInstance<User>
+  column: ColumnInstance<FormattedRequestOTFieldWork>
 }
 
 const CustomHeaderColumn: FC<Props> = ({column}) => (

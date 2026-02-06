@@ -11,11 +11,12 @@ import {
   stringifyRequestQuery,
   WithChildren,
 } from '../../../../../../_metronic/helpers'
-import {getUsers} from './_requests'
-import {User} from './_models'
+import {getRequests} from './_requests'
+import {RequestOTFieldWork} from './_models'
 import {useQueryRequest} from './QueryRequestProvider'
 
-const QueryResponseContext = createResponseContext<User>(initialQueryResponse)
+const QueryResponseContext = createResponseContext<RequestOTFieldWork>(initialQueryResponse)
+
 const QueryResponseProvider: FC<WithChildren> = ({children}) => {
   const {state} = useQueryRequest()
   const [query, setQuery] = useState<string>(stringifyRequestQuery(state))
@@ -32,9 +33,9 @@ const QueryResponseProvider: FC<WithChildren> = ({children}) => {
     refetch,
     data: response,
   } = useQuery(
-    `${QUERIES.USERS_LIST}-${query}`,
+    `${QUERIES.USERS_LIST}-${query}`, // หรือเปลี่ยนเป็น REQUESTS_LIST ถ้าต้องการ
     () => {
-      return getUsers(query)
+      return getRequests(query)
     },
     {cacheTime: 0, keepPreviousData: true, refetchOnWindowFocus: false}
   )

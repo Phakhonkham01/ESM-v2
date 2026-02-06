@@ -1,368 +1,357 @@
-import { FC, useState, useEffect } from 'react';
-import * as Yup from 'yup';
-import { useFormik } from 'formik';
-import clsx from 'clsx';
-import axios from 'axios';
-import Swal from 'sweetalert2';
-import { toast } from 'react-toastify';
-import { useMutation, useQueryClient } from 'react-query';
-import { QUERIES } from '../../../../../../_metronic/helpers/crud-helper/consts';
+import { FC } from 'react'
+import { RequestOTFieldWork } from '../core/_models'
+import { format } from 'date-fns'
 
-interface OvertimeFormProps {
-  onClose: () => void;
-  isEditMode?: boolean;
-  overtimeData?: any;
+type Props = {
+  isUserLoading: boolean
+  request?: RequestOTFieldWork
+  onClose?: () => void
 }
 
-interface Department {
-  _id: string;
-  department_name: string;
+interface User {
+  _id?: string
+  id?: string
+  user_name: string
+  user_email?: string
+  first_name_en?: string
+  last_name_en?: string
+  role?: 'admin' | 'employee' | 'supervisor'
 }
 
-interface OvertimeFormValues {
-  date: string;
-  start_time: string;
-  end_time: string;
-  team: string;
-  reason: string;
-  overtime_type: 'Regular OT' | 'Holiday OT' | 'Emergency OT';
-  status: 'pending' | 'approved' | 'rejected' | 'completed';
+// ✅ Helper to extract user name
+const extractUserName = (userData: string | User | null | undefined): string => {
+  if (!userData) return 'N/A'
+  
+  if (typeof userData === 'string') return userData
+  
+  if (typeof userData === 'object' && userData !== null) {
+    const user = userData as User
+    return user.user_name || 
+           `${user.first_name_en || ''} ${user.last_name_en || ''}`.trim() || 
+           'Unknown'
+  }
+  
+  return 'N/A'
 }
 
-const UserEditModalForm: FC<OvertimeFormProps> = ({ onClose, isEditMode = false, overtimeData }) => {
-  const queryClient = useQueryClient();
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  // Validation Schema
-  const overtimeSchema = Yup.object().shape({
-    date: Yup.string().required('Date is required'),
-    start_time: Yup.string().required('Start time is required'),
-    end_time: Yup.string().required('End time is required'),
-    team: Yup.string().required('Team/Department is required'),
-    reason: Yup.string()
-      .min(10, 'Reason must be at least 10 characters')
-      .required('Reason is required'),
-    overtime_type: Yup.string().required('Overtime type is required'),
-    status: Yup.string().required('Status is required'),
-  });
-
-  // Initial Values
-  const initialValues: OvertimeFormValues = {
-    date: overtimeData?.date || new Date().toISOString().split('T')[0],
-    start_time: overtimeData?.start_time || '08:00',
-    end_time: overtimeData?.end_time || '17:00',
-    team: overtimeData?.team || '',
-    reason: overtimeData?.reason || '',
-    overtime_type: overtimeData?.overtime_type || 'Regular OT',
-    status: overtimeData?.status || 'pending',
-  };
-
-  // Calculate total hours
-  const calculateTotalHours = (startTime: string, endTime: string): string => {
-    if (!startTime || !endTime) return '0 hours';
+// ✅ Helper to extract supervisor names (array support)
+const extractSupervisorNames = (
+  supervisorData: string | string[] | User | User[] | null | undefined
+): string => {
+  if (!supervisorData) return 'N/A'
+  
+  if (Array.isArray(supervisorData)) {
+    const names = supervisorData
+      .map(sup => extractUserName(sup))
+      .filter(name => name !== 'N/A')
     
-    const [startHour, startMinute] = startTime.split(':').map(Number);
-    const [endHour, endMinute] = endTime.split(':').map(Number);
+    return names.length > 0 ? names.join(', ') : 'N/A'
+  }
+  
+  return extractUserName(supervisorData)
+}
+
+// ✅ Helper to format date
+const formatDate = (date: Date | string | null | undefined): string => {
+  if (!date) return 'N/A'
+  
+  try {
+    const dateObj = new Date(date)
+    return format(dateObj, 'dd/MM/yyyy')
+  } catch {
+    return 'Invalid Date'
+  }
+}
+
+// ✅ Helper to format time
+const formatTime = (time: string | null | undefined): string => {
+  if (!time) return 'N/A'
+  return time
+}
+
+const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClose }) => {
+  console.log('🔍 Modal rendering with:', { request, isUserLoading })
+  
+  if (isUserLoading) {
+    return (
+      <div className="text-center py-10">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <div className="text-muted mt-3">Loading request details...</div>
+      </div>
+    )
+  }
+
+  if (!request) {
+    return (
+      <div className="text-center py-10">
+        <i className="bi bi-exclamation-triangle fs-1 text-warning mb-3"></i>
+        <div className="text-muted fs-4">Request not found</div>
+        {onClose && (
+          <button className="btn btn-sm btn-primary mt-3" onClick={onClose}>
+            Close
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  const employeeName = extractUserName(request.user_id)
+  const supervisorNames = extractSupervisorNames(request.supervisor_id)
+  const requestDate = formatDate(request.date)
+  const startHour = formatTime(request.start_hour)
+  const endHour = formatTime(request.end_hour)
+  const dateOff = request.date_off ? formatDate(request.date_off) : 'Not specified'
+
+  // Calculate hours worked
+  const calculateHours = (): string => {
+    if (!request.start_hour || !request.end_hour) return 'N/A'
     
-    let totalMinutes = (endHour * 60 + endMinute) - (startHour * 60 + startMinute);
-    
-    // Handle overnight
-    if (totalMinutes < 0) {
-      totalMinutes += 24 * 60;
+    try {
+      const [startH, startM] = request.start_hour.split(':').map(Number)
+      const [endH, endM] = request.end_hour.split(':').map(Number)
+      
+      const startMinutes = startH * 60 + startM
+      const endMinutes = endH * 60 + endM
+      
+      const diffMinutes = endMinutes - startMinutes
+      const hours = Math.floor(diffMinutes / 60)
+      const minutes = diffMinutes % 60
+      
+      return `${hours}h ${minutes}m`
+    } catch {
+      return 'N/A'
+    }
+  }
+
+  const totalHours = calculateHours()
+
+  // Status badge
+  const getStatusBadge = () => {
+    const statusColors = {
+      Pending: 'badge-warning',
+      Accepted: 'badge-success',
+      Rejected: 'badge-danger'
     }
     
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
+    const status = request.status || 'Pending'
+    const colorClass = statusColors[status as keyof typeof statusColors] || 'badge-secondary'
     
-    if (minutes === 0) {
-      return `${hours} hours`;
-    }
-    return `${hours}.${Math.round(minutes / 60 * 100)} hours`;
-  };
+    return (
+      <span className={`badge ${colorClass} fs-6`}>
+        <i className={`bi ${
+          status === 'Pending' ? 'bi-clock-history' :
+          status === 'Accepted' ? 'bi-check-circle-fill' :
+          'bi-x-circle-fill'
+        } me-1`}></i>
+        {status}
+      </span>
+    )
+  }
 
-  // Formik
-  const formik = useFormik({
-    initialValues,
-    validationSchema: overtimeSchema,
-    enableReinitialize: true,
-    onSubmit: async (values, { setSubmitting }) => {
-      setSubmitting(true);
-      try {
-        const totalHours = calculateTotalHours(values.start_time, values.end_time);
-        
-        const dataToSubmit = {
-          ...values,
-          total_hours: totalHours,
-          submitted_at: new Date().toISOString(),
-        };
-
-        const API_URL = import.meta.env.VITE_APP_API_URL;
-        
-        if (isEditMode && overtimeData?.id) {
-          // Update existing overtime
-          await axios.put(`${API_URL}/overtime/${overtimeData.id}`, dataToSubmit);
-          toast.success('Overtime request updated successfully!');
-        } else {
-          // Create new overtime
-          await axios.post(`${API_URL}/overtime`, dataToSubmit);
-          toast.success('Overtime request submitted successfully!');
-        }
-
-        queryClient.invalidateQueries([QUERIES.OVERTIME_LIST]);
-        onClose();
-      } catch (error: any) {
-        console.error('Submit error:', error);
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: error.response?.data?.message || 'Failed to submit overtime request',
-          confirmButtonText: 'OK',
-        });
-      } finally {
-        setSubmitting(false);
-      }
-    },
-  });
-
-  // Fetch departments
-  useEffect(() => {
-    const fetchDepartments = async () => {
-      try {
-        setLoading(true);
-        const API_URL = import.meta.env.VITE_APP_API_URL;
-        const response = await axios.get<{ data: Department[] }>(`${API_URL}/departments`);
-        setDepartments(response.data.data || []);
-      } catch (error) {
-        console.error('Error fetching departments:', error);
-        toast.error('Failed to load departments');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDepartments();
-  }, []);
-
-  // Calculate and update total hours when times change
-  useEffect(() => {
-    if (formik.values.start_time && formik.values.end_time) {
-      // This will trigger a re-render with updated total hours in the display
-    }
-  }, [formik.values.start_time, formik.values.end_time]);
-
-  const fieldClass = (fieldName: keyof OvertimeFormValues) =>
-    clsx('form-control form-control-solid', {
-      'is-invalid': formik.touched[fieldName] && formik.errors[fieldName],
-    });
-
-  const totalHours = calculateTotalHours(formik.values.start_time, formik.values.end_time);
+  // Type badge
+  const getTypeBadge = () => {
+    const isOT = request.title === 'OT'
+    
+    return (
+      <span className={`badge ${isOT ? 'badge-primary' : 'badge-info'} fs-6`}>
+        <i className={`bi ${isOT ? 'bi-clock' : 'bi-briefcase'} me-1`}></i>
+        {isOT ? 'Over Time (OT)' : 'Field Work'}
+      </span>
+    )
+  }
 
   return (
-    <form className="form" onSubmit={formik.handleSubmit} noValidate>
-      {/* Date Field */}
-      <div className="col-md-4 mb-7">
-        <label className="required fw-bold fs-6 mb-2">Date</label>
-        <input
-          type="date"
-          {...formik.getFieldProps('date')}
-          className={fieldClass('date')}
-          disabled={formik.isSubmitting}
-        />
-        {formik.touched.date && formik.errors.date && (
-          <div className="fv-plugins-message-container">
-            <span role="alert" className="fv-help-block text-danger">
-              {formik.errors.date}
-            </span>
+    <div className="card" style={{border: '2px solid #009ef7'}}>
+      <div className="card-header border-0 pt-5">
+        <div className="d-flex justify-content-between align-items-center w-100">
+          <div>
+            <h3 className="card-title align-items-start flex-column">
+              <span className="card-label fw-bold fs-3 mb-1">Request Details</span>
+              <span className="text-muted mt-1 fw-semibold fs-7">View OT/Field Work Request</span>
+            </h3>
           </div>
-        )}
-      </div>
-
-      {/* Time Fields - Start and End Time */}
-      <div className="row mb-7">
-        <div className="col-md-4">
-          <label className="required fw-bold fs-6 mb-2">Start Time</label>
-          <input
-            type="time"
-            {...formik.getFieldProps('start_time')}
-            className={fieldClass('start_time')}
-            disabled={formik.isSubmitting}
-          />
-          {formik.touched.start_time && formik.errors.start_time && (
-            <div className="fv-plugins-message-container">
-              <span role="alert" className="fv-help-block text-danger">
-                {formik.errors.start_time}
-              </span>
-            </div>
-          )}
-        </div>
-        
-        <div className="col-md-4">
-          <label className="required fw-bold fs-6 mb-2">End Time</label>
-          <input
-            type="time"
-            {...formik.getFieldProps('end_time')}
-            className={fieldClass('end_time')}
-            disabled={formik.isSubmitting}
-          />
-          {formik.touched.end_time && formik.errors.end_time && (
-            <div className="fv-plugins-message-container">
-              <span role="alert" className="fv-help-block text-danger">
-                {formik.errors.end_time}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Total Hours (Calculated - Readonly) */}
-        <div className="col-md-4">
-          <label className="fw-bold fs-6 mb-2">Total Hours</label>
-          <input
-            type="text"
-            value={totalHours}
-            className="form-control form-control-solid bg-light"
-            readOnly
-            disabled
-          />
-        </div>
-      </div>
-
-      {/* Team/Department Selection */}
-      <div className="fv-row mb-7">
-        <label className="required fw-bold fs-6 mb-2">Team / Department</label>
-        <select
-          {...formik.getFieldProps('team')}
-          className={fieldClass('team')}
-          disabled={formik.isSubmitting || loading}
-        >
-          <option value="">Select Team</option>
-          {departments.map((dept) => (
-            <option key={dept._id} value={dept._id}>
-              {dept.department_name}
-            </option>
-          ))}
-          <option value="cx_team">CX Team</option>
-          <option value="ai_team">AI Team</option>
-          <option value="support_team">Support Team</option>
-          <option value="development_team">Development Team</option>
-        </select>
-        {formik.touched.team && formik.errors.team && (
-          <div className="fv-plugins-message-container">
-            <span role="alert" className="fv-help-block text-danger">
-              {formik.errors.team}
-            </span>
+          <div className="d-flex gap-2">
+            {getTypeBadge()}
+            {getStatusBadge()}
           </div>
-        )}
-      </div>
-
-      {/* Reason/Description */}
-      <div className="fv-row mb-7">
-        <label className="required fw-bold fs-6 mb-2">Reason / Description</label>
-        <textarea
-          {...formik.getFieldProps('reason')}
-          className={`${fieldClass('reason')} form-control form-control-solid`}
-          rows={4}
-          placeholder="Please describe the reason for overtime..."
-          disabled={formik.isSubmitting}
-        />
-        {formik.touched.reason && formik.errors.reason && (
-          <div className="fv-plugins-message-container">
-            <span role="alert" className="fv-help-block text-danger">
-              {formik.errors.reason}
-            </span>
-          </div>
-        )}
-        <div className="text-muted mt-2">
-          <small>Example: Need to complete project deadline, urgent client request, etc.</small>
         </div>
       </div>
 
-      {/* Type of Overtime */}
-      <div className="fv-row mb-7">
-        <label className="required fw-bold fs-6 mb-2">Overtime Type</label>
-        <div className="d-flex flex-wrap gap-3">
-          {['Regular OT', 'Holiday OT', 'Emergency OT'].map((type) => {
-            const typeId = `type-${type.replace(/\s+/g, '-').toLowerCase()}`;
-            return (
-              <div key={type} className="form-check form-check-custom form-check-solid">
-                <input
-                  id={typeId}
-                  className="form-check-input"
-                  type="radio"
-                  value={type}
-                  checked={formik.values.overtime_type === type}
-                  onChange={() => formik.setFieldValue('overtime_type', type)}
-                  disabled={formik.isSubmitting}
-                />
-                <label htmlFor={typeId} className="form-check-label fw-bold text-gray-800">
-                  {type}
-                </label>
+      <div className="card-body py-3">
+        {/* Employee & Supervisor Section */}
+        <div className="row mb-7">
+          <div className="col-md-6">
+            <div className="d-flex align-items-center mb-3">
+              <div className="symbol symbol-50px symbol-circle me-4">
+                <div className="symbol-label bg-light-primary">
+                  <i className="bi bi-person-fill text-primary fs-2"></i>
+                </div>
               </div>
-            );
-          })}
+              <div>
+                <div className="fw-bold text-muted fs-7 mb-1">Employee</div>
+                <div className="fw-bold fs-5 text-gray-800">{employeeName}</div>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-6">
+            <div className="d-flex align-items-center mb-3">
+              <div className="symbol symbol-50px symbol-circle me-4">
+                <div className="symbol-label bg-light-success">
+                  <i className="bi bi-people-fill text-success fs-2"></i>
+                </div>
+              </div>
+              <div>
+                <div className="fw-bold text-muted fs-7 mb-1">Supervisor(s)</div>
+                <div className="fw-bold fs-5 text-gray-800">{supervisorNames}</div>
+              </div>
+            </div>
+          </div>
         </div>
-        {formik.touched.overtime_type && formik.errors.overtime_type && (
-          <div className="fv-plugins-message-container">
-            <span role="alert" className="fv-help-block text-danger">
-              {formik.errors.overtime_type}
-            </span>
+
+        {/* Date & Time Section */}
+        <div className="row mb-7">
+          <div className="col-md-4">
+            <div className="border rounded p-4 text-center">
+              <div className="fw-bold text-muted fs-7 mb-2">Request Date</div>
+              <div className="fw-bold fs-4 text-primary">
+                <i className="bi bi-calendar-event me-2"></i>
+                {requestDate}
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="border rounded p-4 text-center">
+              <div className="fw-bold text-muted fs-7 mb-2">Time Range</div>
+              <div className="fw-bold fs-5 text-gray-800">
+                <i className="bi bi-clock text-success me-1"></i>
+                {startHour} 
+                <i className="bi bi-arrow-right mx-2"></i>
+                <i className="bi bi-clock text-danger me-1"></i>
+                {endHour}
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="border rounded p-4 text-center">
+              <div className="fw-bold text-muted fs-7 mb-2">Total Duration</div>
+              <div className="fw-bold fs-4 text-success">
+                <i className="bi bi-hourglass-split me-2"></i>
+                {totalHours}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Details Section */}
+        <div className="row mb-7">
+          <div className="col-md-6">
+            <div className="border rounded p-4">
+              <div className="fw-bold text-muted fs-7 mb-2">Fuel Cost</div>
+              <div className="fw-bold fs-5 text-gray-800">
+                <i className="bi bi-fuel-pump me-2 text-warning"></i>
+                {request.fuel?.toLocaleString() || '0'} LAK
+              </div>
+            </div>
+          </div>
+          <div className="col-md-6">
+            <div className="border rounded p-4">
+              <div className="fw-bold text-muted fs-7 mb-2">Compensation Date Off</div>
+              <div className="fw-bold fs-5 text-gray-800">
+                <i className="bi bi-calendar-check me-2 text-info"></i>
+                {dateOff}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Reason Section */}
+        <div className="mb-7">
+          <div className="fw-bold text-muted fs-7 mb-3">Reason for Request</div>
+          <div className="card bg-light-primary border-primary border-2">
+            <div className="card-body p-5">
+              <p className="text-gray-800 fs-5 mb-0">
+                <i className="bi bi-chat-quote text-primary me-2"></i>
+                {request.reason || 'No reason provided'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Description Section */}
+        {request.description && (
+          <div className="mb-7">
+            <div className="fw-bold text-muted fs-7 mb-3">Additional Description</div>
+            <div className="card bg-light border-2">
+              <div className="card-body p-5">
+                <p className="text-gray-700 fs-5 mb-0">
+                  <i className="bi bi-card-text text-gray-600 me-2"></i>
+                  {request.description}
+                </p>
+              </div>
+            </div>
           </div>
         )}
+
+        {/* Timestamps */}
+        <div className="border-top pt-5 mt-5">
+          <div className="row">
+            <div className="col-md-6">
+              <div className="d-flex align-items-center">
+                <div className="symbol symbol-40px symbol-circle me-3">
+                  <div className="symbol-label bg-light">
+                    <i className="bi bi-calendar-plus text-primary"></i>
+                  </div>
+                </div>
+                <div>
+                  <div className="fw-bold text-muted fs-7">Created At</div>
+                  <div className="fw-bold fs-6 text-gray-800">
+                    {request.createdAt ? format(new Date(request.createdAt), 'dd/MM/yyyy HH:mm') : 'N/A'}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="col-md-6">
+              <div className="d-flex align-items-center">
+                <div className="symbol symbol-40px symbol-circle me-3">
+                  <div className="symbol-label bg-light">
+                    <i className="bi bi-clock-history text-success"></i>
+                  </div>
+                </div>
+                <div>
+                  <div className="fw-bold text-muted fs-7">Last Updated</div>
+                  <div className="fw-bold fs-6 text-gray-800">
+                    {request.updatedAt ? format(new Date(request.updatedAt), 'dd/MM/yyyy HH:mm') : 'N/A'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Status (For admin/supervisor review) */}
-      {isEditMode && (
-        <div className="fv-row mb-7">
-          <label className="required fw-bold fs-6 mb-2">Status</label>
-          <select
-            {...formik.getFieldProps('status')}
-            className={fieldClass('status')}
-            disabled={formik.isSubmitting}
-          >
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="completed">Completed</option>
-          </select>
-          {formik.touched.status && formik.errors.status && (
-            <div className="fv-plugins-message-container">
-              <span role="alert" className="fv-help-block text-danger">
-                {formik.errors.status}
-              </span>
-            </div>
+      <div className="card-footer d-flex justify-content-between py-4 px-6">
+        <div className="text-muted fs-7">
+          <i className="bi bi-info-circle me-1"></i>
+          Request ID: {request._id || request.id}
+        </div>
+        <div>
+          {onClose && (
+            <button
+              type="button"
+              className="btn btn-lg btn-primary"
+              onClick={onClose}
+              style={{ minWidth: '120px' }}
+            >
+              <i className="bi bi-check-circle me-2"></i>
+              Close
+            </button>
           )}
         </div>
-      )}
-
-      {/* Actions - Buttons at bottom */}
-      <div className="text-end pt-3 border-top">
-        <button
-          type="button"
-          className="btn btn-light me-3"
-          onClick={onClose}
-          disabled={formik.isSubmitting}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={formik.isSubmitting || !formik.isValid}
-        >
-          {formik.isSubmitting ? (
-            <>
-              <span className="spinner-border spinner-border-sm me-2"></span>
-              Processing...
-            </>
-          ) : isEditMode ? (
-            'Update Request'
-          ) : (
-            'Submit Request'
-          )}
-        </button>
       </div>
-    </form>
-  );
-};
+    </div>
+  )
+}
 
-export { UserEditModalForm };
+export { RequestOTFieldWorkViewModal }

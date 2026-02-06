@@ -1,10 +1,14 @@
+// src/app/modules/apps/request-ot-field-work-user/users-list/core/_requests.ts
 import axios, { AxiosResponse } from 'axios'
 import { ID } from '../../../../../../_metronic/helpers'
-import { User, UsersQueryResponse, Department, Position } from './_models'
+import { 
+  RequestOTFieldWork, 
+  RequestOTFieldWorkDTO,
+  RequestOTFieldWorksQueryResponse 
+} from './_models'
 
 const API_URL = import.meta.env.VITE_APP_API_URL
-const USER_URL = `${API_URL}/users`
-const DEPARTMENT_URL = `${API_URL}/departments`
+const REQUEST_URL = `${API_URL}/requestOTandFieldWorkRoutes`
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
@@ -15,438 +19,139 @@ const axiosInstance = axios.create({
 })
 
 /* =========================
-   DEPARTMENT INTERFACES
+   INTERFACES
 ========================= */
 
-export interface DepartmentFormData {
-  department_name: string
-}
-
-export interface DepartmentsQueryResponse {
+export interface RequestQueryResponse {
   success: boolean
   count: number
-  data: Department[]
+  data: RequestOTFieldWork[]
 }
 
-export interface DepartmentResponse {
+export interface RequestResponse {
   success: boolean
   message?: string
-  data: Department
+  data: RequestOTFieldWork
 }
 
-export interface DepartmentDeleteError {
-  success: false
-  message: string
-  userCount?: number
-  users?: Array<{
-    id: string
-    name: string
-    email: string
-  }>
-}
-
-export interface PositionFormData {
-  position_name: string
-  department_id: string
-}
-
-export interface PositionsQueryResponse {
-  success: boolean
-  count: number
-  data: Position[]
-}
-
-export interface PositionResponse {
-  success: boolean
-  message?: string
-  data: Position
-}
-
-// สร้าง interface สำหรับ error response
 interface ApiErrorResponse {
   response?: {
     status?: number
     data?: {
       message?: string
-      userCount?: number
-      users?: Array<{ id: string; name: string; email: string }>
     }
   }
   message?: string
+}
+
+// ✅ เพิ่ม interface สำหรับ backend response
+interface BackendRequestsResponse {
+  requests: RequestOTFieldWork[]
+}
+
+interface BackendRequestResponse {
+  request: RequestOTFieldWork
 }
 
 /* =========================
    HELPERS
 ========================= */
 
-const mapUser = (user: User & { _id?: string; department_id?: any; position_id?: any }): User => ({
-  ...user,
-  id: user._id || user.id,
-  // แปลง department_id ถ้าเป็น object
-  department_id: user.department_id 
-    ? (Array.isArray(user.department_id)
-        ? user.department_id.map((dept: unknown) => 
-            typeof dept === 'object' && dept !== null && '_id' in dept 
-              ? { 
-                  ...dept as Department, 
-                  id: (dept as { _id?: string; id?: string })._id || (dept as { _id?: string; id?: string }).id 
-                }
-              : dept
-          )
-        : typeof user.department_id === 'object' && user.department_id !== null && '_id' in user.department_id
-          ? {
-              ...user.department_id as Department,
-              id: (user.department_id as { _id?: string; id?: string })._id || (user.department_id as { _id?: string; id?: string }).id
-            }
-          : user.department_id)
-    : user.department_id,
-  // แปลง position_id ถ้าเป็น object
-  position_id: user.position_id
-    ? (typeof user.position_id === 'object' && user.position_id !== null && '_id' in user.position_id
-        ? {
-            ...user.position_id as Position,
-            id: (user.position_id as { _id?: string; id?: string })._id || (user.position_id as { _id?: string; id?: string }).id
-          }
-        : user.position_id)
-    : user.position_id,
-})
-
-const mapDepartment = (department: Department & { _id?: string }): Department => ({
-  ...department,
-  id: department._id || department.id,
-})
-
-const mapPosition = (position: Position & { _id?: string }): Position => ({
-  ...position,
-  id: position._id || position.id,
+const mapRequest = (request: RequestOTFieldWork & { _id?: string }): RequestOTFieldWork => ({
+  ...request,
+  id: request._id || request.id,
 })
 
 /* =========================
-   USER REQUESTS
+   REQUEST OT/FIELD WORK REQUESTS
 ========================= */
 
-// GET USERS
-export const getUsers = async (query: string): Promise<UsersQueryResponse> => {
-  const { data }: AxiosResponse<User[]> = await axios.get(
-    `${USER_URL}?${query}`
-  )
-
-  return {
-    data: data.map((user: User & { _id?: string; department_id?: any; position_id?: any }) => mapUser(user)),
-  }
-}
-
-// GET USER BY ID
-export const getUserById = async (id: ID): Promise<User> => {
-  const { data }: AxiosResponse<User> = await axios.get(
-    `${USER_URL}/${id}`
-  )
-
-  return mapUser(data)
-}
-
-// CREATE USER
-interface CreateUserResponse {
-  user: User & { _id: string }
-}
-
-export const createUser = async (user: User): Promise<User> => {
-  const { data }: AxiosResponse<CreateUserResponse> = await axios.post(
-    USER_URL,
-    user
-  )
-
-  return mapUser(data.user)
-}
-
-// UPDATE USER
-interface UpdateUserResponse {
-  user: User & { _id: string }
-}
-
-export const updateUser = async (user: User): Promise<User> => {
-  if (!user.id) {
-    throw new Error('User ID is required for update')
-  }
-
-  const { data }: AxiosResponse<UpdateUserResponse> = await axios.put(
-    `${USER_URL}/${user.id}`,
-    user
-  )
-
-  return mapUser(data.user)
-}
-
-// RESET USER PASSWORD
-export const resetPassword = (user_name: string, userId: ID): Promise<void> => {
-  return axios.post(`${USER_URL}/${userId}`, { user_name, userId }).then((response: AxiosResponse) => response.data)
-}
-
-// DELETE USER
-export const deleteUser = async (userId: ID): Promise<void> => {
-  await axios.delete(`${USER_URL}/${userId}`)
-  console.log("🚀 ~ deleteUser ~ axios.delete:", axios.delete)
-}
-
-// DELETE MULTIPLE USERS
-export const deleteSelectedUsers = async (
-  userIds: ID[]
-): Promise<void> => {
-  await Promise.all(userIds.map(deleteUser))
-}
-
-/* =========================
-   DEPARTMENT REQUESTS
-========================= */
-
-// GET ALL DEPARTMENTS
-export const getDepartments = async (query?: string): Promise<Department[]> => {
-  console.log('📋 Getting all departments')
+// GET ALL REQUESTS - ✅ UPDATED to populate user with department
+export const getRequests = async (query?: string): Promise<RequestOTFieldWorksQueryResponse> => {
+  console.log('📋 Getting all requests')
   
   try {
-    const url = query ? `${DEPARTMENT_URL}?${query}` : DEPARTMENT_URL
-    const response = await axiosInstance.get<DepartmentsQueryResponse>(url)
+    // ✅ Add populate parameter to get user details with department
+    const baseUrl = query ? `${REQUEST_URL}?${query}` : REQUEST_URL
+    const url = baseUrl.includes('?') 
+      ? `${baseUrl}&populate=user_id` 
+      : `${baseUrl}?populate=user_id`
     
-    console.log('✅ Get departments response:', response.data)
-    return response.data.data.map((department: Department & { _id?: string }) => mapDepartment(department))
-  } catch (error: unknown) {
-    console.error('❌ Get departments error:', error)
-    throw error
-  }
-}
-
-// GET DEPARTMENT BY ID
-export const getDepartmentById = async (id: string): Promise<Department> => {
-  console.log('🔍 Getting department by ID:', id)
-  
-  try {
-    const response = await axiosInstance.get<DepartmentResponse>(`${DEPARTMENT_URL}/${id}`)
+    const { data }: AxiosResponse<BackendRequestsResponse> = await axios.get(url)
     
-    console.log('✅ Get department response:', response.data)
-    return mapDepartment(response.data.data)
-  } catch (error: unknown) {
-    console.error(`❌ Get department ${id} error:`, error)
-    throw error
-  }
-}
-
-// CREATE DEPARTMENT
-// CREATE DEPARTMENT
-export const createDepartment = async (
-  department: DepartmentFormData
-): Promise<Department> => {
-  console.log('📤 [_requests.ts] Creating department with data:', department)
-  console.log('📤 [_requests.ts] DEPARTMENT_URL:', DEPARTMENT_URL)
-  console.log('📤 [_requests.ts] API_URL:', API_URL)
-  
-  try {
-    const response = await axiosInstance.post<DepartmentResponse>(
-      DEPARTMENT_URL, 
-      department
-    )
+    console.log('✅ Raw backend response:', data)
     
-    console.log('✅ [_requests.ts] Create department response:', response)
-    console.log('✅ [_requests.ts] Response data:', response.data)
-    console.log('✅ [_requests.ts] Response data.data:', response.data.data)
-    
-    const mappedDepartment = mapDepartment(response.data.data)
-    console.log('✅ [_requests.ts] Mapped department:', mappedDepartment)
-    
-    return mappedDepartment
-  } catch (error: unknown) {
-    console.error('❌ [_requests.ts] Create department error:', error)
-    console.error('❌ [_requests.ts] Error details:', {
-      requestData: department,
-      response: (error as ApiErrorResponse).response?.data,
-      status: (error as ApiErrorResponse).response?.status
-    })
-    
-    const apiError = error as ApiErrorResponse
-    
-    if (apiError.response?.data?.message) {
-      const enhancedError = new Error(apiError.response.data.message)
-      ;(enhancedError as any).response = apiError.response
-      throw enhancedError
-    }
-    
-    throw error
-  }
-}
-
-// UPDATE DEPARTMENT
-export const updateDepartment = async (
-  id: string, 
-  department: Partial<DepartmentFormData>
-): Promise<Department> => {
-  console.log(`✏️ Updating department ${id} with data:`, department)
-  
-  try {
-    const response = await axiosInstance.put<DepartmentResponse>(
-      `${DEPARTMENT_URL}/${id}`, 
-      department
-    )
-    
-    console.log('✅ Update department response:', response.data)
-    return mapDepartment(response.data.data)
-  } catch (error: unknown) {
-    console.error(`❌ Update department ${id} error:`, {
-      requestData: department,
-      response: (error as ApiErrorResponse).response?.data,
-      status: (error as ApiErrorResponse).response?.status
-    })
-    
-    const apiError = error as ApiErrorResponse
-    
-    // Re-throw with enhanced error message
-    if (apiError.response?.data?.message) {
-      const enhancedError = new Error(apiError.response.data.message)
-      ;(enhancedError as any).response = apiError.response
-      throw enhancedError
-    }
-    
-    throw error
-  }
-}
-
-// DELETE DEPARTMENT
-export const deleteDepartment = async (id: string): Promise<void> => {
-  console.log(`🗑️ Deleting department ${id}`)
-  
-  try {
-    const response = await axiosInstance.delete<DepartmentResponse>(
-      `${DEPARTMENT_URL}/${id}`
-    )
-    console.log('✅ Delete department response:', response.data)
-  } catch (error: unknown) {
-    console.error(`❌ Delete department ${id} error:`, {
-      response: (error as ApiErrorResponse).response?.data,
-      status: (error as ApiErrorResponse).response?.status
-    })
-    
-    // ✅ จัดการ error แบบละเอียด
-    const apiError = error as ApiErrorResponse
-    const status = apiError.response?.status
-    const errorData = apiError.response?.data as DepartmentDeleteError
-    
-    // กรณีหาไม่เจอ
-    if (status === 404) {
-      throw new Error('Department not found')
-    }
-    
-    // กรณีมี user ใช้งานอยู่ หรือ error อื่นๆ
-    if (status === 400) {
-      const message = errorData?.message || 'Cannot delete department'
-      const userCount = errorData?.userCount
-      const users = errorData?.users
+    if (data.requests && data.requests.length > 0) {
+      const firstRequest = data.requests[0] as any
       
-      // สร้าง error object ที่มีข้อมูลเพิ่มเติม
-      const enhancedError: any = new Error(message)
-      enhancedError.userCount = userCount
-      enhancedError.users = users
-      enhancedError.response = apiError.response
-      
-      throw enhancedError
+      console.log('🔍 First request sample:', {
+        _id: firstRequest._id,
+        user_id: firstRequest.user_id,
+        user_id_type: typeof firstRequest.user_id,
+        department_info: firstRequest.user_id?.department_id
+      })
     }
     
-    // Error อื่นๆ
-    if (errorData?.message) {
-      throw new Error(errorData.message)
+    const requestsArray = data.requests || []
+    
+    return {
+      data: requestsArray.map((request: RequestOTFieldWork & { _id?: string }) => 
+        mapRequest(request)
+      ),
     }
-    
-    throw error
-  }
-}
-
-// DELETE MULTIPLE DEPARTMENTS
-export const deleteSelectedDepartments = async (ids: string[]): Promise<void> => {
-  console.log('🗑️ Deleting multiple departments:', ids)
-  
-  const errors: Array<{ id: string; error: Error }> = []
-  
-  for (const id of ids) {
-    try {
-      await deleteDepartment(id)
-    } catch (error: unknown) {
-      errors.push({ id, error: error as Error })
-    }
-  }
-  
-  if (errors.length > 0) {
-    console.error('❌ Some departments could not be deleted:', errors)
-    
-    const errorMessages = errors.map(({ id, error }: { id: string; error: Error & { userCount?: number } }) => {
-      const userCount = error.userCount
-      if (userCount) {
-        return `Department ${id}: ${userCount} employee(s) assigned`
-      }
-      return `Department ${id}: ${error.message}`
-    })
-    
-    throw new Error(`Failed to delete ${errors.length} department(s):\n${errorMessages.join('\n')}`)
-  }
-  
-  console.log('✅ Successfully deleted all departments')
-}
-
-/* =========================
-   POSITION REQUESTS
-========================= */
-
-// GET ALL POSITIONS
-export const getPositions = async (query?: string): Promise<Position[]> => {
-  console.log('📋 Getting all positions')
-  
-  try {
-    const url = `${API_URL}/positions${query ? `?${query}` : ''}`
-    const response = await axiosInstance.get<PositionsQueryResponse>(url)
-    
-    console.log('✅ Get positions response:', response.data)
-    return response.data.data.map((position: Position & { _id?: string }) => mapPosition(position))
   } catch (error: unknown) {
-    console.error('❌ Get positions error:', error)
+    console.error('❌ Get requests error:', error)
     throw error
   }
 }
 
-// GET POSITION BY ID
-export const getPositionById = async (id: string): Promise<Position> => {
-  console.log('🔍 Getting position by ID:', id)
+// GET REQUEST BY ID - ✅ UPDATED to populate user with department
+export const getRequestById = async (id: ID): Promise<RequestOTFieldWork> => {
+  console.log('🔍 Getting request by ID:', id)
   
   try {
-    const response = await axiosInstance.get<PositionResponse>(`${API_URL}/positions/${id}`)
-    
-    console.log('✅ Get position response:', response.data)
-    return mapPosition(response.data.data)
-  } catch (error: unknown) {
-    console.error(`❌ Get position ${id} error:`, error)
-    throw error
-  }
-}
-
-// CREATE POSITION
-export const createPosition = async (
-  position: PositionFormData
-): Promise<Position> => {
-  console.log('📤 Creating position with data:', position)
-  
-  try {
-    const response = await axiosInstance.post<PositionResponse>(
-      `${API_URL}/positions`, 
-      position
+    // ✅ Add populate parameter
+    const { data }: AxiosResponse<BackendRequestResponse> = await axios.get(
+      `${REQUEST_URL}/${id}?populate=user_id`
     )
     
-    console.log('✅ Create position response:', response.data)
-    return mapPosition(response.data.data)
+    console.log('✅ Get request response:', data)
+    
+    return mapRequest(data.request)
   } catch (error: unknown) {
-    console.error('❌ Create position error:', {
-      requestData: position,
+    console.error(`❌ Get request ${id} error:`, error)
+    throw error
+  }
+}
+
+// CREATE REQUEST
+interface CreateRequestResponse {
+  message?: string
+  request: RequestOTFieldWork & { _id: string }
+}
+
+export const createRequest = async (
+  requestData: RequestOTFieldWorkDTO
+): Promise<RequestOTFieldWork> => {
+  console.log('📤 Creating request with data:', requestData)
+  
+  try {
+    const { data }: AxiosResponse<CreateRequestResponse> = await axios.post(
+      REQUEST_URL,
+      requestData
+    )
+    
+    console.log('✅ Create request response:', data)
+    return mapRequest(data.request)
+  } catch (error: unknown) {
+    console.error('❌ Create request error:', {
+      requestData,
       response: (error as ApiErrorResponse).response?.data,
       status: (error as ApiErrorResponse).response?.status
     })
     
     const apiError = error as ApiErrorResponse
     
-    // Re-throw with enhanced error message
     if (apiError.response?.data?.message) {
       const enhancedError = new Error(apiError.response.data.message)
       ;(enhancedError as any).response = apiError.response
@@ -457,31 +162,38 @@ export const createPosition = async (
   }
 }
 
-// UPDATE POSITION
-export const updatePosition = async (
-  id: string, 
-  position: Partial<PositionFormData>
-): Promise<Position> => {
-  console.log(`✏️ Updating position ${id} with data:`, position)
+// UPDATE REQUEST
+interface UpdateRequestResponse {
+  message?: string
+  request: RequestOTFieldWork & { _id: string }
+}
+
+export const updateRequest = async ({
+  id,
+  data: requestData,
+}: {
+  id: string
+  data: RequestOTFieldWorkDTO
+}): Promise<RequestOTFieldWork> => {
+  console.log(`✏️ Updating request ${id} with data:`, requestData)
   
   try {
-    const response = await axiosInstance.put<PositionResponse>(
-      `${API_URL}/positions/${id}`, 
-      position
+    const { data }: AxiosResponse<UpdateRequestResponse> = await axios.put(
+      `${REQUEST_URL}/${id}`,
+      requestData
     )
     
-    console.log('✅ Update position response:', response.data)
-    return mapPosition(response.data.data)
+    console.log('✅ Update request response:', data)
+    return mapRequest(data.request)
   } catch (error: unknown) {
-    console.error(`❌ Update position ${id} error:`, {
-      requestData: position,
+    console.error(`❌ Update request ${id} error:`, {
+      requestData,
       response: (error as ApiErrorResponse).response?.data,
       status: (error as ApiErrorResponse).response?.status
     })
     
     const apiError = error as ApiErrorResponse
     
-    // Re-throw with enhanced error message
     if (apiError.response?.data?.message) {
       const enhancedError = new Error(apiError.response.data.message)
       ;(enhancedError as any).response = apiError.response
@@ -492,31 +204,58 @@ export const updatePosition = async (
   }
 }
 
-// DELETE POSITION
-export const deletePosition = async (id: string): Promise<void> => {
-  console.log(`🗑️ Deleting position ${id}`)
+// UPDATE REQUEST STATUS
+export const updateRequestStatus = async ({
+  id,
+  status,
+}: {
+  id: string
+  status: 'Pending' | 'Accepted' | 'Rejected'
+}): Promise<RequestOTFieldWork> => {
+  console.log(`✏️ Updating request ${id} status to:`, status)
   
   try {
-    const response = await axiosInstance.delete<PositionResponse>(
-      `${API_URL}/positions/${id}`
+    const { data }: AxiosResponse<UpdateRequestResponse> = await axios.patch(
+      `${REQUEST_URL}/${id}/status`,
+      { status }
     )
-    console.log('✅ Delete position response:', response.data)
+    
+    console.log('✅ Update request status response:', data)
+    return mapRequest(data.request)
   } catch (error: unknown) {
-    console.error(`❌ Delete position ${id} error:`, {
+    console.error(`❌ Update request ${id} status error:`, error)
+    
+    const apiError = error as ApiErrorResponse
+    
+    if (apiError.response?.data?.message) {
+      const enhancedError = new Error(apiError.response.data.message)
+      ;(enhancedError as any).response = apiError.response
+      throw enhancedError
+    }
+    
+    throw error
+  }
+}
+
+// DELETE REQUEST
+export const deleteRequest = async (requestId: ID): Promise<void> => {
+  console.log(`🗑️ Deleting request ${requestId}`)
+  
+  try {
+    await axios.delete(`${REQUEST_URL}/${requestId}`)
+    console.log('✅ Delete request success')
+  } catch (error: unknown) {
+    console.error(`❌ Delete request ${requestId} error:`, {
       response: (error as ApiErrorResponse).response?.data,
       status: (error as ApiErrorResponse).response?.status
     })
     
-    // ✅ จัดการ error แบบละเอียด
     const apiError = error as ApiErrorResponse
-    const status = apiError.response?.status
     
-    // กรณีหาไม่เจอ
-    if (status === 404) {
-      throw new Error('Position not found')
+    if (apiError.response?.status === 404) {
+      throw new Error('Request not found')
     }
     
-    // Error อื่นๆ
     if (apiError.response?.data?.message) {
       throw new Error(apiError.response.data.message)
     }
@@ -525,104 +264,88 @@ export const deletePosition = async (id: string): Promise<void> => {
   }
 }
 
-// GET POSITIONS BY DEPARTMENT
-export const getPositionsByDepartment = async (departmentId: string): Promise<Position[]> => {
+// DELETE MULTIPLE REQUESTS
+export const deleteSelectedRequests = async (
+  requestIds: ID[]
+): Promise<void> => {
+  console.log('🗑️ Deleting multiple requests:', requestIds)
+  
+  await Promise.all(requestIds.map(deleteRequest))
+  console.log('✅ Successfully deleted all requests')
+}
+
+/* =========================
+   QUERY HELPERS
+========================= */
+
+// GET REQUESTS BY USER - ✅ UPDATED to populate
+export const getRequestsByUser = async (userId: string): Promise<RequestOTFieldWork[]> => {
   try {
-    const response = await axiosInstance.get<PositionsQueryResponse>(
-      `${API_URL}/positions?department_id=${departmentId}`
+    const { data }: AxiosResponse<BackendRequestsResponse> = await axios.get(
+      `${REQUEST_URL}/user/${userId}?populate=user_id`
     )
-    return response.data.data.map((position: Position & { _id?: string }) => mapPosition(position))
+    
+    return (data.requests || []).map((request: RequestOTFieldWork & { _id?: string }) => 
+      mapRequest(request)
+    )
   } catch (error: unknown) {
-    console.error('❌ Get positions by department error:', error)
+    console.error('❌ Get requests by user error:', error)
     throw error
   }
 }
 
-/* =========================
-   DEPARTMENT VALIDATION HELPERS
-========================= */
-
-// Check if department name already exists
-export const checkDepartmentExists = async (
-  departmentName: string, 
-  excludeId?: string
-): Promise<boolean> => {
+// GET REQUESTS BY SUPERVISOR - ✅ UPDATED to populate
+export const getRequestsBySupervisor = async (supervisorId: string): Promise<RequestOTFieldWork[]> => {
   try {
-    const departments: Department[] = await getDepartments()
+    const { data }: AxiosResponse<BackendRequestsResponse> = await axios.get(
+      `${REQUEST_URL}/supervisor/${supervisorId}?populate=user_id`
+    )
     
-    return departments.some((dept: Department) => {
-      const isSameName = dept.department_name.toLowerCase() === departmentName.toLowerCase()
-      const isDifferentId = excludeId ? (dept._id || dept.id) !== excludeId : true
-      
-      return isSameName && isDifferentId
-    })
+    return (data.requests || []).map((request: RequestOTFieldWork & { _id?: string }) => 
+      mapRequest(request)
+    )
   } catch (error: unknown) {
-    console.error('Error checking department existence:', error)
-    return false
+    console.error('❌ Get requests by supervisor error:', error)
+    throw error
   }
 }
 
-// Get department by name
-export const getDepartmentByName = async (name: string): Promise<Department | null> => {
+// GET REQUESTS BY STATUS
+export const getRequestsByStatus = async (
+  status: 'Pending' | 'Accepted' | 'Rejected'
+): Promise<RequestOTFieldWork[]> => {
   try {
-    const departments: Department[] = await getDepartments()
-    
-    return departments.find(
-      (dept: Department) => dept.department_name.toLowerCase() === name.toLowerCase()
-    ) || null
+    const response = await getRequests(`status=${status}`)
+    return response.data || []
   } catch (error: unknown) {
-    console.error('Error getting department by name:', error)
-    return null
+    console.error('❌ Get requests by status error:', error)
+    throw error
   }
 }
 
-// ✅ เพิ่มฟังก์ชันเช็คว่า department มี user ใช้งานอยู่หรือไม่
-export const checkDepartmentHasUsers = async (departmentId: string): Promise<{
-  hasUsers: boolean
-  userCount: number
-  users?: Array<{ id: string; name: string; email: string }>
-}> => {
+// GET REQUESTS BY DATE RANGE
+export const getRequestsByDateRange = async (
+  startDate: string,
+  endDate: string
+): Promise<RequestOTFieldWork[]> => {
   try {
-    // เรียก API เพื่อเช็คว่ามี user ไหม
-    const result = await getUsers(`department_id=${departmentId}`)
-    const usersData = result?.data || []
-    
-    return {
-      hasUsers: usersData.length > 0,
-      userCount: usersData.length,
-      users: usersData.map((u: User) => ({
-        id: u.id || '',
-        name: u.user_name || '',
-        email: u.user_email || ''
-      }))
-    }
+    const response = await getRequests(`startDate=${startDate}&endDate=${endDate}`)
+    return response.data || []
   } catch (error: unknown) {
-    console.error('Error checking department users:', error)
-    return {
-      hasUsers: false,
-      userCount: 0,
-      users: []
-    }
+    console.error('❌ Get requests by date range error:', error)
+    throw error
   }
 }
 
-// ✅ เพิ่มฟังก์ชันสำหรับตรวจสอบ position name
-export const checkPositionExists = async (
-  positionName: string, 
-  departmentId: string,
-  excludeId?: string
-): Promise<boolean> => {
+// GET REQUESTS BY TITLE
+export const getRequestsByTitle = async (
+  title: 'OT' | 'FIELD_WORK'
+): Promise<RequestOTFieldWork[]> => {
   try {
-    const positions: Position[] = await getPositionsByDepartment(departmentId)
-    
-    return positions.some((pos: Position) => {
-      const isSameName = pos.position_name.toLowerCase() === positionName.toLowerCase()
-      const isDifferentId = excludeId ? (pos._id || pos.id) !== excludeId : true
-      
-      return isSameName && isDifferentId
-    })
+    const response = await getRequests(`title=${title}`)
+    return response.data || []
   } catch (error: unknown) {
-    console.error('Error checking position existence:', error)
-    return false
+    console.error('❌ Get requests by title error:', error)
+    throw error
   }
 }

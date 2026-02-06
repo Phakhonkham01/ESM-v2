@@ -1,116 +1,197 @@
-import {ID, Response} from '../../../../../../_metronic/helpers'
+// _models.ts - COMPLETE TYPE-SAFE VERSION
 
-// ✅ ประกาศ interface ก่อน
+// Helper function to format request data for display
+export const formatRequestOTFieldWork = (request: RequestOTFieldWork): FormattedRequestOTFieldWork => {
+  console.log('🔄 ========== FORMATTING REQUEST ==========')
+  console.log('🔄 Request ID:', request._id)
+  
+  // ✅ Extract user information
+  const user = request.user_id
+  const userName = typeof user === 'object' && user !== null 
+    ? user.user_name || 'N/A'
+    : 'N/A'
+  
+  const userEmail = typeof user === 'object' && user !== null 
+    ? user.user_email || ''
+    : ''
+  
+  // ✅ Extract department information from user
+  let departmentName = 'N/A'
+  
+  if (typeof user === 'object' && user !== null) {
+    const department = user.department_id
+    
+    console.log('🏢 Department raw:', department)
+    console.log('🏢 Is Array:', Array.isArray(department))
+    
+    if (Array.isArray(department)) {
+      console.log('🏢 Department array length:', department.length)
+      
+      if (department.length > 0) {
+        const firstDept = department[0]
+        console.log('🏢 First department:', firstDept)
+        console.log('🏢 First department type:', typeof firstDept)
+        
+        if (typeof firstDept === 'object' && firstDept !== null) {
+          console.log('🏢 Department name field:', firstDept.department_name)
+          departmentName = firstDept.department_name || 'N/A'
+        } else {
+          departmentName = 'N/A (not populated)'
+        }
+      } else {
+        departmentName = 'N/A (empty array)'
+      }
+    } else if (typeof department === 'object' && department !== null) {
+      departmentName = department.department_name || 'N/A'
+    } else {
+      departmentName = 'N/A (no department)'
+    }
+  }
+  
+  console.log('🏢 FINAL department_name:', departmentName)
+  
+  // ✅ Extract supervisor information with proper typing
+  const supervisors = request.supervisor_id
+  let supervisorName = 'N/A'
+  
+  if (Array.isArray(supervisors) && supervisors.length > 0) {
+    const names: string[] = [] // ✅ Explicit type for names array
+    
+    supervisors.forEach((sup: any) => {
+      if (typeof sup === 'object' && sup !== null && 'user_name' in sup) {
+        const name = sup.user_name
+        if (name) {
+          names.push(name)
+        }
+      }
+    })
+    
+    supervisorName = names.length > 0 ? names.join(', ') : 'N/A'
+  } else if (typeof supervisors === 'object' && supervisors !== null && 'user_name' in supervisors) {
+    supervisorName = (supervisors as User).user_name || 'N/A'
+  }
+  
+  // ✅ Determine status color with proper type
+  const getStatusColor = (status: string): 'warning' | 'success' | 'danger' => {
+    switch (status) {
+      case 'Pending':
+        return 'warning'
+      case 'Accepted':
+        return 'success'
+      case 'Rejected':
+        return 'danger'
+      default:
+        return 'warning'
+    }
+  }
+  
+  // ✅ Build formatted object with explicit typing
+  const formatted: FormattedRequestOTFieldWork = {
+    ...request,
+    _id: request._id || request.id || '',
+    user_name: userName,
+    user_email: userEmail,
+    department_name: departmentName,
+    supervisor_name: supervisorName,
+    title_label: request.title === 'OT' ? 'Overtime' : 'Field Work',
+    statusColor: getStatusColor(request.status),
+  }
+  
+  console.log('✅ Formatted department_name:', formatted.department_name)
+  console.log('✅ ==========================================')
+  
+  return formatted
+}
+
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+export interface User {
+  _id?: string
+  id?: string
+  user_name: string
+  user_email: string
+  department_id?: Department | Department[] | string | string[] | null
+  position_id?: Position | string | null
+  first_name_en?: string
+  last_name_en?: string
+  nickname_en?: string
+  first_name_la?: string
+  last_name_la?: string
+  nickname_la?: string
+}
+
 export interface Department {
   _id?: string
   id?: string
   department_name: string
-  createdAt?: Date
-  updatedAt?: Date
 }
 
 export interface Position {
   _id?: string
   id?: string
   position_name: string
-  department_id: string | Department
-  createdAt?: Date
-  updatedAt?: Date
 }
 
-// ✅ ประกาศ Type หลังจาก interface
-export type DepartmentIdType = 
-  | string 
-  | string[] 
-  | Department 
-  | Department[]
-  | null
-  | undefined
+export interface RequestOTFieldWork {
+  _id?: string
+  id?: string
+  user_id: User | string
+  supervisor_id?: User | User[] | string | string[]
+  title: 'OT' | 'FIELD_WORK'
+  date: string | Date
+  start_hour: string
+  end_hour: string
+  fuel: number
+  reason: string
+  status: 'Pending' | 'Accepted' | 'Rejected'
+  createdAt: string | Date
+  updatedAt?: string | Date
+  description?: string
+  date_off?: string | Date
+}
 
-export type PositionIdType = 
-  | string 
-  | Position 
-  | null
-  | undefined
-
-// ✅ ตอนนี้สามารถใช้ DepartmentIdType และ PositionIdType ได้แล้ว
-export type User = {
-  id?: ID
+export interface FormattedRequestOTFieldWork {
+  // Original fields
+  _id: string
+  id?: string
+  user_id: User | string
+  supervisor_id?: User | User[] | string | string[]
+  title: 'OT' | 'FIELD_WORK'
+  date: string | Date
+  start_hour: string
+  end_hour: string
+  fuel: number
+  reason: string
+  status: 'Pending' | 'Accepted' | 'Rejected'
+  createdAt: string | Date
+  updatedAt?: string | Date
+  description?: string
+  date_off?: string | Date
+  // Formatted fields
   user_name: string
   user_email: string
-  password?: string
-  role: 'admin' | 'employee' | 'supervisor'
-  department_id?: DepartmentIdType
-  leave_days: number
-  status: 'Active' | 'Inactive' | 'On Leave' | 'work day' | 'leave day'
-  // ฟิลด์ใหม่ที่เพิ่ม
-  first_name_en: string
-  last_name_en: string
-  nickname_en?: string
-  first_name_la: string
-  last_name_la: string
-  nickname_la?: string
-  date_of_birth: string
-  start_work: string
-  gender: 'male' | 'female' | 'other'
-  position_id?: PositionIdType
-  base_salary?: number
+  department_name: string
+  supervisor_name: string
+  title_label: string
+  statusColor: 'warning' | 'success' | 'danger' // ✅ Explicit union type
 }
 
-export type UsersQueryResponse = Response<Array<User>>
-
-export const initialUser: User = {
-  user_name: '',
-  user_email: '',
-  role: 'employee',
-  department_id: null,
-  leave_days: 15,
-  status: 'Active',
-  // ค่าเริ่มต้นสำหรับฟิลด์ใหม่
-  first_name_en: '',
-  last_name_en: '',
-  nickname_en: '',
-  first_name_la: '',
-  last_name_la: '',
-  nickname_la: '',
-  date_of_birth: '',
-  start_work: '',
-  gender: 'male',
-  position_id: null,
-  base_salary: 0,
+export interface RequestOTFieldWorkDTO {
+  user_id: string
+  supervisor_id?: string | string[]
+  title: 'OT' | 'FIELD_WORK'
+  date: string | Date
+  start_hour: string
+  end_hour: string
+  fuel: number
+  reason: string
+  status?: 'Pending' | 'Accepted' | 'Rejected'
+  description?: string
+  date_off?: string | Date
 }
 
-// Helper functions สำหรับการแปลง type
-export const extractDepartmentId = (departmentId: DepartmentIdType): string | string[] | null => {
-  if (!departmentId) return null
-  
-  if (Array.isArray(departmentId)) {
-    return departmentId.map(dept => 
-      typeof dept === 'string' ? dept : dept._id || dept.id || ''
-    ).filter(Boolean) as string[]
-  }
-  
-  if (typeof departmentId === 'object' && departmentId !== null) {
-    return departmentId._id || departmentId.id || ''
-  }
-  
-  return departmentId as string
-}
-
-export const extractPositionId = (positionId: PositionIdType): string | null => {
-  if (!positionId) return null
-  
-  if (typeof positionId === 'object' && positionId !== null) {
-    return positionId._id || positionId.id || ''
-  }
-  
-  return positionId as string
-}
-
-export const isDepartmentObject = (dept: unknown): dept is Department => {
-  return typeof dept === 'object' && dept !== null && 'department_name' in dept
-}
-
-export const isPositionObject = (pos: unknown): pos is Position => {
-  return typeof pos === 'object' && pos !== null && 'position_name' in pos
+export interface RequestOTFieldWorksQueryResponse {
+  data: RequestOTFieldWork[]
 }

@@ -5,7 +5,7 @@ import {DayoffrequestsListWrapper} from './day-off-requests/DayoffrequestsList'
 const usersBreadcrumbs: Array<PageLink> = [
   {
     title: 'Request Day-Off',
-    path: 'crafted/',
+    path: 'crafted/requestsdayoffuser/',
     isSeparator: false,
     isActive: false,
   },
@@ -22,7 +22,7 @@ const RequestDayOffUser = () => {
     <Routes>
       <Route element={<Outlet />}>
         <Route
-          path='requestsdayoffuser'
+          path='dayofflist'
           element={
             <>
               <PageTitle breadcrumbs={usersBreadcrumbs}>Request Day-Off-user</PageTitle>

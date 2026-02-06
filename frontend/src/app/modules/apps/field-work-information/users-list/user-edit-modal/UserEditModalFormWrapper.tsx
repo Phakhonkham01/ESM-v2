@@ -1,20 +1,21 @@
 import {useQuery} from 'react-query'
-import {UserEditModalForm} from './UserEditModalForm'
+import {RequestOTFieldWorkViewModal} from './UserEditModalForm'
 import {isNotEmpty, QUERIES} from '../../../../../../_metronic/helpers'
 import {useListView} from '../core/ListViewProvider'
-import {getUserById} from '../core/_requests'
+import {getRequestById} from '../core/_requests'
 
 const UserEditModalFormWrapper = () => {
   const {itemIdForUpdate, setItemIdForUpdate} = useListView()
   const enabledQuery: boolean = isNotEmpty(itemIdForUpdate)
+  
   const {
     isLoading,
-    data: user,
+    data: request,
     error,
   } = useQuery(
-    `${QUERIES.USERS_LIST}-user-${itemIdForUpdate}`,
+    `${QUERIES.USERS_LIST}-request-${itemIdForUpdate}`,
     () => {
-      return getUserById(itemIdForUpdate)
+      return getRequestById(itemIdForUpdate)
     },
     {
       cacheTime: 0,
@@ -26,12 +27,24 @@ const UserEditModalFormWrapper = () => {
     }
   )
 
+  // กรณีสร้างใหม่ (ไม่มี itemIdForUpdate)
   if (!itemIdForUpdate) {
-    return <UserEditModalForm isUserLoading={isLoading} user ={{id: undefined}} />
+    return <RequestOTFieldWorkViewModal isUserLoading={false} request={undefined} />
   }
 
-  if (!isLoading && !error && user) {
-    return <UserEditModalForm isUserLoading={isLoading} user={user} />
+  // กรณีกำลังโหลดข้อมูล
+  if (isLoading) {
+    return <RequestOTFieldWorkViewModal isUserLoading={true} request={undefined} />
+  }
+
+  // กรณีมี error
+  if (error) {
+    return null
+  }
+
+  // กรณีโหลดสำเร็จและมีข้อมูล
+  if (request) {
+    return <RequestOTFieldWorkViewModal isUserLoading={false} request={request} />
   }
 
   return null

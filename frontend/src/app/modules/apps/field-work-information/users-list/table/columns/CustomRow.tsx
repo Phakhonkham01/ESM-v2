@@ -1,10 +1,10 @@
 import clsx from 'clsx'
 import {FC} from 'react'
 import {Row} from 'react-table'
-import {User} from '../../core/_models'
+import {FormattedRequestOTFieldWork} from '../../core/_models'
 
 type Props = {
-  row: Row<User>
+   row: Row<FormattedRequestOTFieldWork>
 }
 
 const CustomRow: FC<Props> = ({row}) => (
