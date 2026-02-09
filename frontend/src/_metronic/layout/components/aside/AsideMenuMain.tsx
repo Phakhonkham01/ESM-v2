@@ -93,6 +93,13 @@ export function AsideMenuMain() {
         title='User management'
         fontIcon='bi-layers'
       />
+             <AsideMenuItem
+      
+        to='/crafted/requestsdayoffuser'
+        icon='calendar-edit'
+        title='Request Day-Off-user'
+        fontIcon='bi-calendar-event'
+      />
          <AsideMenuItem
         to='/apps/salary-management/salarylist'
         icon='calendar-edit'
@@ -100,9 +107,9 @@ export function AsideMenuMain() {
         fontIcon='bi-calendar-event'
       />  
       <AsideMenuItem
-        to='/apps/request-ot-and-field_work'
+        to='/apps/request-ot-field-work-user/ot&fieldworklist'
         icon='people'
-        title='Request OT/Field Work'
+        title='Request OT/Field Work user'
         fontIcon='bi-layers'
       />
       <AsideMenuItem
@@ -144,25 +151,8 @@ export function AsideMenuMain() {
         fontIcon='bi-calendar-event'
       />
   
-         <AsideMenuItem
-      
-        to='/crafted/requestsdayoffuser/dayofflist'
-        icon='calendar-edit'
-        title='Request Day-Off-user'
-        fontIcon='bi-calendar-event'
-      />
-      <AsideMenuItem
-        to='/crafted/reqotandfieldworkuser/ot&fieldworklist'
-        icon='calendar-edit'
-        title='ot&fieldwork user'
-        fontIcon='bi-calendar-event'
-      />
-      <AsideMenuItem
-        to='/crafted/reqotandfieldworkuser/ot&fieldworklist'
-        icon='calendar-edit'
-        title='ot&fieldwork user'
-        fontIcon='bi-calendar-event'
-      />
+  
+
       <AsideMenuItem
         to='/apps/requests'
         icon='check-circle'
