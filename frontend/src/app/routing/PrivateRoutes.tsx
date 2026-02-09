@@ -17,7 +17,6 @@ const PrivateRoutes = () => {
   const UsersPage = lazy(() => import('../modules/apps/user-management/UsersPage'))
   const EventsPage = lazy(() => import('../modules/apps/event/EventsPage'))
   // Attendance
-  const Attendace = lazy(() => import('../modules/apps/attendace-information/UsersPage'))
   const FieldWork = lazy(() => import('../modules/apps/field-work-information/UsersPage'))
   const Overtime = lazy(() => import('../modules/apps/overtime-information/UsersPage'))
   const DayOff = lazy(() => import('../modules/apps/day-off-information/UsersPage'))
@@ -67,14 +66,6 @@ const PrivateRoutes = () => {
           element={
             <SuspensedView>
               <Overtime />
-            </SuspensedView>
-          }
-        />
-        <Route
-          path='apps/attendace/*'
-          element={
-            <SuspensedView>
-              <Attendace />
             </SuspensedView>
           }
         />

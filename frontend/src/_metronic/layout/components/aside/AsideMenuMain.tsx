@@ -115,11 +115,6 @@ export function AsideMenuMain() {
         icon='element-plus'
       >
         <AsideMenuItem
-          to='/apps/attendace'
-          title='Attendance information'
-          hasBullet={true}
-        />
-        <AsideMenuItem
           to='/apps/overtime'
           title='OT information'
           hasBullet={true}
