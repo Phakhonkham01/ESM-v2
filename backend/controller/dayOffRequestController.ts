@@ -316,7 +316,7 @@ export const getDayOffRequestsForSupervisorDashboard = async (
 
     // Find supervisor by ID
     const supervisor = await User.findById(supervisorId);
-    
+
     if (!supervisor) {
       res.status(404).json({ success: false, message: "Supervisor not found" });
       return;
@@ -346,15 +346,15 @@ export const getDayOffRequestsForSupervisorDashboard = async (
     // Format response
     const formattedRequests = requests.map(request => {
       const reqObj = request.toObject() as PopulatedDayOffRequest;
-      
+
       // Helper function
       const getUserDisplayInfo = (userField: Types.ObjectId | PopulatedUser) => {
         if (!userField) return { id: '', display: 'Unknown', email: '', employeeId: '' };
-        
+
         if (userField instanceof Types.ObjectId || typeof userField === 'string') {
           return { id: userField.toString(), display: userField.toString().substring(0, 8), email: '', employeeId: '' };
         }
-        
+
         const user = userField as PopulatedUser;
         if (user._id) {
           const name = `${user.first_name_en || ''} ${user.last_name_en || ''}`.trim();
@@ -366,7 +366,7 @@ export const getDayOffRequestsForSupervisorDashboard = async (
             employeeId: user.employee_id || ''
           };
         }
-        
+
         return { id: '', display: 'Unknown', email: '', employeeId: '' };
       };
 
@@ -495,14 +495,14 @@ export const updateDayOffRequestStatus = async (
 
     // Format response
     const reqObj = updated.toObject() as PopulatedDayOffRequest;
-    
+
     const formatUser = (user: Types.ObjectId | PopulatedUser) => {
       if (!user) return { id: '', name: 'Unknown', email: '', employeeId: '' };
-      
+
       if (user instanceof Types.ObjectId || typeof user === 'string') {
         return { id: user.toString(), name: user.toString().substring(0, 8), email: '', employeeId: '' };
       }
-      
+
       const userData = user as PopulatedUser;
       return {
         id: userData._id?.toString() || '',
@@ -697,4 +697,239 @@ export const deleteDayOffRequest = async (
     console.error("DELETE DAY OFF REQUEST ERROR:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
+};
+
+
+/**
+ * ======================================================
+ * CHECK FOR DAY OFF CONFLICTS
+ * ======================================================
+ */
+export const checkDayOffConflict = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const {
+      employee_id,
+      date,          // For half day (single date)
+      start_date,    // For full day range start
+      end_date,      // For full day range end
+      exclude_id,    // Optional: Exclude current request when editing
+    } = req.query;
+
+    // ================= VALIDATION =================
+    if (!employee_id) {
+      res.status(400).json({
+        success: false,
+        message: "Employee ID is required"
+      });
+      return;
+    }
+
+    // Convert query params
+    const employeeId = employee_id as string;
+    const excludeId = exclude_id as string | undefined;
+
+    // Prepare query conditions
+    const query: any = {
+      employee_id: employeeId,
+      status: { $in: ["Pending", "Accepted"] }, // Only check active requests
+    };
+
+    // Exclude current request if editing
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+
+    // ================= HALF DAY CONFLICT CHECK =================
+    if (date && !start_date && !end_date) {
+      const checkDate = new Date(date as string);
+
+      if (isNaN(checkDate.getTime())) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid date format"
+        });
+        return;
+      }
+
+      // Set time boundaries for the day
+      const startOfDay = new Date(checkDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(checkDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Check for any day off that overlaps with this date
+      query.$or = [
+        // Case 1: Full day that includes this date
+        {
+          day_off_type: "FULL_DAY",
+          start_date_time: { $lte: endOfDay },
+          end_date_time: { $gte: startOfDay }
+        },
+        // Case 2: Half day on the same date
+        {
+          day_off_type: "HALF_DAY",
+          start_date_time: {
+            $gte: startOfDay,
+            $lte: endOfDay
+          }
+        }
+      ];
+
+    }
+    // ================= FULL DAY CONFLICT CHECK =================
+    else if (start_date && end_date && !date) {
+      const startDate = new Date(start_date as string);
+      const endDate = new Date(end_date as string);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid date format"
+        });
+        return;
+      }
+
+      if (endDate < startDate) {
+        res.status(400).json({
+          success: false,
+          message: "End date cannot be before start date"
+        });
+        return;
+      }
+
+      // Set time boundaries
+      const startOfRange = new Date(startDate);
+      startOfRange.setHours(0, 0, 0, 0);
+
+      const endOfRange = new Date(endDate);
+      endOfRange.setHours(23, 59, 59, 999);
+
+      // Check for overlapping requests
+      query.$or = [
+        // Case 1: New request starts within existing request
+        {
+          start_date_time: { $lte: startOfRange },
+          end_date_time: { $gte: startOfRange }
+        },
+        // Case 2: New request ends within existing request
+        {
+          start_date_time: { $lte: endOfRange },
+          end_date_time: { $gte: endOfRange }
+        },
+        // Case 3: Existing request is completely within new request
+        {
+          start_date_time: { $gte: startOfRange },
+          end_date_time: { $lte: endOfRange }
+        },
+        // Case 4: New request is completely within existing request
+        {
+          start_date_time: { $lte: startOfRange },
+          end_date_time: { $gte: endOfRange }
+        }
+      ];
+    } else {
+      res.status(400).json({
+        success: false,
+        message: "Provide either date (for half day) or start_date and end_date (for full day)"
+      });
+      return;
+    }
+
+    // ================= EXECUTE QUERY =================
+    const existingRequests = await DayOffRequestModel.find(query)
+      .populate({
+        path: "employee_id",
+        select: "first_name_en last_name_en user_email employee_id",
+        model: User
+      })
+      .sort({ start_date_time: 1 });
+
+    // ================= FORMAT RESPONSE =================
+    const conflicts = existingRequests.map(req => {
+      const request = req.toObject();
+      const employee = request.employee_id as any;
+
+      return {
+        id: request._id,
+        day_off_type: request.day_off_type,
+        start_date: request.start_date_time,
+        end_date: request.end_date_time,
+        status: request.status,
+        date_off_number: request.date_off_number,
+        employee_name: employee
+          ? `${employee.first_name_en || ''} ${employee.last_name_en || ''}`.trim()
+          : 'Unknown',
+        conflict_type: getConflictType(
+          new Date(request.start_date_time),
+          new Date(request.end_date_time),
+          date ? new Date(date as string) : new Date(start_date as string),
+          date ? undefined : new Date(end_date as string)
+        )
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      has_conflict: conflicts.length > 0,
+      conflict_count: conflicts.length,
+      conflicts,
+      message: conflicts.length > 0
+        ? "Found overlapping day off requests"
+        : "No conflicts found"
+    });
+
+  } catch (error) {
+    console.error("CHECK DAY OFF CONFLICT ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+/**
+ * Helper function to determine conflict type
+ */
+const getConflictType = (
+  existingStart: Date,
+  existingEnd: Date,
+  newStart: Date,
+  newEnd?: Date
+): string => {
+  if (!newEnd) {
+    // Half day check
+    const newDate = newStart;
+    const existingStartDate = existingStart.toDateString();
+    const newDateStr = newDate.toDateString();
+
+    if (existingStartDate === newDateStr) {
+      return "SAME_DATE";
+    }
+    return "OVERLAPPING_RANGE";
+  }
+
+  // Full day check
+  const existingStartDate = new Date(existingStart).setHours(0, 0, 0, 0);
+  const existingEndDate = new Date(existingEnd).setHours(23, 59, 59, 999);
+  const newStartDate = new Date(newStart).setHours(0, 0, 0, 0);
+  const newEndDate = new Date(newEnd).setHours(23, 59, 59, 999);
+
+  if (newStartDate >= existingStartDate && newStartDate <= existingEndDate) {
+    return "NEW_STARTS_IN_EXISTING";
+  }
+  if (newEndDate >= existingStartDate && newEndDate <= existingEndDate) {
+    return "NEW_ENDS_IN_EXISTING";
+  }
+  if (newStartDate <= existingStartDate && newEndDate >= existingEndDate) {
+    return "NEW_CONTAINS_EXISTING";
+  }
+  if (newStartDate >= existingStartDate && newEndDate <= existingEndDate) {
+    return "EXISTING_CONTAINS_NEW";
+  }
+
+  return "OVERLAPPING";
 };

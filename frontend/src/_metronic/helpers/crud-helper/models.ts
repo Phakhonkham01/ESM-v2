@@ -66,8 +66,10 @@ export type ListViewContextProps = {
   // NULL => (CREATION MODE) | MODAL IS OPENED
   // NUMBER => (EDIT MODE) | MODAL IS OPENED
   // UNDEFINED => MODAL IS CLOSED
+  itemIdForDetail?: ID // ✅ Add this
   itemIdForUpdate?: ID
   setItemIdForUpdate: Dispatch<SetStateAction<ID>>
+  setItemIdForDetail: Dispatch<SetStateAction<ID>>
   isAllSelected: boolean
   disabled: boolean
 }
@@ -77,7 +79,9 @@ export const initialListView: ListViewContextProps = {
   onSelect: () => {},
   onSelectAll: () => {},
   clearSelected: () => {},
+  itemIdForDetail: undefined,
   setItemIdForUpdate: () => {},
+  setItemIdForDetail: () => {},
   isAllSelected: false,
   disabled: false,
 }

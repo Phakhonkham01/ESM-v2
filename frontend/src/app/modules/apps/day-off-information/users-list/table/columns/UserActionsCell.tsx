@@ -49,7 +49,7 @@ const DayOffRequestActionsCell: FC<Props> = ({id, status = 'Pending'}) => {
         {/* begin::Menu item */}
         <div className='menu-item px-3'>
           <a className='menu-link px-3' onClick={openEditModal}>
-            View
+            Edit
           </a>
         </div>
         {/* end::Menu item */}

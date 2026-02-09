@@ -101,8 +101,7 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
   const formik = useFormik<DayOffRequestDTO & { _id?: string; id?: string }>({
     initialValues: {
       ...initialDayOffRequest,
-      employee_id: extractId(currentUser),
-      supervisor_id: request ? extractSupervisorIds(request.supervisor_id) : [],
+      employee_id: currentUser?.id || currentUser?._id || '', // ✅ Set default employee_id
       _id: request?._id || (request as any)?.id,
       id: request?._id || (request as any)?.id,
     },
@@ -115,6 +114,7 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
       }
 
       try {
+        // ✅ Debug log
         console.log('📝 Form values before submit:', values)
         
         // ตรวจสอบวันที่ทับซ้อนอีกครั้งก่อนส่ง
@@ -137,8 +137,8 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
 
         // ✅ Ensure all required fields are present
         const submitData: DayOffRequestDTO = {
-          user_id: values.user_id || extractId(currentUser),
-          employee_id: values.employee_id || extractId(currentUser),
+          user_id: values.user_id || currentUser?.id || currentUser?._id || '',
+          employee_id: values.employee_id || currentUser?.id || currentUser?._id || '',
           supervisor_id: values.supervisor_id,
           day_off_type: values.day_off_type,
           start_date_time: values.start_date_time,
@@ -178,6 +178,7 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
       } catch (err: unknown) {
         console.error('❌ Submit error:', err)
         
+        // ✅ Show error to user
         Swal.fire({
           icon: 'error',
           title: 'Submission Error',
@@ -201,6 +202,7 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
       const res = await axios.get<{ data: User[] }>(`${API_URL}/users`)
       setUsers(res.data.data || [])
       
+      // ✅ ถ้ามี currentUser ให้ set เป็น employee_id โดย default
       if (currentUser && !formik.values.employee_id) {
         formik.setFieldValue('employee_id', extractId(currentUser))
       }
@@ -281,7 +283,7 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
   // ✅ Set employee_id เมื่อมี currentUser
   useEffect(() => {
     if (currentUser && !formik.values.employee_id && !request) {
-      formik.setFieldValue('employee_id', extractId(currentUser))
+      formik.setFieldValue('employee_id', currentUser.id || currentUser._id)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser])
@@ -367,8 +369,8 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
       }
 
       formik.setValues({
-        user_id: userId || extractId(currentUser),
-        employee_id: employeeId || extractId(currentUser),
+        user_id: userId || currentUser?.id || currentUser?._id || '',
+        employee_id: employeeId || currentUser?.id || currentUser?._id || '',
         supervisor_id: supervisorIds,
         day_off_type: request.day_off_type || 'FULL_DAY',
         start_date_time: formatDate(request.start_date_time),
@@ -466,16 +468,6 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
 
   /* -------------------- Delete Handler -------------------- */
   const handleDelete = async () => {
-    if (isStatusFinal) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Cannot Delete',
-        text: 'Requests with Accepted or Rejected status cannot be deleted.',
-        confirmButtonText: 'OK',
-      })
-      return
-    }
-
     const requestId = request?._id || (request as any)?.id
     if (!requestId) return
 
@@ -495,34 +487,9 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
     }
   }
 
-  /* -------------------- Handler Functions -------------------- */
-  
-  const handleSupervisorChange = (supervisorId: string, checked: boolean) => {
-    if (isStatusFinal) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Read Only',
-        text: 'This request cannot be modified because it has been finalized.',
-        confirmButtonText: 'OK',
-      })
-      return
-    }
-    
-    const currentSupervisors = formik.values.supervisor_id
-    let newSupervisors: string[]
-    
-    if (checked) {
-      newSupervisors = [...currentSupervisors, supervisorId]
-    } else {
-      newSupervisors = currentSupervisors.filter(id => id !== supervisorId)
-    }
-    
-    formik.setFieldValue('supervisor_id', newSupervisors)
-  }
-
   /* -------------------- Render Helpers -------------------- */
-  
-  const canEdit = isEditMode && !isStatusFinal 
+
+  const isEditMode = !!request
   const isSubmitting = formik.isSubmitting || createMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading
   
   const fieldClass = (name: keyof DayOffRequestDTO) =>
@@ -567,18 +534,17 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
       )}
 
       <form className="form" onSubmit={formik.handleSubmit} noValidate>
-        {/* Debug Info - Only in development */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="alert alert-secondary mb-5">
+        {/* ✅ Debug Info - Remove in production */}
+        {/* {process.env.NODE_ENV === 'development' && (
+          <div className="alert alert-info mb-5">
             <small>
-              <strong>Debug Info:</strong><br />
-              Request ID: {request?._id || 'None'}<br />
-              Supervisor IDs: {formik.values.supervisor_id.join(', ') || 'None'}<br />
-              Supervisors Count: {formik.values.supervisor_id.length}<br />
-              Filtered Supervisors: {filteredSupervisors.length}
+              <strong>Debug Info:</strong><br/>
+              Employee ID: {formik.values.employee_id || 'Not set'}<br/>
+              Supervisors: {formik.values.supervisor_id.length} selected<br/>
+              Valid: {formik.isValid ? 'Yes' : 'No'}
             </small>
           </div>
-        )}
+        )} */}
 
         {/* Title */}
         <div className="fv-row mb-7">
@@ -607,7 +573,7 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
             <div>
               <div className="fw-bold">Requesting for:</div>
               <div className="text-gray-800">
-                {getUserDisplayName(currentUser)}
+                {currentUser.user_name || `${currentUser.first_name_en} ${currentUser.last_name_en}`}
               </div>
               <div className="text-muted fs-7">{currentUser.user_email}</div>
             </div>
@@ -615,98 +581,90 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
         )}
 
         {/* Supervisors Selection */}
-        <div className="fv-row mb-7">
-          <label className="required fw-bold fs-6 mb-2">Supervisor(s)</label>
-          {isStatusFinal ? (
-            <div className="p-3 bg-light rounded border">
-              {formik.values.supervisor_id && formik.values.supervisor_id.length > 0 ? (
-                <ul className="list-unstyled mb-0">
-                  {formik.values.supervisor_id.map((supervisorId) => {
-                    const supervisor = findUserById(supervisorId)
-                    return supervisor ? (
-                      <li key={supervisorId} className="mb-2">
-                        <div className="d-flex align-items-center">
-                          <i className="bi bi-person-check me-2 text-success"></i>
-                          <div>
-                            <div className="fw-semibold">{getUserDisplayName(supervisor)}</div>
-                            <div className="text-muted fs-7">{supervisor.user_email}</div>
-                            <div className="badge bg-secondary fs-8">{supervisor.role}</div>
-                          </div>
-                        </div>
-                      </li>
-                    ) : (
-                      <li key={supervisorId} className="text-muted">
-                        <i className="bi bi-person-x me-2"></i>
-                        Supervisor ID: {supervisorId.substring(0, 8)}...
-                      </li>
-                    )
-                  })}
-                </ul>
-              ) : (
-                <div className="text-muted">No supervisors selected</div>
-              )}
+        {/* <div className="fv-row mb-7">
+          <label className="required fw-bold fs-6 mb-2">
+            Supervisor(s)
+            {filteredSupervisors.length > 0 && (
+              <span className="badge badge-light-primary ms-2">
+                {filteredSupervisors.length} available
+              </span>
+            )}
+          </label>
+          
+          {filteredSupervisors.length === 0 ? (
+            <div className="alert alert-warning">
+              <i className="bi bi-exclamation-triangle me-2"></i>
+              No supervisors available. Please contact your administrator.
             </div>
           ) : (
-            <div>
-              <div className="form-control form-control-solid p-3">
-                {loadingUsers ? (
-                  <div className="text-center py-3">
-                    <span className="spinner-border spinner-border-sm me-2"></span>
-                    Loading supervisors...
-                  </div>
-                ) : filteredSupervisors.length > 0 ? (
-                  <div className="d-flex flex-column gap-2">
-                    {filteredSupervisors.map((supervisor) => {
-                      const supervisorId = getUserId(supervisor)
-                      return (
-                        <div key={supervisorId} className="form-check form-check-custom form-check-solid">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            id={`supervisor-${supervisorId}`}
-                            value={supervisorId}
-                            checked={formik.values.supervisor_id.includes(supervisorId)}
-                            onChange={(e) => handleSupervisorChange(e.target.value, e.target.checked)}
-                            disabled={isSubmitting || isRequestLoading}
-                          />
-                          <label 
-                            className="form-check-label d-flex align-items-center" 
-                            htmlFor={`supervisor-${supervisorId}`}
-                          >
-                            <div>
-                              <div className="fw-semibold text-gray-800">
-                                {getUserDisplayName(supervisor)}
-                              </div>
-                              <div className="text-muted fs-7">{supervisor.user_email}</div>
-                              <div className="badge bg-secondary fs-8">{supervisor.role}</div>
+            <div className="row g-3">
+              {filteredSupervisors.map(supervisor => {
+                const supervisorId = supervisor.id || supervisor._id
+                const isSelected = formik.values.supervisor_id.includes(supervisorId || '')
+                
+                return (
+                  <div key={supervisorId} className="col-12">
+                    <div
+                      className={`card cursor-pointer border-2 ${isSelected
+                        ? 'border-success bg-light-success'
+                        : 'border-gray-300 hover-border-primary'
+                      }`}
+                      onClick={() => {
+                        if (!isSubmitting && !isRequestLoading) {
+                          const currentSupervisors = [...formik.values.supervisor_id]
+                          if (isSelected) {
+                            // Remove
+                            const filtered = currentSupervisors.filter(id => id !== supervisorId)
+                            formik.setFieldValue('supervisor_id', filtered)
+                          } else {
+                            // Add
+                            formik.setFieldValue('supervisor_id', [...currentSupervisors, supervisorId])
+                          }
+                        }
+                      }}
+                      style={{ 
+                        transition: 'all 0.3s ease',
+                        cursor: isSubmitting || isRequestLoading ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      <div className='card-body p-4'>
+                        <div className='d-flex align-items-center'>
+                          <div className={`symbol symbol-40px symbol-circle me-3 ${isSelected ? 'bg-success' : 'bg-light'}`}>
+                            <div className='symbol-label'>
+                              <i className={`bi ${isSelected ? 'bi-check-circle-fill' : 'bi-person'} fs-2 ${isSelected ? 'text-white' : 'text-gray-600'}`}></i>
                             </div>
-                          </label>
+                          </div>
+                          <div className='flex-grow-1'>
+                            <div className='fw-bold text-gray-800'>
+                              {supervisor.user_name || `${supervisor.first_name_en} ${supervisor.last_name_en}`}
+                            </div>
+                            <div className='text-muted fs-7'>{supervisor.user_email}</div>
+                          </div>
+                          {isSelected && (
+                            <div className='badge badge-success'>Selected</div>
+                          )}
                         </div>
-                      )
-                    })}
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <div className="text-muted">No supervisors available</div>
-                )}
-              </div>
-              <div className="mt-2">
-                {formik.values.supervisor_id.length > 0 && (
-                  <div className="badge bg-primary">
-                    <i className="bi bi-check-circle me-1"></i>
-                    {formik.values.supervisor_id.length} supervisor(s) selected
-                  </div>
-                )}
-              </div>
-              {!isStatusFinal && formik.touched.supervisor_id && formik.errors.supervisor_id && (
-                <div className="fv-plugins-message-container mt-2">
-                  <span role="alert" className="fv-help-block text-danger">
-                    {formik.errors.supervisor_id}
-                  </span>
-                </div>
-              )}
+                )
+              })}
             </div>
           )}
-        </div>
+          
+          <div className="text-muted fs-7 mt-2">
+            <i className="bi bi-info-circle me-1"></i>
+            {formik.values.supervisor_id.length} supervisor(s) selected
+          </div>
+          
+          {formik.touched.supervisor_id && formik.errors.supervisor_id && (
+            <div className="fv-plugins-message-container">
+              <span role="alert" className="fv-help-block text-danger">
+                {formik.errors.supervisor_id}
+              </span>
+            </div>
+          )}
+        </div> */}
 
         {/* Day Off Type */}
         <div className="fv-row mb-7">
@@ -866,7 +824,47 @@ const DayOffRequestEditModalForm: FC<Props> = ({ request, isRequestLoading, curr
             onClick={cancel}
             disabled={isSubmitting}
           >
-            {isStatusFinal ? 'Close' : 'Cancel'}
+            Cancel
+          </button>
+          
+          {/* Delete Button - แสดงเฉพาะในโหมดแก้ไข */}
+          {isEditMode && (
+            <button
+              type="button"
+              className="btn btn-danger me-3"
+              onClick={handleDelete}
+              disabled={isSubmitting}
+            >
+              {deleteMutation.isLoading ? (
+                <>
+                  <span className='spinner-border spinner-border-sm align-middle me-2'></span>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-trash me-2"></i>
+                  Delete Request
+                </>
+              )}
+            </button>
+          )}
+          
+          <button
+            type='submit'
+            className='btn btn-primary'
+            disabled={isSubmitting || isRequestLoading || !formik.isValid || formik.values.supervisor_id.length === 0}
+          >
+            {!isSubmitting && (
+              <span className='indicator-label'>
+                {isEditMode ? 'Update Request' : 'Create Request'}
+              </span>
+            )}
+            {isSubmitting && (
+              <span className='indicator-progress'>
+                Please wait...{' '}
+                <span className='spinner-border spinner-border-sm align-middle ms-2'></span>
+              </span>
+            )}
           </button>
           
           {/* Delete Button */}

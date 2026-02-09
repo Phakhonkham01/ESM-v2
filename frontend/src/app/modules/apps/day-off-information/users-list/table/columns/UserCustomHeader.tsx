@@ -1,21 +1,24 @@
 import clsx from 'clsx'
-import {FC, PropsWithChildren, useMemo} from 'react'
-import {HeaderProps} from 'react-table'
-import {initialQueryState} from '../../../../../../../_metronic/helpers'
-import {useQueryRequest} from '../../core/QueryRequestProvider'
-import {User} from '../../core/_models'
+import { PropsWithChildren, useMemo } from 'react'
+import { HeaderProps } from 'react-table'
+import { initialQueryState } from '../../../../../../../_metronic/helpers'
+import { useQueryRequest } from '../../core/QueryRequestProvider'
 
-type Props = {
+type Props<T extends object> = {
   className?: string
   title: string
-  tableProps: PropsWithChildren<HeaderProps<User>>
+  tableProps: PropsWithChildren<HeaderProps<T>>
 }
 
 const NON_SORTABLE_COLUMNS = ['actions', 'selection']
 
-const UserCustomHeader: FC<Props> = ({className, title, tableProps}) => {
+const UserCustomHeader = <T extends object>({
+  className,
+  title,
+  tableProps,
+}: Props<T>) => {
   const columnId = tableProps.column.id
-  const {state, updateState} = useQueryRequest()
+  const { state, updateState } = useQueryRequest()
 
   const isSorted = useMemo(
     () => state.sort === columnId,
@@ -60,11 +63,11 @@ const UserCustomHeader: FC<Props> = ({className, title, tableProps}) => {
         isSorted && order && `table-sort-${order}`
       )}
       onClick={handleSort}
-      style={{cursor: 'pointer'}}
+      style={{ cursor: 'pointer' }}
     >
       {title}
     </th>
   )
 }
 
-export {UserCustomHeader}
+export { UserCustomHeader }

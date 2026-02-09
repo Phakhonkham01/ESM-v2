@@ -821,6 +821,50 @@ export const DayOffRequestEditModalForm: FC = () => {
       throw error;
     }
   }
+
+  // เพิ่มฟังก์ชัน debug
+  const debugConflictCheck = async () => {
+    if (!formik.values.employee_id) {
+      toast.info('Please select an employee first');
+      return;
+    }
+
+    try {
+      toast.info('Running debug conflict check...');
+
+      // Test various API endpoints
+      const endpoints = [
+        `${API_URL}/day-off-requests/check-conflict`,
+        `${API_URL}/day-off-requests/check-overlap`,
+        `${API_URL}/day-off-requests/check`,
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          const response = await axios.get(endpoint, {
+            params: {
+              employee_id: formik.values.employee_id,
+              start_date: '2024-01-01',
+              end_date: '2024-01-05'
+            },
+            timeout: 3000
+          });
+
+          console.log(`✅ Endpoint ${endpoint}:222222222`, response.data);
+          toast.success(`Found endpoint: ${endpoint.split('/').pop()}`);
+          return;
+        } catch (err) {
+          console.log(`❌ Endpoint ${endpoint} failed:`);
+        }
+      }
+
+      toast.warning('No working conflict check endpoint found');
+    } catch (error) {
+      console.error('Debug error:', error);
+      toast.error('Debug check failed');
+    }
+  };
+
   /* -------------------- Render -------------------- */
   return (
     <>
@@ -1112,6 +1156,19 @@ export const DayOffRequestEditModalForm: FC = () => {
             >
               Cancel
             </button>
+
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                type="button"
+                className="btn btn-warning"
+                onClick={debugConflictCheck}
+                disabled={isSubmitting}
+                title="Debug conflict check"
+              >
+                Debug
+              </button>
+            )}
+
             <button
               type="submit"
               className="btn btn-primary"

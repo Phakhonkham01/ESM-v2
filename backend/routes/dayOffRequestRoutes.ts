@@ -8,6 +8,7 @@ import {
   updateDayOffRequestStatus,
   updateDayOffRequest,
   deleteDayOffRequest,
+  checkDayOffConflict
 } from "../controller/dayOffRequestController.ts";
 
 const router = express.Router();
@@ -21,4 +22,5 @@ router.patch("/:id/status", updateDayOffRequestStatus);
 router.put("/:id", updateDayOffRequest);
 router.delete("/:id", deleteDayOffRequest);
 
+router.get('/check-conflict', checkDayOffConflict);
 export default router;

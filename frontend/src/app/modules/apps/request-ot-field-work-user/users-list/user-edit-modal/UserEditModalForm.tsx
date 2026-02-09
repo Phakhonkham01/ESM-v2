@@ -1,169 +1,158 @@
-import { FC, useEffect, useState } from "react";
-import * as Yup from "yup";
-import { useFormik, FormikHelpers } from "formik";
-import clsx from "clsx";
-import { isNotEmpty } from "../../../../../../_metronic/helpers";
-import {
-  initialRequestOTFieldWork,
-  RequestOTFieldWorkDTO,
-  RequestOTFieldWork,
-} from "../core/_models";
-import { useListView } from "../core/ListViewProvider";
-import { UsersListLoading } from "../components/loading/UsersListLoading";
-import { createRequest, updateRequest, deleteRequest } from "../core/_requests";
-import { useQueryResponse } from "../core/QueryResponseProvider";
-import { QUERIES } from "../../../../../../_metronic/helpers/crud-helper/consts";
-import { useMutation, useQueryClient, QueryKey } from "react-query";
-import axios, { AxiosError } from "axios";
-import { toast } from "react-toastify";
-import Swal from "sweetalert2";
+import { FC, useEffect, useState } from 'react'
+import * as Yup from 'yup'
+import { useFormik, FormikHelpers } from 'formik'
+import clsx from 'clsx'
+import { isNotEmpty } from '../../../../../../_metronic/helpers'
+import { initialRequestOTFieldWork, RequestOTFieldWorkDTO, RequestOTFieldWork } from '../core/_models'
+import { useListView } from '../core/ListViewProvider'
+import { UsersListLoading } from '../components/loading/UsersListLoading'
+import { createRequest, updateRequest, deleteRequest } from '../core/_requests'
+import { useQueryResponse } from '../core/QueryResponseProvider'
+import { QUERIES } from '../../../../../../_metronic/helpers/crud-helper/consts'
+import { useMutation, useQueryClient, QueryKey } from 'react-query'
+import axios, { AxiosError } from 'axios'
+import { toast } from 'react-toastify'
+import Swal from 'sweetalert2'
 
 type Props = {
-  isUserLoading: boolean;
-  request?: RequestOTFieldWork;
-};
+  isUserLoading: boolean
+  request?: RequestOTFieldWork
+}
 
 interface User {
-  _id?: string;
-  id?: string;
-  user_name: string;
-  user_email: string;
-  first_name_en: string;
-  last_name_en: string;
-  role: "admin" | "employee" | "supervisor";
+  _id?: string
+  id?: string
+  user_name: string
+  user_email: string
+  first_name_en: string
+  last_name_en: string
+  role: 'admin' | 'employee' | 'supervisor'
 }
 
 interface ApiError {
   response?: {
     data?: {
-      message?: string;
-    };
-    status?: number;
-  };
-  message?: string;
+      message?: string
+    }
+    status?: number
+  }
+  message?: string
 }
 
 /* -------------------- Validation -------------------- */
 const requestSchema = Yup.object().shape({
-  user_id: Yup.string().required("User is required"),
+  user_id: Yup.string().required('User is required'),
   supervisor_id: Yup.array()
     .of(Yup.string())
-    .min(1, "At least one supervisor is required")
-    .required("Supervisor is required"),
-  date: Yup.string().required("Date is required"),
+    .min(1, 'At least one supervisor is required')
+    .required('Supervisor is required'),
+  date: Yup.string().required('Date is required'),
   title: Yup.string()
-    .oneOf(["OT", "FIELD_WORK"], "Invalid title")
-    .required("Title is required"),
+    .oneOf(['OT', 'FIELD_WORK'], 'Invalid title')
+    .required('Title is required'),
   start_hour: Yup.string()
-    .matches(/^\d{2}:\d{2}$/, "Invalid time format (HH:mm)")
-    .required("Start hour is required"),
+    .matches(/^\d{2}:\d{2}$/, 'Invalid time format (HH:mm)')
+    .required('Start hour is required'),
   end_hour: Yup.string()
-    .matches(/^\d{2}:\d{2}$/, "Invalid time format (HH:mm)")
-    .required("End hour is required"),
-  fuel: Yup.number().min(0, "Fuel must be >= 0").required("Fuel is required"),
+    .matches(/^\d{2}:\d{2}$/, 'Invalid time format (HH:mm)')
+    .required('End hour is required'),
+  fuel: Yup.number().min(0, 'Fuel must be >= 0').required('Fuel is required'),
   date_off: Yup.string().nullable(),
-  description: Yup.string().max(
-    500,
-    "Description must not exceed 500 characters",
-  ),
+  description: Yup.string().max(500, 'Description must not exceed 500 characters'),
   reason: Yup.string()
-    .min(3, "Reason must be at least 3 characters")
-    .required("Reason is required"),
-});
+    .min(3, 'Reason must be at least 3 characters')
+    .required('Reason is required'),
+})
 
 /* -------------------- Component -------------------- */
 const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
-  const { setItemIdForUpdate } = useListView();
-  const { query } = useQueryResponse();
-  const queryClient = useQueryClient();
+  const { setItemIdForUpdate } = useListView()
+  const { query } = useQueryResponse()
+  const queryClient = useQueryClient()
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [supervisors, setSupervisors] = useState<User[]>([]);
-  const [selectedSupervisors, setSelectedSupervisors] = useState<string[]>([]);
+  const [users, setUsers] = useState<User[]>([])
+  const [supervisors, setSupervisors] = useState<User[]>([])
+  const [selectedSupervisors, setSelectedSupervisors] = useState<string[]>([])
 
-  const API_URL = import.meta.env.VITE_APP_API_URL;
+  const API_URL = import.meta.env.VITE_APP_API_URL
 
   // ✅ Extract user ID helper
   const extractUserId = (userId: string | User | null | undefined): string => {
-    if (!userId) return "";
-    if (typeof userId === "string") return userId;
-    if (typeof userId === "object" && userId !== null) {
-      return (userId as User)._id || (userId as User).id || "";
+    if (!userId) return ''
+    if (typeof userId === 'string') return userId
+    if (typeof userId === 'object' && userId !== null) {
+      return (userId as User)._id || (userId as User).id || ''
     }
-    return "";
-  };
+    return ''
+  }
 
   // ✅ Extract supervisor IDs helper
   const extractSupervisorIds = (
-    supervisorId: string | string[] | User | User[] | null | undefined,
+    supervisorId: string | string[] | User | User[] | null | undefined
   ): string[] => {
-    if (!supervisorId) return [];
+    if (!supervisorId) return []
 
     if (Array.isArray(supervisorId)) {
       return supervisorId
         .map((sup) => {
-          if (typeof sup === "string") return sup;
-          if (typeof sup === "object" && sup !== null) {
-            return (sup as User)._id || (sup as User).id || "";
+          if (typeof sup === 'string') return sup
+          if (typeof sup === 'object' && sup !== null) {
+            return (sup as User)._id || (sup as User).id || ''
           }
-          return "";
+          return ''
         })
-        .filter(Boolean);
+        .filter(Boolean)
     }
 
-    if (typeof supervisorId === "string") return [supervisorId];
+    if (typeof supervisorId === 'string') return [supervisorId]
 
-    if (typeof supervisorId === "object" && supervisorId !== null) {
-      const supId =
-        (supervisorId as User)._id || (supervisorId as User).id || "";
-      return supId ? [supId] : [];
+    if (typeof supervisorId === 'object' && supervisorId !== null) {
+      const supId = (supervisorId as User)._id || (supervisorId as User).id || ''
+      return supId ? [supId] : []
     }
 
-    return [];
-  };
+    return []
+  }
 
   const formik = useFormik<RequestOTFieldWorkDTO>({
     initialValues: {
-      user_id: extractUserId(request?.user_id) || "",
+      user_id: extractUserId(request?.user_id) || '',
       supervisor_id: extractSupervisorIds(request?.supervisor_id) || [],
       date: request?.date
-        ? new Date(request.date).toISOString().split("T")[0]
-        : new Date().toISOString().split("T")[0],
-      title: request?.title || "OT",
-      start_hour: request?.start_hour || "08:00",
-      end_hour: request?.end_hour || "17:00",
+        ? new Date(request.date).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0],
+      title: request?.title || 'OT',
+      start_hour: request?.start_hour || '08:00',
+      end_hour: request?.end_hour || '17:00',
       fuel: request?.fuel || 0,
       date_off: request?.date_off
-        ? new Date(request.date_off).toISOString().split("T")[0]
+        ? new Date(request.date_off).toISOString().split('T')[0]
         : null,
-      description: request?.description || "",
-      reason: request?.reason || "",
+      description: request?.description || '',
+      reason: request?.reason || '',
     },
     validationSchema: requestSchema,
     enableReinitialize: true,
     onSubmit: async (
       values,
-      { setSubmitting, resetForm }: FormikHelpers<RequestOTFieldWorkDTO>,
+      { setSubmitting, resetForm }: FormikHelpers<RequestOTFieldWorkDTO>
     ) => {
       try {
         const submitData = {
           ...values,
-          supervisor_id:
-            selectedSupervisors.length > 0
-              ? selectedSupervisors
-              : values.supervisor_id,
-        };
+          supervisor_id: selectedSupervisors.length > 0 ? selectedSupervisors : values.supervisor_id,
+        }
 
-        console.log("📤 Submitting request data:", submitData);
+        console.log('📤 Submitting request data:', submitData)
 
         if (request?._id || request?.id) {
-          const requestId = request._id || request.id || "";
-          await updateMutation.mutateAsync({
-            id: requestId,
-            data: submitData,
-          });
+          const requestId = request._id || request.id || ''
+          await updateMutation.mutateAsync({ 
+            id: requestId, 
+            data: submitData
+          })
         } else {
-          await createMutation.mutateAsync(submitData);
+          await createMutation.mutateAsync(submitData)
         }
 
         // ✅ Reset form after success
@@ -172,178 +161,163 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
             values: {
               ...initialRequestOTFieldWork,
             },
-          });
-          setSelectedSupervisors([]);
+          })
+          setSelectedSupervisors([])
         }
 
-        setItemIdForUpdate(undefined);
+        setItemIdForUpdate(undefined)
       } catch (err: unknown) {
-        console.error("❌ Submit error:", err);
+        console.error('❌ Submit error:', err)
       } finally {
-        setSubmitting(false);
+        setSubmitting(false)
       }
     },
-  });
+  })
 
   // ✅ Fetch users and supervisors
   const fetchUsers = async () => {
     try {
-      const res = await axios.get<{ data: User[] }>(`${API_URL}/users`);
-      const allUsers = res.data.data || [];
-      setUsers(allUsers);
+      const res = await axios.get<{ data: User[] }>(`${API_URL}/users`)
+      const allUsers = res.data.data || []
+      setUsers(allUsers)
 
-      const sups = allUsers.filter(
-        (u) => u.role === "supervisor" || u.role === "admin",
-      );
-      setSupervisors(sups);
+      const sups = allUsers.filter((u) => u.role === 'supervisor' || u.role === 'admin')
+      setSupervisors(sups)
     } catch (err: unknown) {
-      console.error("Error fetching users", err);
-      toast.error("Unable to load users");
+      console.error('Error fetching users', err)
+      toast.error('Unable to load users')
     }
-  };
+  }
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    fetchUsers()
+  }, [])
 
   useEffect(() => {
     if (request?.supervisor_id) {
-      const ids = extractSupervisorIds(request.supervisor_id);
-      setSelectedSupervisors(ids);
+      const ids = extractSupervisorIds(request.supervisor_id)
+      setSelectedSupervisors(ids)
     }
-  }, [request]);
+  }, [request])
 
   const invalidateRequests = () =>
-    queryClient.invalidateQueries([
-      `${QUERIES.USERS_LIST}-${query}`,
-    ] as QueryKey);
+    queryClient.invalidateQueries([`${QUERIES.USERS_LIST}-${query}`] as QueryKey)
 
   const createMutation = useMutation(createRequest, {
     onSuccess: () => {
       Swal.fire({
-        icon: "success",
-        title:
-          '<span style="color: #10b981; font-weight: bold;">Request Created</span>',
-        text: "The request has been successfully created.",
+        icon: 'success',
+        title: '<span style="color: #10b981; font-weight: bold;">Request Created</span>',
+        text: 'The request has been successfully created.',
         timer: 2000,
         showConfirmButton: false,
       }).then(() => {
-        invalidateRequests();
-      });
+        invalidateRequests()
+      })
     },
     onError: (error: AxiosError<{ message?: string }>) => {
       const errorMessage =
-        error?.response?.data?.message ||
-        error?.message ||
-        "Something went wrong!";
+        error?.response?.data?.message || error?.message || 'Something went wrong!'
 
       Swal.fire({
-        icon: "error",
-        title: "Error",
+        icon: 'error',
+        title: 'Error',
         text: errorMessage,
-        confirmButtonText: "OK",
-      });
+        confirmButtonText: 'OK',
+      })
     },
-  });
+  })
 
   const updateMutation = useMutation(updateRequest, {
     onSuccess: () => {
       Swal.fire({
-        icon: "success",
+        icon: 'success',
         title: '<span style="color: #10b981;">Request Updated</span>',
-        text: "The request has been successfully updated.",
-        confirmButtonText: "OK",
+        text: 'The request has been successfully updated.',
+        confirmButtonText: 'OK',
       }).then(() => {
-        invalidateRequests();
-      });
+        invalidateRequests()
+      })
     },
     onError: (error: AxiosError<{ message?: string }>) => {
       const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to update request";
+        error.response?.data?.message || error.message || 'Failed to update request'
       Swal.fire({
-        icon: "error",
-        title: "Error",
+        icon: 'error',
+        title: 'Error',
         text: errorMessage,
-        confirmButtonText: "OK",
-      });
+        confirmButtonText: 'OK',
+      })
     },
-  });
+  })
 
   // ✅ Delete Mutation
   const deleteMutation = useMutation(deleteRequest, {
     onSuccess: () => {
       Swal.fire({
-        icon: "success",
+        icon: 'success',
         title: '<span style="color: #10b981;">Request Deleted</span>',
-        text: "The request has been successfully deleted.",
+        text: 'The request has been successfully deleted.',
         timer: 2000,
         showConfirmButton: false,
       }).then(() => {
-        invalidateRequests();
-        setItemIdForUpdate(undefined);
-      });
+        invalidateRequests()
+        setItemIdForUpdate(undefined)
+      })
     },
     onError: (error: any) => {
-      const errorMessage = error?.message || "Failed to delete request";
+      const errorMessage = error?.message || 'Failed to delete request'
       Swal.fire({
-        icon: "error",
-        title: "Error",
+        icon: 'error',
+        title: 'Error',
         text: errorMessage,
-        confirmButtonText: "OK",
-      });
+        confirmButtonText: 'OK',
+      })
     },
-  });
+  })
 
   // ✅ Handle Delete with Confirmation
   const handleDelete = async () => {
-    if (!request?._id && !request?.id) return;
+    if (!request?._id && !request?.id) return
 
     const result = await Swal.fire({
-      title: "Are you sure?",
+      title: 'Are you sure?',
       text: "You won't be able to revert this!",
-      icon: "warning",
+      icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: "Yes, delete it!",
-      cancelButtonText: "Cancel",
-    });
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    })
 
     if (result.isConfirmed) {
-      const requestId = request._id || request.id || "";
-      await deleteMutation.mutateAsync(requestId);
+      const requestId = request._id || request.id || ''
+      await deleteMutation.mutateAsync(requestId)
     }
-  };
+  }
 
-  const isEditMode = !!request?._id || !!request?.id;
-  const isStatusFinal =
-    request?.status === "Accepted" || request?.status === "Rejected";
-  const canEdit = isEditMode && !isStatusFinal;
+  const isEditMode = !!request?._id || !!request?.id
   const isSubmitting =
-    formik.isSubmitting ||
-    createMutation.isLoading ||
-    updateMutation.isLoading ||
-    deleteMutation.isLoading;
+    formik.isSubmitting || createMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading
 
   const fieldClass = (name: keyof RequestOTFieldWorkDTO) =>
-    clsx("form-control form-control-solid", {
-      "is-invalid": formik.touched[name] && formik.errors[name],
-    });
+    clsx('form-control form-control-solid', {
+      'is-invalid': formik.touched[name] && formik.errors[name],
+    })
 
-  const cancel = () => setItemIdForUpdate(undefined);
+  const cancel = () => setItemIdForUpdate(undefined)
 
   const handleSupervisorChange = (supervisorId: string, checked: boolean) => {
-    let newSelected: string[];
+    let newSelected: string[]
     if (checked) {
-      newSelected = [...selectedSupervisors, supervisorId];
+      newSelected = [...selectedSupervisors, supervisorId]
     } else {
-      newSelected = selectedSupervisors.filter((id) => id !== supervisorId);
+      newSelected = selectedSupervisors.filter((id) => id !== supervisorId)
     }
-    setSelectedSupervisors(newSelected);
-    formik.setFieldValue("supervisor_id", newSelected);
-  };
+    setSelectedSupervisors(newSelected)
+    formik.setFieldValue('supervisor_id', newSelected)
+  }
 
   return (
     <>
@@ -352,13 +326,13 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
         <div className="fv-row mb-7">
           <label className="required fw-bold fs-6 mb-2">Employee</label>
           <select
-            {...formik.getFieldProps("user_id")}
-            className={fieldClass("user_id")}
+            {...formik.getFieldProps('user_id')}
+            className={fieldClass('user_id')}
             disabled={isSubmitting || isUserLoading || isEditMode}
           >
             <option value="">Select employee</option>
             {users
-              .filter((u) => u.role === "employee")
+              .filter((u) => u.role === 'employee')
               .map((user) => (
                 <option key={user._id || user.id} value={user._id || user.id}>
                   {user.user_name || `${user.first_name_en} ${user.user_name}`}
@@ -387,21 +361,13 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
                     className="form-check-input"
                     type="checkbox"
                     id={`sup-${sup._id || sup.id}`}
-                    checked={selectedSupervisors.includes(
-                      sup._id || sup.id || "",
-                    )}
+                    checked={selectedSupervisors.includes(sup._id || sup.id || '')}
                     onChange={(e) =>
-                      handleSupervisorChange(
-                        sup._id || sup.id || "",
-                        e.target.checked,
-                      )
+                      handleSupervisorChange(sup._id || sup.id || '', e.target.checked)
                     }
                     disabled={isSubmitting || isUserLoading}
                   />
-                  <label
-                    className="form-check-label"
-                    htmlFor={`sup-${sup._id || sup.id}`}
-                  >
+                  <label className="form-check-label" htmlFor={`sup-${sup._id || sup.id}`}>
                     {sup.user_name || `${sup.first_name_en}`} ({sup.role})
                   </label>
                 </div>
@@ -422,8 +388,8 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
           <label className="required fw-bold fs-6 mb-2">Date</label>
           <input
             type="date"
-            {...formik.getFieldProps("date")}
-            className={fieldClass("date")}
+            {...formik.getFieldProps('date')}
+            className={fieldClass('date')}
             disabled={isSubmitting || isUserLoading}
           />
           {formik.touched.date && formik.errors.date && (
@@ -445,8 +411,8 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
                 type="radio"
                 id="title-ot"
                 value="OT"
-                checked={formik.values.title === "OT"}
-                onChange={() => formik.setFieldValue("title", "OT")}
+                checked={formik.values.title === 'OT'}
+                onChange={() => formik.setFieldValue('title', 'OT')}
                 disabled={isSubmitting || isUserLoading}
               />
               <label className="form-check-label fw-bold" htmlFor="title-ot">
@@ -459,8 +425,8 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
                 type="radio"
                 id="title-field"
                 value="FIELD_WORK"
-                checked={formik.values.title === "FIELD_WORK"}
-                onChange={() => formik.setFieldValue("title", "FIELD_WORK")}
+                checked={formik.values.title === 'FIELD_WORK'}
+                onChange={() => formik.setFieldValue('title', 'FIELD_WORK')}
                 disabled={isSubmitting || isUserLoading}
               />
               <label className="form-check-label fw-bold" htmlFor="title-field">
@@ -483,8 +449,8 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
             <label className="required fw-bold fs-6 mb-2">Start Hour</label>
             <input
               type="time"
-              {...formik.getFieldProps("start_hour")}
-              className={fieldClass("start_hour")}
+              {...formik.getFieldProps('start_hour')}
+              className={fieldClass('start_hour')}
               disabled={isSubmitting || isUserLoading}
             />
             {formik.touched.start_hour && formik.errors.start_hour && (
@@ -499,8 +465,8 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
             <label className="required fw-bold fs-6 mb-2">End Hour</label>
             <input
               type="time"
-              {...formik.getFieldProps("end_hour")}
-              className={fieldClass("end_hour")}
+              {...formik.getFieldProps('end_hour')}
+              className={fieldClass('end_hour')}
               disabled={isSubmitting || isUserLoading}
             />
             {formik.touched.end_hour && formik.errors.end_hour && (
@@ -519,8 +485,8 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
           <div className="input-group">
             <input
               type="number"
-              {...formik.getFieldProps("fuel")}
-              className={fieldClass("fuel")}
+              {...formik.getFieldProps('fuel')}
+              className={fieldClass('fuel')}
               disabled={isSubmitting || isUserLoading}
               min="0"
             />
@@ -537,13 +503,11 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
 
         {/* Date Off (Optional) */}
         <div className="fv-row mb-7">
-          <label className="fw-bold fs-6 mb-2">
-            Compensation Date Off (Optional)
-          </label>
+          <label className="fw-bold fs-6 mb-2">Compensation Date Off (Optional)</label>
           <input
             type="date"
-            {...formik.getFieldProps("date_off")}
-            className={fieldClass("date_off")}
+            {...formik.getFieldProps('date_off')}
+            className={fieldClass('date_off')}
             disabled={isSubmitting || isUserLoading}
           />
         </div>
@@ -552,8 +516,8 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
         <div className="fv-row mb-7">
           <label className="required fw-bold fs-6 mb-2">Reason</label>
           <textarea
-            {...formik.getFieldProps("reason")}
-            className={fieldClass("reason")}
+            {...formik.getFieldProps('reason')}
+            className={fieldClass('reason')}
             disabled={isSubmitting || isUserLoading}
             rows={3}
             placeholder="Please provide a reason for this request..."
@@ -569,12 +533,10 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
 
         {/* Description (Optional) */}
         <div className="fv-row mb-7">
-          <label className="fw-bold fs-6 mb-2">
-            Additional Description (Optional)
-          </label>
+          <label className="fw-bold fs-6 mb-2">Additional Description (Optional)</label>
           <textarea
-            {...formik.getFieldProps("description")}
-            className={fieldClass("description")}
+            {...formik.getFieldProps('description')}
+            className={fieldClass('description')}
             disabled={isSubmitting || isUserLoading}
             rows={4}
             placeholder="Add any additional details..."
@@ -594,6 +556,8 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
 
         {/* Actions */}
         <div className="text-end pt-3">
+         
+          
           <button
             type="button"
             className="btn btn-light me-3"
@@ -602,8 +566,8 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
           >
             Cancel
           </button>
-          {/* ✅ Delete Button - แสดงเฉพาะ Edit Mode */}
-          {canEdit && (
+           {/* ✅ Delete Button - แสดงเฉพาะ Edit Mode */}
+          {isEditMode && (
             <button
               type="button"
               className="btn btn-danger me-3"
@@ -614,29 +578,25 @@ const UserEditModalForm: FC<Props> = ({ request, isUserLoading }) => {
               Delete
             </button>
           )}
-          {!isStatusFinal && (
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={formik.isSubmitting || isUserLoading || !formik.isValid}
-            >
-              <span className="indicator-label">
-                {isEditMode ? "Update" : "Create"}
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={formik.isSubmitting || isUserLoading || !formik.isValid}
+          >
+            <span className="indicator-label">{isEditMode ? 'Update' : 'Create'}</span>
+            {(formik.isSubmitting || isUserLoading) && (
+              <span className="indicator-progress">
+                Please wait...{' '}
+                <span className="spinner-border spinner-border-sm align-middle ms-2"></span>
               </span>
-              {(formik.isSubmitting || isUserLoading) && (
-                <span className="indicator-progress">
-                  Please wait...{" "}
-                  <span className="spinner-border spinner-border-sm align-middle ms-2"></span>
-                </span>
-              )}
-            </button>
-          )}
+            )}
+          </button>
         </div>
       </form>
 
       {isSubmitting && <UsersListLoading />}
     </>
-  );
-};
+  )
+}
 
-export { UserEditModalForm };
+export { UserEditModalForm }

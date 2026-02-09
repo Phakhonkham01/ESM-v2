@@ -128,7 +128,7 @@ const leaveSchema = Yup.object().shape({
 })
 
 /* -------------------- Component -------------------- */
-export const DayOffRequestEditModalForm: FC = () => {
+export const DayOffRequestViewModalForm: FC = () => {
   const API_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:8001/api'
 
   /* -------------------- State -------------------- */
@@ -140,7 +140,7 @@ export const DayOffRequestEditModalForm: FC = () => {
   const [loadingEmployees, setLoadingEmployees] = useState(false)
   const [loadingSupervisors, setLoadingSupervisors] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const { setItemIdForUpdate } = useListView()
+  const { setItemIdForUpdate, setItemIdForDetail } = useListView()
 
   /* -------------------- Date Restrictions -------------------- */
   const currentMonthRange = useMemo(() => getCurrentMonthRange(), []);
@@ -438,7 +438,7 @@ export const DayOffRequestEditModalForm: FC = () => {
 
         // Reset form and close modal
         resetForm();
-        setItemIdForUpdate(undefined);
+        setItemIdForDetail(undefined);
 
       } catch (error: any) {
         console.error('❌ Submit error:', error);
@@ -829,7 +829,6 @@ export const DayOffRequestEditModalForm: FC = () => {
           <div className="card-body">
             {/* Department */}
             <div className="fv-row mb-10">
-              <label className="required fs-6 fw-bold mb-2">Department</label>
               <div className="d-flex align-items-center gap-3">
                 <select
                   {...formik.getFieldProps('department_id')}
@@ -1107,7 +1106,7 @@ export const DayOffRequestEditModalForm: FC = () => {
             <button
               type="button"
               className="btn btn-light"
-              onClick={() => setItemIdForUpdate(undefined)}
+              onClick={() => setItemIdForDetail(undefined)}
               disabled={isSubmitting}
             >
               Cancel
@@ -1138,7 +1137,7 @@ export const DayOffRequestEditModalForm: FC = () => {
   )
 }
 
-export default DayOffRequestEditModalForm
+export default DayOffRequestViewModalForm
 
 // เพิ่มฟังก์ชันจัดการ error ที่ใช้ร่วมกัน
 const handleSubmitError = (error: any) => {

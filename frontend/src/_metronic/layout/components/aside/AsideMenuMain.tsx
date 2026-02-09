@@ -120,11 +120,6 @@ export function AsideMenuMain() {
         icon='element-plus'
       >
         <AsideMenuItem
-          to='/apps/attendace'
-          title='Attendance information'
-          hasBullet={true}
-        />
-        <AsideMenuItem
           to='/apps/overtime'
           title='OT information'
           hasBullet={true}
@@ -150,9 +145,16 @@ export function AsideMenuMain() {
       />
   
          <AsideMenuItem
+      
         to='/crafted/requestsdayoffuser/dayofflist'
         icon='calendar-edit'
         title='Request Day-Off-user'
+        fontIcon='bi-calendar-event'
+      />
+      <AsideMenuItem
+        to='/crafted/reqotandfieldworkuser/ot&fieldworklist'
+        icon='calendar-edit'
+        title='ot&fieldwork user'
         fontIcon='bi-calendar-event'
       />
       <AsideMenuItem
