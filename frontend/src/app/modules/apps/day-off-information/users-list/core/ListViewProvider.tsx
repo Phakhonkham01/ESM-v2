@@ -12,22 +12,30 @@ import {
 } from '../../../../../../_metronic/helpers'
 import {useQueryResponse, useQueryResponseData} from './QueryResponseProvider'
 
+// ✅ Import Modal components
+import { DayOffRequestEditModalForm } from '../user-edit-modal/UserEditModalForm'
+import { DayOffRequestViewModalForm } from '../user-edit-modal/dayoff-deatils'
+
 const ListViewContext = createContext<ListViewContextProps>(initialListView)
 
 const ListViewProvider: FC<WithChildren> = ({children}) => {
   const [selected, setSelected] = useState<Array<ID>>(initialListView.selected)
   const [itemIdForUpdate, setItemIdForUpdate] = useState<ID>(initialListView.itemIdForUpdate)
+  const [itemIdForDetail, setItemIdForDetail] = useState<ID>(initialListView.itemIdForDetail)
+  
   const {isLoading} = useQueryResponse()
   const data = useQueryResponseData()
   const disabled = useMemo(() => calculatedGroupingIsDisabled(isLoading, data), [isLoading, data])
   const isAllSelected = useMemo(() => calculateIsAllDataSelected(data, selected), [data, selected])
-
+  
   return (
     <ListViewContext.Provider
       value={{
         selected,
         itemIdForUpdate,
+        itemIdForDetail,
         setItemIdForUpdate,
+        setItemIdForDetail,
         disabled,
         isAllSelected,
         onSelect: (id: ID) => {
@@ -42,6 +50,28 @@ const ListViewProvider: FC<WithChildren> = ({children}) => {
       }}
     >
       {children}
+      
+      {/* ✅ Render Edit Modal เมื่อมี itemIdForUpdate */}
+      {itemIdForUpdate && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <DayOffRequestEditModalForm />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* ✅ Render View Modal เมื่อมี itemIdForDetail */}
+      {itemIdForDetail && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <DayOffRequestViewModalForm />
+            </div>
+          </div>
+        </div>
+      )}
     </ListViewContext.Provider>
   )
 }

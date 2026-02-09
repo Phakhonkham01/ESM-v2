@@ -4,35 +4,36 @@ import { UserCustomHeader } from './UserCustomHeader'
 import { useListView } from '../../core/ListViewProvider'
 
 const DayOffRequestActionsCell = ({ id }: { id: string }) => {
-  const { setItemIdForUpdate } = useListView()
+  const { setItemIdForUpdate, setItemIdForDetail } = useListView()
 
   return (
-    <div className="d-flex justify-content-end ">
+    <div className="d-flex justify-content-end gap-2">
+      {/* View */}
       <button
-        className="btn btn-sm btn-light btn-active-primary view-btn-custom"
+        className="btn btn-sm btn-light-primary btn-icon"
+        title="View"
+        onClick={() => setItemIdForDetail(id)}
+      >
+        <i className="bi bi-eye fs-6"></i>
+      </button>
+
+      {/* Edit */}
+      <button
+        className="btn btn-sm btn-light-success btn-icon"
+        title="Edit"
         onClick={() => setItemIdForUpdate(id)}
       >
-        <i className="bi bi-eye me-2"></i>
-        <span>View</span>
+        <i className="bi bi-pencil fs-6"></i>
       </button>
-      
+
+      {/* Delete */}
       <button
-        className="btn btn-sm btn-light btn-active-primary view-btn-custom"
-        onClick={() => setItemIdForUpdate(id)}
+        className="btn btn-sm btn-light-danger btn-icon"
+        title="Delete"
+        // onClick={() => handleDelete(id)}
       >
-        <i className="bi bi-eye me-2"></i>
-        <span>Edit</span>
+        <i className="bi bi-trash fs-6"></i>
       </button>
-      <style>{`
-        .view-btn-custom i,
-        .view-btn-custom span {
-          color: #198754 !important;
-        }
-        .view-btn-custom:hover i,
-        .view-btn-custom:hover span {
-          color: #ffffff !important;
-        }
-      `}</style>
     </div>
   )
 }

@@ -69,7 +69,7 @@ export type ListViewContextProps = {
   itemIdForDetail?: ID // ✅ Add this
   itemIdForUpdate?: ID
   setItemIdForUpdate: Dispatch<SetStateAction<ID>>
-  setItemIdForDetail: (_id?: ID) => void // ✅ Add this
+  setItemIdForDetail: Dispatch<SetStateAction<ID>>
   isAllSelected: boolean
   disabled: boolean
 }
