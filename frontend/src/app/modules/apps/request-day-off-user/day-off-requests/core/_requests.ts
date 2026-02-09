@@ -26,6 +26,7 @@ interface DayOffRequestResponse {
   success: boolean
   message?: string
   data: DayOffRequest
+   request?: DayOffRequest  
 }
 
 interface DayOffRequestsQueryResponseData {
@@ -57,12 +58,21 @@ const normalizeUserData = (userData: any): any => {
 
 // Helper function to map day off request
 // ในไฟล์ _requests.ts
+// Helper function to map day off request
 const mapDayOffRequest = (request: any): DayOffRequest => {
+  // ✅ ตรวจสอบว่า request มีค่าหรือไม่
+  if (!request) {
+    console.error('❌ mapDayOffRequest received null/undefined request')
+    throw new Error('Cannot map null or undefined request')
+  }
+  
   console.log('🔍 Raw request data:', {
     _id: request._id,
+    id: request.id,
     supervisor_id: request.supervisor_id,
     supervisor_id_type: typeof request.supervisor_id,
-    is_supervisor_array: Array.isArray(request.supervisor_id)
+    is_supervisor_array: Array.isArray(request.supervisor_id),
+    full_request: request  // เพิ่มเพื่อดู structure ทั้งหมด
   })
   
   // ถ้า supervisor_id เป็น array ของ ObjectId ให้แสดงรายละเอียด
@@ -87,7 +97,7 @@ const mapDayOffRequest = (request: any): DayOffRequest => {
     employee_id: normalizeUserData(request.employee_id),
     supervisor_id: Array.isArray(request.supervisor_id)
       ? request.supervisor_id.map(normalizeUserData)
-      : normalizeUserData(request.supervisor_id),
+      : [normalizeUserData(request.supervisor_id)], // ✅ แปลงเป็น array เสมอ
     user_id: normalizeUserData(request.user_id),
   }
 }
@@ -251,11 +261,24 @@ export const updateDayOffRequest = async (id: string, requestData: Partial<DayOf
       requestData
     )
     
-    console.log('✅ Update day off request response:', response.data)
-    return mapDayOffRequest(response.data.data)
+    console.log('✅ Update day off request full response:', response.data)
+    
+    // ✅ FIX: Backend ใช้ชื่อ field เป็น "request" แทน "data"
+    const updatedRequest = response.data.data || response.data.request
+    
+    if (!updatedRequest) {
+      console.error('❌ No data or request field in response:', response.data)
+      throw new Error('Invalid response structure: missing data/request field')
+    }
+    
+    console.log('📦 Data to map:', updatedRequest)
+    return mapDayOffRequest(updatedRequest)
+    
   } catch (error: any) {
     console.error(`❌ Update day off request error for ${id}:`, error)
-    throw new Error(error.response?.data?.message || 'Failed to update day off request')
+    console.error('Error response:', error.response?.data)
+    console.error('Error status:', error.response?.status)
+    throw new Error(error.response?.data?.message || error.message || 'Failed to update day off request')
   }
 }
 

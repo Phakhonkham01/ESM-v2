@@ -1,4 +1,3 @@
-
 import { useIntl } from 'react-intl'
 import { AsideMenuItemWithSub } from './AsideMenuItemWithSub'
 import { AsideMenuItem } from './AsideMenuItem'
@@ -89,17 +88,17 @@ export function AsideMenuMain() {
         <AsideMenuItem to='/apps/chat/drawer-chat' title='Drawer Chart' hasBullet={true} />
       </AsideMenuItemWithSub>
       <AsideMenuItem
-        to='/apps/salary-management'
-        icon='people'
-        title='Salary Management'
-        fontIcon='bi-layers'
-      />
-        <AsideMenuItem
         to='/apps/user-management/users'
         icon='people'
         title='User management'
         fontIcon='bi-layers'
       />
+         <AsideMenuItem
+        to='/apps/salary-management/salarylist'
+        icon='calendar-edit'
+        title='Salary Management'
+        fontIcon='bi-calendar-event'
+      />  
       <AsideMenuItem
         to='/apps/request-ot-and-field_work'
         icon='people'
@@ -113,16 +112,16 @@ export function AsideMenuMain() {
         fontIcon='bi-layers'
       />
 
-      {/* Atteendace management sidber */}
+      {/* Atteendace management sidebar */}
       <AsideMenuItemWithSub
-        to='/crafted/pages2'
+        to=''
         title='Attendance management'
         fontIcon='bi-archive'
         icon='element-plus'
       >
         <AsideMenuItem
           to='/apps/attendace'
-          title='Attendance'
+          title='Attendance information'
           hasBullet={true}
         />
         <AsideMenuItem
@@ -135,7 +134,13 @@ export function AsideMenuMain() {
           title='Field Work information'
           hasBullet={true}
         />
+        <AsideMenuItem
+          to='/apps/day-off'
+          title='Dayoff information'
+          hasBullet={true}
+        />
       </AsideMenuItemWithSub>
+      {/* End Atteendace management sidebar */}
 
       <AsideMenuItem
         to='/crafted/account/overview'
@@ -143,10 +148,17 @@ export function AsideMenuMain() {
         title='User-Profile'
         fontIcon='bi-calendar-event'
       />
-      <AsideMenuItem
-        to='/crafted/requestsdayoffuser'
+  
+         <AsideMenuItem
+        to='/crafted/requestsdayoffuser/dayofflist'
         icon='calendar-edit'
-        title='Requests user'
+        title='Request Day-Off-user'
+        fontIcon='bi-calendar-event'
+      />
+      <AsideMenuItem
+        to='/crafted/reqotandfieldworkuser/ot&fieldworklist'
+        icon='calendar-edit'
+        title='ot&fieldwork user'
         fontIcon='bi-calendar-event'
       />
       <AsideMenuItem

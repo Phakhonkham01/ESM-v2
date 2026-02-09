@@ -5,7 +5,7 @@ import { SalaryListWrapper } from './users-list/SalaryList'
 const salaryBreadcrumbs: Array<PageLink> = [
   {
     title: 'Salary Calculation',
-    path: '/apps/salary-calculation',
+    path: '/apps/salary-management/salarylist',
     isSeparator: false,
     isActive: false,
   },
@@ -22,7 +22,7 @@ const SalaryCalculationPage = () => {
     <Routes>
       <Route element={<Outlet />}>
         <Route
-          index
+          path='salarylist'
           element={
             <>
               <PageTitle breadcrumbs={salaryBreadcrumbs}>
@@ -33,7 +33,7 @@ const SalaryCalculationPage = () => {
           }
         />
       </Route>
-      <Route index element={<Navigate to="/apps/salary-calculation" />} />
+      <Route index element={<Navigate to="/apps/salary-management/" />} />
     </Routes>
   )
 }

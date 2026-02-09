@@ -16,14 +16,18 @@ const PrivateRoutes = () => {
   const ChatPage = lazy(() => import('../modules/apps/chat/ChatPage'))
   const UsersPage = lazy(() => import('../modules/apps/user-management/UsersPage'))
   const EventsPage = lazy(() => import('../modules/apps/event/EventsPage'))
+  // Attendance
+  const Attendace = lazy(() => import('../modules/apps/attendace-information/UsersPage'))
+  const FieldWork = lazy(() => import('../modules/apps/field-work-information/UsersPage'))
   const Overtime = lazy(() => import('../modules/apps/overtime-information/UsersPage'))
+  const DayOff = lazy(() => import('../modules/apps/day-off-information/UsersPage'))
+  // End Attendance
   const Request = lazy(() => import('../modules/apps/request-ot-field-work/UsersPage'))
   
   const RequestDayOffUser = lazy(() => import('../modules/apps/request-day-off-user/UsersPage'))
-  const SalaryCalculationPage = lazy(() => import('../modules/apps/salary-calculator/SalaryCalculationPage'))
-
+  const Salary = lazy(() => import('../modules/apps/salary-calculator/SalaryCalculationPage'))
   const SupervosorDayOffPage = lazy(() => import('../modules/apps/request-day-off/SupervisorDayOffPage'))
-  
+  const ReqOtAndFieldWorkUserPage = lazy(() => import('../modules/apps/request-ot-field-work-user/ReqOtAndFieldWorkUserPage'))
   
   
   
@@ -56,14 +60,7 @@ const PrivateRoutes = () => {
             </SuspensedView>
           }
         />
-         <Route
-          path='apps/salary-management/*'
-          element={
-            <SuspensedView>
-              <SalaryCalculationPage />
-            </SuspensedView>
-          }
-        />
+
         {/* Attendance */}
         <Route
           path='apps/overtime/*'
@@ -72,7 +69,41 @@ const PrivateRoutes = () => {
               <Overtime />
             </SuspensedView>
           }
+        />  
+           <Route
+          path='apps/salary-management/*'
+          element={
+            <SuspensedView>
+              <Salary />
+            </SuspensedView>
+          }
         />
+        <Route
+          path='apps/attendace/*'
+          element={
+            <SuspensedView>
+              <Attendace />
+            </SuspensedView>
+          }
+        />
+        <Route
+          path='apps/field-work/*'
+          element={
+            <SuspensedView>
+              <FieldWork />
+            </SuspensedView>
+          }
+        />
+        <Route
+          path='apps/day-off/*'
+          element={
+            <SuspensedView>
+              <DayOff />
+            </SuspensedView>
+          }
+        />
+
+        {/* End Attendance */}
 
         <Route
           path='apps/request-day-off/*'
@@ -108,10 +139,18 @@ const PrivateRoutes = () => {
           }
         />
         <Route
-          path='crafted/*'
+          path='crafted/requestsdayoffuser/*'
           element={
             <SuspensedView>
               <RequestDayOffUser />
+            </SuspensedView>
+          }
+        />
+        <Route
+          path='crafted/reqotandfieldworkuser/*'
+          element={
+            <SuspensedView>
+              <ReqOtAndFieldWorkUserPage />
             </SuspensedView>
           }
         />
