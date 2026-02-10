@@ -401,28 +401,182 @@ export const deleteSelectedDayOffRequests = async (ids: string[]): Promise<{ suc
   }
 }
 
-// GET DAY OFF REQUEST BY ID
+// ในไฟล์ _requests.ts - แก้ไขฟังก์ชัน getDayOffRequestById
 export const getDayOffRequestById = async (id: string): Promise<FormattedDayOffRequest> => {
   try {
-    const response = await axios.get(`${API_URL}/day-off-requests/${id}`)
-    const data = response.data.data || response.data
+    console.log(`📋 Fetching day off request by ID: ${id}`)
 
-    return {
-      ...data,
-      employee_name: data.employee_id?.user_name ||
-        data.employee_id?.first_name_en + ' ' + data.employee_id?.last_name_en ||
-        'N/A',
-      employee_email: data.employee_id?.user_email || '',
-      supervisor_name: data.supervisor_id?.user_name ||
-        data.supervisor_id?.first_name_en + ' ' + data.supervisor_id?.last_name_en ||
-        'N/A',
-      department_name: Array.isArray(data.employee_id?.department_id)
-        ? data.employee_id.department_id[0]?.department_name
-        : 'N/A'
+    // ใช้ endpoint หลักสำหรับดึงข้อมูลโดย ID
+    const response = await axiosInstance.get(`${DAY_OFF_REQUEST_URL}/${id}`)
+
+    console.log('✅ Get by ID response:', response.data)
+
+    // ดึงข้อมูล request จาก response
+    let requestData = response.data.data || response.data.request || response.data
+
+    if (!requestData) {
+      throw new Error('No request data found')
     }
-  } catch (error) {
-    console.error('Error fetching day off request:', error)
-    throw error
+
+    console.log('🔍 Request data structure:', {
+      employee_id: requestData.employee_id,
+      supervisor_id: requestData.supervisor_id,
+      type_employee: typeof requestData.employee_id,
+      type_supervisor: typeof requestData.supervisor_id,
+      isArray_supervisor: Array.isArray(requestData.supervisor_id)
+    })
+
+    // ฟังก์ชันช่วยดึงข้อมูลผู้ใช้
+    const fetchUserDetails = async (userId: string | any): Promise<{
+      name: string;
+      email: string;
+      department?: string;
+    }> => {
+      try {
+        // ถ้า userId เป็น object ที่มีข้อมูลอยู่แล้ว
+        if (userId && typeof userId === 'object') {
+          const name = userId.user_name ||
+            `${userId.first_name_en || ''} ${userId.last_name_en || ''}`.trim() ||
+            userId.toString?.() ||
+            'Unknown User'
+
+          const email = userId.user_email || userId.email || ''
+
+          // ดึงข้อมูล department
+          let department = 'N/A'
+          if (userId.department_id) {
+            if (Array.isArray(userId.department_id)) {
+              department = userId.department_id[0]?.department_name || 'N/A'
+            } else if (typeof userId.department_id === 'string') {
+              try {
+                const deptResponse = await axiosInstance.get(`${API_URL}/departments/${userId.department_id}`)
+                department = deptResponse.data.data?.department_name || deptResponse.data.department_name || 'N/A'
+              } catch (deptError) {
+                console.warn('⚠️ Could not fetch department:', deptError)
+              }
+            }
+          }
+
+          return { name, email, department }
+        }
+
+        // ถ้า userId เป็น string (ID) ให้ fetch ข้อมูล
+        if (typeof userId === 'string') {
+          const userResponse = await axiosInstance.get(`${API_URL}/users/${userId}`)
+          const userData = userResponse.data.data || userResponse.data
+
+          const name = userData.user_name ||
+            `${userData.first_name_en || ''} ${userData.last_name_en || ''}`.trim() ||
+            'Unknown User'
+
+          const email = userData.user_email || userData.email || ''
+
+          // ดึง department
+          let department = 'N/A'
+          if (userData.department_id) {
+            if (Array.isArray(userData.department_id)) {
+              department = userData.department_id[0]?.department_name || 'N/A'
+            } else if (typeof userData.department_id === 'string') {
+              try {
+                const deptResponse = await axiosInstance.get(`${API_URL}/departments/${userData.department_id}`)
+                department = deptResponse.data.data?.department_name || deptResponse.data.department_name || 'N/A'
+              } catch (deptError) {
+                console.warn('⚠️ Could not fetch department:', deptError)
+              }
+            }
+          }
+
+          return { name, email, department }
+        }
+
+        return { name: 'N/A', email: '' }
+
+      } catch (error) {
+        console.warn('⚠️ Error fetching user details:', error)
+        return { name: 'Unknown User', email: '', department: 'N/A' }
+      }
+    }
+
+    // ดึงข้อมูล employee
+    const employeeInfo = await fetchUserDetails(requestData.employee_id)
+
+    // ดึงข้อมูล supervisor (อาจเป็น array)
+    let supervisorName = 'N/A'
+    if (requestData.supervisor_id) {
+      if (Array.isArray(requestData.supervisor_id)) {
+        const supervisorNames = []
+        for (const supId of requestData.supervisor_id) {
+          const supInfo = await fetchUserDetails(supId)
+          supervisorNames.push(supInfo.name)
+        }
+        supervisorName = supervisorNames.join(', ')
+      } else {
+        const supInfo = await fetchUserDetails(requestData.supervisor_id)
+        supervisorName = supInfo.name
+      }
+    }
+
+    // ดึงข้อมูล user (ถ้ามี)
+    const userInfo = await fetchUserDetails(requestData.user_id)
+
+    // สร้าง formatted request
+    const formattedRequest: FormattedDayOffRequest = {
+      ...requestData,
+      id: requestData._id || requestData.id,
+      _id: requestData._id || requestData.id,
+      employee_name: employeeInfo.name,
+      employee_email: employeeInfo.email,
+      supervisor_name: supervisorName,
+      department_name: employeeInfo.department || 'N/A',
+      user_name: userInfo.name,
+      status: requestData.status || 'Pending'
+    }
+
+    console.log('✅ Formatted request:', formattedRequest)
+    return formattedRequest
+
+  } catch (error: any) {
+    console.error(`❌ Error in getDayOffRequestById:`, error)
+
+    // Log detailed error
+    if (error.response) {
+      console.error('🔴 Response status:', error.response.status)
+      console.error('🔴 Response data:', error.response.data)
+    }
+
+    // Fallback: ลองดึงจาก allusers endpoint
+    try {
+      console.log('🔄 Trying fallback method...')
+
+      const allResponse = await axiosInstance.get<DayOffRequestsAllUserResponse>(`${DAY_OFF_REQUEST_URL}/allusers`)
+
+      if (allResponse.data.requests && allResponse.data.requests.length > 0) {
+        const foundRequest = allResponse.data.requests.find(req =>
+          req._id === id || req._id === id
+        )
+
+        if (foundRequest) {
+          console.log('✅ Found request in allusers:', foundRequest)
+
+          const formattedRequest: FormattedDayOffRequest = {
+            ...foundRequest,
+            _id: foundRequest._id || foundRequest._id,
+            employee_name: foundRequest.employee_name || 'N/A',
+            employee_email: foundRequest.employee_email || '',
+            supervisor_name: foundRequest.supervisor_name || 'N/A',
+            department_name: foundRequest.department_name || 'N/A',
+            user_name: foundRequest.user_name || 'N/A',
+            status: foundRequest.status || 'Pending'
+          }
+
+          return formattedRequest
+        }
+      }
+    } catch (fallbackError) {
+      console.error('❌ Fallback also failed:', fallbackError)
+    }
+
+    throw new Error(`Failed to fetch request ${id}: ${error.message || 'Unknown error'}`)
   }
 }
 
