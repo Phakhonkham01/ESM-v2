@@ -120,21 +120,22 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     }
   }, [userId, selectedMonth, selectedYear])
 
-const fetchUserData = async () => {
-  try {
-    setLoading(true)
-    const response = await axios.get(`${USERS_URL}/${userId}`)
-    // Make sure we're extracting the user correctly from the response
-    const userData = response.data.user || response.data
-    setUser(userData)
-    console.log('User data loaded:', userData) // Debug log
-  } catch (err: any) {
-    setError('Failed to load user data')
-    console.error('Error fetching user:', err)
-  } finally {
-    setLoading(false)
+  const fetchUserData = async () => {
+    try {
+      setLoading(true)
+      const response = await axios.get(`${USERS_URL}/${userId}`)
+      // Make sure we're extracting the user correctly from the response
+      const userData = response.data.user || response.data
+      setUser(userData)
+      console.log('User data loaded:', userData) // Debug log
+    } catch (err: any) {
+      setError('Failed to load user data')
+      console.error('Error fetching user:', err)
+    } finally {
+      setLoading(false)
+    }
   }
-}
+  
   const fetchExistingSalaries = async () => {
     try {
       const response = await axios.get(`${SALARIES_URL}?userId=${userId}`)
@@ -537,8 +538,14 @@ const fetchUserData = async () => {
     }
   }
 
-  const handleClose = () => {
-    setActiveStep(0)
+  // Fix: เพิ่มฟังก์ชัน handleClose แยกเพื่อป้องกันการเรียกซ้ำ
+  const handleClose = useCallback((e?: React.MouseEvent) => {
+    // ป้องกันการเรียกซ้ำถ้ามี event bubbling
+    if (e) {
+      e.stopPropagation();
+    }
+    
+    setActiveStep(0);
     setFormData({
       user_id: userId,
       salary: 0,
@@ -555,7 +562,7 @@ const fetchUserData = async () => {
       social_security: 0,
       working_days: 22,
       notes: '',
-    })
+    });
 
     setManualOT({
       weekday: { hours: 0, rate_per_hour: 0 },
@@ -565,14 +572,16 @@ const fetchUserData = async () => {
         rate_per_hour: 0,
         rate_per_day: 0,
       },
-    })
+    });
 
-    setManualOTDetails([])
-    setError(null)
-    setSuccess(false)
-    setPrefillData(null)
-    onClose()
-  }
+    setManualOTDetails([]);
+    setError(null);
+    setSuccess(false);
+    setPrefillData(null);
+    
+    // เรียก onClose จาก props เท่านั้น
+    onClose();
+  }, [onClose, userId, selectedMonth, selectedYear]);
 
   const steps = [
     "Basic Information",
@@ -600,6 +609,9 @@ const fetchUserData = async () => {
       clearManualOT,
       calculateManualOTSummary,
       handleCutOffDaysChange, // Add this to the props
+      // Fix: เพิ่มฟังก์ชัน handleMonthChange และ handleYearChange
+      onMonthChange: (month: number) => setSelectedMonth(month),
+      onYearChange: (year: number) => setSelectedYear(year),
     }
 
     switch (step) {
@@ -620,7 +632,7 @@ const fetchUserData = async () => {
 
   if (loading && !prefillData) {
     return (
-      <div className="modal-body py-10 px-lg-17">
+      <div className="modal-body py-10 px-lg-17" style={{ minHeight: '700px' }}>
         <div className="d-flex flex-column align-items-center justify-content-center py-10">
           <div className="spinner-border text-primary mb-4" role="status">
             <span className="visually-hidden">Loading...</span>
@@ -634,19 +646,25 @@ const fetchUserData = async () => {
   return (
     <>
       {/* Header */}
-      <div className="modal-header">
-        <h2 className="fw-bold">Payroll Calculation System</h2>
+      <div className="modal-header" style={{ borderBottom: '1px solid #eee' }}>
+        <h2 className="fw-bold mb-0">Payroll Calculation System</h2>
         <div
-          className="btn btn-icon btn-sm btn-active-icon-primary"
-          onClick={handleClose}
+          className="btn btn-icon btn-sm btn-active-light-primary ms-2"
+          onClick={(e) => handleClose(e)}
           style={{ cursor: 'pointer' }}
+          data-bs-dismiss="modal" // เพิ่ม attribute นี้เพื่อปิด modal
+          aria-label="Close"
         >
           <KTIcon iconName="cross" className="fs-1" />
         </div>
       </div>
 
       {/* Content */}
-      <div className="modal-body py-10 px-lg-17">
+      <div className="modal-body py-10 px-lg-17" style={{ 
+        maxHeight: '750px',
+        overflowY: 'auto',
+        width: '1000px'
+      }}>
         {error && (
           <div className="alert alert-danger d-flex align-items-center p-5 mb-10">
             <KTIcon iconName="shield-cross" className="fs-2hx me-4" />
@@ -705,13 +723,13 @@ const fetchUserData = async () => {
         </div>
 
         {/* Step Content */}
-        <div className="content">
+        <div className="content" style={{ minHeight: '500px' }}>
           {renderStepContent(activeStep)}
         </div>
       </div>
 
       {/* Footer */}
-      <div className="modal-footer flex-center">
+      <div className="modal-footer flex-center" style={{ borderTop: '1px solid #eee' }}>
         <button
           type="button"
           className="btn btn-light me-3"

@@ -927,10 +927,7 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                 setSuccessMessage('✓ OT details copied to clipboard!')
                 setTimeout(() => setSuccessMessage(null), 3000)
             })
-            .catch(err => {
-                setSuccessMessage('✗ Failed to copy')
-                setTimeout(() => setSuccessMessage(null), 3000)
-            })
+          
     }
 
     // Calculate manual OT summary for display
@@ -1706,7 +1703,7 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
         const email = user?.email || 
                      user?.user_email || 
                      user?.Email || 
-                     prefillData?.user?.email ||
+                     prefillData?.user 
                      '';
         
         console.log('User object:', user); // Debug log
@@ -1893,7 +1890,7 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
     return (
   <div>
             
-            <style jsx>{`
+            <style>{`
                 .export-mode,
                 .export-mode * {
                     color: rgb(17, 24, 39) !important;

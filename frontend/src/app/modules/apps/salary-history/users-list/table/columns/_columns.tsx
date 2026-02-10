@@ -1,5 +1,5 @@
 import { Column } from 'react-table'
-import { SalaryData, getMonthName, getStatusInfo, formatCurrency } from '../../core/_models'
+import { SalaryData, getMonthName, getStatusInfo } from '../../core/_models'
 import { SalaryCustomHeader } from './SalaryCustomHeader'
 import { SalaryActionsCell } from './SalaryActionsCell'
 import { KTIcon } from '../../../../../../../_metronic/helpers'
@@ -70,7 +70,7 @@ const salaryListColumns: ReadonlyArray<Column<SalaryData>> = [
       const salary = row.original
       return (
         <div className="text-gray-800 fw-bold">
-          {formatCurrency(salary.base_salary)}
+          {(salary.base_salary)} KIP
         </div>
       )
     },
@@ -80,7 +80,7 @@ const salaryListColumns: ReadonlyArray<Column<SalaryData>> = [
     accessor: 'net_salary',
     Cell: ({ value }) => (
       <div className="text-success fw-bold">
-        {formatCurrency(value)}
+        {(value)} KIP
       </div>
     ),
   },

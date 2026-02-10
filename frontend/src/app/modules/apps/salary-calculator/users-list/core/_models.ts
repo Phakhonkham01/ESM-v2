@@ -124,6 +124,6 @@ export const getStatusBadge = (status: string) => {
   }
 }
 
-export const getRoleBadge = (role: string) => {
+export const getRoleBadge = () => {
   return 'badge-light-primary'
 }
