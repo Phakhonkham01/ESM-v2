@@ -1,16 +1,17 @@
-import {useMemo} from 'react'
-import {useTable, ColumnInstance, Row} from 'react-table'
-import {CustomHeaderColumn} from './columns/CustomHeaderColumn'
-import {CustomRow} from './columns/CustomRow'
+import { useMemo } from 'react'
+import { useTable, ColumnInstance, Row } from 'react-table'
+import { CustomHeaderColumn } from './columns/CustomHeaderColumn'
+import { CustomRow } from './columns/CustomRow'
 import {
   useQueryResponseData,
   useQueryResponseLoading,
 } from '../core/QueryResponseProvider'
-import {dayOffRequestsColumns} from './columns/_columns'
-import {DayOffRequest} from '../core/_models'
-import {DayoffrequestsListLoading} from '../components/loading/DayoffrequestsListtLoading'
-import {UsersListPagination} from '../components/pagination/UsersListPagination'
-import {KTCardBody} from '../../../../../../_metronic/helpers'
+import { dayOffRequestsColumns } from './columns/_columns'
+import { DayOffRequest } from '../core/_models'
+import { DayoffrequestsListLoading } from '../components/loading/DayoffrequestsListtLoading'
+import { UsersListPagination } from '../components/pagination/UsersListPagination'
+import { KTCardBody } from '../../../../../../_metronic/helpers'
+import { useListView } from '../../users-list/core/ListViewProvider'
 
 /* =========================
    Auth helpers
@@ -71,6 +72,7 @@ const DayOffRequestsTable = () => {
   const currentUser = getCurrentUser()
   const currentUserRole = currentUser?.role
   const currentUserId = currentUser?.id
+  const { refreshKey } = useListView()
 
   /* =========================
      Filter Logic
@@ -83,13 +85,8 @@ const DayOffRequestsTable = () => {
       return allRequests
     }
 
-    const filtered = allRequests.filter((req) => {
-      const requestUserId = extractUserId(req.user_id)
-      return requestUserId === currentUserId
-    })
-
-    return filtered
-  }, [allRequests, currentUser, currentUserRole, currentUserId])
+    return allRequests.filter((req) => extractUserId(req.user_id) === currentUserId)
+  }, [allRequests, currentUser, currentUserRole, currentUserId, refreshKey]) // ✅ เพิ่ม refreshKey
 
   const data = useMemo(() => requests, [requests])
   const columns = useMemo(() => dayOffRequestsColumns as any, [])
@@ -158,7 +155,7 @@ const DayOffRequestsTable = () => {
                         <i className='bi bi-inbox fs-1 text-muted mb-3' />
                         <div className='text-muted fs-4 fw-semibold'>
                           {currentUserRole === 'admin' ||
-                          currentUserRole === 'supervisor'
+                            currentUserRole === 'supervisor'
                             ? 'No day off requests found'
                             : 'You have no day off requests'}
                         </div>
@@ -169,6 +166,7 @@ const DayOffRequestsTable = () => {
               </tr>
             )}
           </tbody>
+
         </table>
       </div>
 
@@ -178,4 +176,4 @@ const DayOffRequestsTable = () => {
   )
 }
 
-export {DayOffRequestsTable}
+export { DayOffRequestsTable }

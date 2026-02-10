@@ -26,6 +26,54 @@ interface PopulatedDayOffRequest {
   status: "Pending" | "Accepted" | "Rejected";
   created_at: Date;
 }
+/* ============================================================
+   POPULATION HELPER - ✅ Centralized population config
+============================================================ */
+
+const getPopulateConfig = () => [
+  {
+    path: "user_id",
+    select: "user_name user_email first_name_en last_name_en nickname_en first_name_la last_name_la nickname_la employee_id department_id position_id leave_days",
+    populate: [
+      {
+        path: "department_id",
+        select: "department_name _id"
+      },
+      {
+        path: "position_id",
+        select: "position_name _id"
+      }
+    ]
+  },
+  {
+    path: "employee_id",
+    select: "user_name user_email first_name_en last_name_en nickname_en first_name_la last_name_la nickname_la employee_id department_id position_id leave_days",
+    populate: [
+      {
+        path: "department_id",
+        select: "department_name _id"
+      },
+      {
+        path: "position_id",
+        select: "position_name _id"
+      }
+    ]
+  },
+  {
+    path: "supervisor_id",
+    select: "user_name user_email first_name_en last_name_en first_name_la last_name_la employee_id department_id position_id",
+    populate: [
+      {
+        path: "department_id",
+        select: "department_name _id"
+      },
+      {
+        path: "position_id",
+        select: "position_name _id"
+      }
+    ]
+  }
+];
 
 /**
  * ======================================================

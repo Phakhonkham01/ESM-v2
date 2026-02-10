@@ -201,7 +201,14 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
     Cell: ({ row }) => {
       const request = row.original
       const requestId = request._id || request.id
-      const status = request.status // ✅ Pass status to the component
+      const status = request.status
+
+      // Add a safety check
+      if (!requestId) {
+        console.warn('Day off request missing ID:', request)
+        return <div className="text-muted">No ID</div>
+      }
+
       return <DayOffRequestActionsCell id={requestId} status={status} />
     },
   },

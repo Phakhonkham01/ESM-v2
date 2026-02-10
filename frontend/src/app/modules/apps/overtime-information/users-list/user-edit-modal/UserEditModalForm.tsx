@@ -16,6 +16,13 @@ interface User {
   first_name_en?: string
   last_name_en?: string
   role?: 'admin' | 'employee' | 'supervisor'
+  department_id?: Department | Department[] | string | string[] | null
+}
+
+interface Department {
+  _id?: string
+  id?: string
+  department_name: string
 }
 
 // ✅ Helper to extract user name
@@ -49,6 +56,42 @@ const extractSupervisorNames = (
   }
 
   return extractUserName(supervisorData)
+}
+
+// ✅ Helper to extract department names from user object
+const extractDepartmentNames = (
+  user: User | string | null | undefined
+): string => {
+  if (!user) return 'N/A'
+  
+  // If user is a string (just ID), we can't get department name
+  if (typeof user === 'string') return 'N/A'
+  
+  const department = user.department_id
+  
+  if (!department) return 'N/A'
+  
+  // If department is an array
+  if (Array.isArray(department)) {
+    const deptNames = department
+      .map(dept => {
+        if (typeof dept === 'object' && dept !== null && 'department_name' in dept) {
+          return dept.department_name
+        }
+        return null
+      })
+      .filter((name): name is string => name !== null && name !== '')
+    
+    return deptNames.length > 0 ? deptNames.join(', ') : 'N/A'
+  }
+  
+  // If department is a single object
+  if (typeof department === 'object' && department !== null && 'department_name' in department) {
+    return department.department_name || 'N/A'
+  }
+  
+  // If department is just a string (ID)
+  return 'N/A'
 }
 
 // ✅ Helper to format date
@@ -97,6 +140,7 @@ const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClos
 
   const employeeName = extractUserName(request.user_id)
   const supervisorNames = extractSupervisorNames(request.supervisor_id)
+  const departmentName = extractDepartmentNames(request.user_id)
   const requestDate = formatDate(request.date)
   const startHour = formatTime(request.start_hour)
   const endHour = formatTime(request.end_hour)
@@ -216,6 +260,19 @@ const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClos
               <div>
                 <div className="fw-bold text-muted fs-7 mb-1">Supervisor</div>
                 <div className="fw-bold fs-5 text-gray-800">{supervisorNames}</div>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-6">
+            <div className="d-flex align-items-center mb-5">
+              <div className="symbol symbol-50px symbol-circle me-4">
+                <div className="symbol-label bg-light-info">
+                  <i className="bi bi-building text-info fs-2"></i>
+                </div>
+              </div>
+              <div>
+                <div className="fw-bold text-muted fs-7 mb-1">Department</div>
+                <div className="fw-bold fs-5 text-gray-800">{departmentName}</div>
               </div>
             </div>
           </div>

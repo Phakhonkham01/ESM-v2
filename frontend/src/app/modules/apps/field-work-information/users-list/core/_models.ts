@@ -48,8 +48,6 @@ export const formatRequestOTFieldWork = (request: RequestOTFieldWork): Formatted
     }
   }
   
-  console.log('🏢 FINAL department_name:', departmentName)
-  
   // ✅ Extract supervisor information with proper typing
   const supervisors = request.supervisor_id
   let supervisorName = 'N/A'

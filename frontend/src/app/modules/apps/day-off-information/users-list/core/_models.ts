@@ -1,8 +1,7 @@
-// src/app/modules/_requests/models/dayoffrequest.model.ts
 import { ID, Response } from '../../../../../../_metronic/helpers'
 import { User } from '../../../user-management/users-list/core/_models'
 
-// ✅ Base DayOffRequest Type
+// ✅ DayOffRequest Type
 export interface DayOffRequest {
   _id?: string
   id?: ID
@@ -15,35 +14,49 @@ export interface DayOffRequest {
   date_off_number: number
   title: string
   status: 'Pending' | 'Accepted' | 'Rejected'
-  reason?: string
   created_at?: Date | string
   updated_at?: Date | string
 }
 
-// ✅ Formatted Request สำหรับตาราง - EXTENDS DayOffRequest
-export interface FormattedDayOffRequest extends DayOffRequest {
+// ✅ Formatted Request สำหรับตาราง
+export interface FormattedDayOffRequest {
   _id: string
+  id?: string
+  user_id: string
   user_name: string
+  employee_id: string
   employee_name: string
   employee_email: string
+  supervisor_id: string | string[]
   supervisor_name: string | string[]
-  supervisor_email?: string | string[]
-  department_name: any
+  supervisor_email: string | string[]
+  department_name: string
+  position_name: string
+  employee_department?: string
+  employee_position?: string
+  supervisor_department?: string | string[]
+  supervisor_position?: string | string[]
+  day_off_type: 'FULL_DAY' | 'HALF_DAY'
+  start_date_time: Date | string
+  end_date_time: Date | string
+  date_off_number: number
+  title: string
+  status: 'Pending' | 'Accepted' | 'Rejected'
+  created_at: Date | string
   statusColor: 'warning' | 'success' | 'danger'
   day_off_type_label: string
 }
 
-// ✅ Request DTO สำหรับการสร้าง - แก้ไขเพิ่ม date_off_number
+// ✅ Request DTO สำหรับการสร้าง
 export interface DayOffRequestDTO {
   user_id: string
-  supervisor_id: string | string[];
+  supervisor_id: string | string[]
   employee_id: string
   day_off_type: 'FULL_DAY' | 'HALF_DAY'
   start_date_time: string
   end_date_time: string
   date_off_number: number
   title: string
-  reason?: string
 }
 
 // ✅ สำหรับการอัพเดตสถานะ
@@ -79,6 +92,10 @@ export const initialDayOffRequest: DayOffRequestDTO = {
   title: '',
 }
 
+export interface RequestData{
+  
+}
+
 // ✅ Status Options สำหรับ Dropdown
 export const statusOptions = [
   { value: 'Pending', label: 'Pending', color: 'warning' },
@@ -93,35 +110,84 @@ export const dayOffTypeOptions = [
 ]
 
 // ✅ Helper Functions
-export const formatDayOffRequest = (request: DayOffRequest): FormattedDayOffRequest => {
-  // Extract user info
-  const extractUserInfo = (userField: any) => {
-    if (!userField) {
-      return { id: '', name: 'Unknown', email: '' }
+export const extractUserInfo = (userField: any) => {
+  if (!userField) {
+    return { 
+      id: '', 
+      name: 'Unknown', 
+      email: '',
+      department: 'N/A',
+      position: 'N/A'
     }
+  }
 
-    if (typeof userField === 'string') {
-      return { id: userField, name: 'N/A', email: '' }
+  if (typeof userField === 'string') {
+    return { 
+      id: userField, 
+      name: 'N/A', 
+      email: '',
+      department: 'N/A',
+      position: 'N/A'
     }
+  }
 
-    if (userField && typeof userField === 'object' && userField._bsontype === 'ObjectId') {
-      return { id: userField.toString(), name: 'N/A', email: '' }
+  // ถ้าเป็น ObjectId object
+  if (userField && typeof userField === 'object' && userField._bsontype === 'ObjectId') {
+    return { 
+      id: userField.toString(), 
+      name: 'N/A', 
+      email: '',
+      department: 'N/A',
+      position: 'N/A'
     }
+  }
 
-    if (userField && typeof userField === 'object') {
-      return {
-        id: userField.id || userField._id || '',
-        name: userField.user_name ||
-          `${userField.first_name_en || ''} ${userField.last_name_en || ''}`.trim() ||
-          userField.name ||
-          'Unknown',
-        email: userField.user_email || userField.email || ''
+  // ถ้าเป็น User object ที่ populate มาแล้ว
+  if (userField && typeof userField === 'object') {
+    // ดึงข้อมูล department
+    let departmentName = 'N/A'
+    if (userField.department_id) {
+      if (Array.isArray(userField.department_id)) {
+        departmentName = userField.department_id[0]?.department_name || 'N/A'
+      } else if (userField.department_id?.department_name) {
+        departmentName = userField.department_id.department_name
+      } else if (typeof userField.department_id === 'string') {
+        departmentName = userField.department_id
       }
     }
 
-    return { id: '', name: 'Unknown', email: '' }
+    // ดึงข้อมูล position
+    let positionName = 'N/A'
+    if (userField.position_id) {
+      if (typeof userField.position_id === 'object') {
+        positionName = userField.position_id.position_name || 'N/A'
+      } else if (typeof userField.position_id === 'string') {
+        positionName = userField.position_id
+      }
+    }
+
+    return {
+      id: userField.id || userField._id || '',
+      name: userField.user_name ||
+        `${userField.first_name_en || ''} ${userField.last_name_en || ''}`.trim() ||
+        userField.name ||
+        'Unknown',
+      email: userField.user_email || userField.email || '',
+      department: departmentName,
+      position: positionName
+    }
   }
 
+  return { 
+    id: '', 
+    name: 'Unknown', 
+    email: '',
+    department: 'N/A',
+    position: 'N/A'
+  }
+}
+
+export const formatDayOffRequest = (request: DayOffRequest): FormattedDayOffRequest => {
   // Extract employee info
   const employeeInfo = extractUserInfo(request.employee_id)
 
@@ -146,36 +212,96 @@ export const formatDayOffRequest = (request: DayOffRequest): FormattedDayOffRequ
     }
   }
 
-  // สร้าง department name จาก supervisor หรือ employee info
-  const getDepartmentName = (): string | string[] => {
-    // ตัวอย่าง: ถ้ามี department data ให้ดึงจากที่นี่
-    // ตอนนี้ใช้ supervisor IDs เป็น placeholder
-    if (Array.isArray(supervisorInfo)) {
-      return supervisorInfo.map(s => s.id)
-    }
-    return supervisorInfo.id
-  }
-
-  const formatted: FormattedDayOffRequest = {
-    // คัดลอก properties จาก DayOffRequest
-    ...request,
+  return {
     _id: request._id || request.id || '',
-    id: request.id || request._id,
-    
-    // เพิ่ม formatted properties
+    id: request._id || request.id || '',
+    user_id: userInfo.id,
     user_name: userInfo.name,
+    employee_id: employeeInfo.id,
     employee_name: employeeInfo.name,
     employee_email: employeeInfo.email,
+    employee_department: employeeInfo.department,
+    employee_position: employeeInfo.position,
+    supervisor_id: Array.isArray(supervisorInfo)
+      ? supervisorInfo.map(s => s.id)
+      : supervisorInfo.id,
     supervisor_name: Array.isArray(supervisorInfo)
       ? supervisorInfo.map(s => s.name).join(', ')
       : supervisorInfo.name,
     supervisor_email: Array.isArray(supervisorInfo)
       ? supervisorInfo.map(s => s.email).join(', ')
       : supervisorInfo.email,
-    department_name: getDepartmentName(),
+    supervisor_department: Array.isArray(supervisorInfo)
+      ? supervisorInfo.map(s => s.department).join(', ')
+      : supervisorInfo.department,
+    supervisor_position: Array.isArray(supervisorInfo)
+      ? supervisorInfo.map(s => s.position).join(', ')
+      : supervisorInfo.position,
+    day_off_type: request.day_off_type,
+    start_date_time: request.start_date_time,
+    end_date_time: request.end_date_time,
+    date_off_number: request.date_off_number || 0,
+    title: request.title,
+    status: request.status,
+    created_at: request.created_at || new Date(),
     statusColor: getStatusColor(request.status),
-    day_off_type_label: request.day_off_type === 'FULL_DAY' ? 'Full Day' : 'Half Day'
+    day_off_type_label: request.day_off_type === 'FULL_DAY' ? 'Full Day' : 'Half Day',
+    // สำหรับ backward compatibility
+    department_name: employeeInfo.department,
+    position_name: employeeInfo.position
+  }
+}
+
+// ✅ Calculate date off number
+export const calculateDateOffNumber = (
+  dayOffType: 'FULL_DAY' | 'HALF_DAY',
+  startDate: Date,
+  endDate: Date
+): number => {
+  if (dayOffType === 'HALF_DAY') {
+    return 0.5
   }
 
-  return formatted
+  if (dayOffType === 'FULL_DAY') {
+    const diffTime = endDate.getTime() - startDate.getTime()
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays + 1 // inclusive
+  }
+
+  return 0
+}
+
+// ✅ Filter functions
+export const filterRequestsByStatus = (
+  requests: FormattedDayOffRequest[],
+  status: string
+): FormattedDayOffRequest[] => {
+  if (!status || status === 'All') return requests
+  return requests.filter(req => req.status === status)
+}
+
+export const sortRequestsByDate = (
+  requests: FormattedDayOffRequest[],
+  order: 'asc' | 'desc' = 'desc'
+): FormattedDayOffRequest[] => {
+  return [...requests].sort((a, b) => {
+    const dateA = new Date(a.created_at).getTime()
+    const dateB = new Date(b.created_at).getTime()
+    return order === 'asc' ? dateA - dateB : dateB - dateA
+  })
+}
+
+// ✅ Debug helper
+export const debugRequestData = (request: any, label: string = 'Request') => {
+  console.log(`🔍 ${label} Debug:`, {
+    _id: request._id,
+    employee_id: request.employee_id,
+    employee_name: request.employee_name,
+    employee_department: request.employee_department,
+    department_name: request.department_name,
+    supervisor_name: request.supervisor_name,
+    supervisor_type: typeof request.supervisor_name,
+    isArray: Array.isArray(request.supervisor_name),
+    fullRequest: request
+  })
 }

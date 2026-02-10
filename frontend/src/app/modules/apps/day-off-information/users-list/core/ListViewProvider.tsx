@@ -1,72 +1,77 @@
 /* eslint-disable react-refresh/only-export-components */
-import {FC, useState, createContext, useContext, useMemo} from 'react'
+import { FC, useState, createContext, useContext, useMemo } from 'react'
 import {
   ID,
-  calculatedGroupingIsDisabled,
-  calculateIsAllDataSelected,
   groupingOnSelect,
   initialListView,
   ListViewContextProps,
   groupingOnSelectAll,
   WithChildren,
 } from '../../../../../../_metronic/helpers'
-import {useQueryResponse, useQueryResponseData} from './QueryResponseProvider'
 
 // ✅ Import Modal components
 import { DayOffRequestEditModalForm } from '../user-edit-modal/UserEditModalForm'
 import { DayOffRequestViewModalForm } from '../user-edit-modal/Dayoff-deatils'
-import { DayOffRequestDeleteModal } from '../user-edit-modal/UserDeleteModal' // ✅ Import Delete Modal
+import { DayOffRequestDeleteModal } from '../user-edit-modal/UserDeleteModal'
 
-const ListViewContext = createContext<ListViewContextProps>(initialListView)
+const ListViewContext = createContext<ListViewContextProps & { refreshKey: number; refreshTable: () => void }>(
+  { ...initialListView, refreshKey: 0, refreshTable: () => { } }
+)
 
-const ListViewProvider: FC<WithChildren> = ({children}) => {
+const ListViewProvider: FC<WithChildren> = ({ children }) => {
   const [selected, setSelected] = useState<Array<ID>>(initialListView.selected)
   const [itemIdForUpdate, setItemIdForUpdate] = useState<ID>(initialListView.itemIdForUpdate)
   const [itemIdForDetail, setItemIdForDetail] = useState<ID>(initialListView.itemIdForDetail)
-  const [itemIdForDelete, setItemIdForDelete] = useState<ID>(initialListView.itemIdForDelete) // ✅ Add delete state
-  
-  const {isLoading} = useQueryResponse()
-  const data = useQueryResponseData()
-  const disabled = useMemo(() => calculatedGroupingIsDisabled(isLoading, data), [isLoading, data])
-  const isAllSelected = useMemo(() => calculateIsAllDataSelected(data, selected), [data, selected])
-  
+  const [itemIdForDelete, setItemIdForDelete] = useState<ID>(initialListView.itemIdForDelete)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const refreshTable = () => setRefreshKey(prev => prev + 1)
+
+  const disabled = useMemo(() => false, []) // ตัวอย่าง
+  const isAllSelected = useMemo(() => false, [])
+
   return (
     <ListViewContext.Provider
       value={{
         selected,
         itemIdForUpdate,
         itemIdForDetail,
-        itemIdForDelete, // ✅ Add to context value
+        itemIdForDelete,
         setItemIdForUpdate,
         setItemIdForDetail,
-        setItemIdForDelete, // ✅ Add setter to context value
+        setItemIdForDelete,
         disabled,
         isAllSelected,
+        refreshKey,
+        refreshTable,
         onSelect: (id: ID) => {
           groupingOnSelect(id, selected, setSelected)
         },
         onSelectAll: () => {
-          groupingOnSelectAll(isAllSelected, setSelected, data)
+          groupingOnSelectAll(isAllSelected, setSelected, [])
         },
-        clearSelected: () => {
-          setSelected([])
-        },
+        clearSelected: () => setSelected([]),
       }}
     >
       {children}
-      
-      {/* ✅ Render Edit Modal เมื่อมี itemIdForUpdate */}
+
+      {/* Edit Modal */}
       {itemIdForUpdate && (
-        <div className="modal fade show">
+        <div className="">
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
-              <DayOffRequestEditModalForm />
+              <DayOffRequestEditModalForm
+                onSuccess={() => {
+                  refreshTable()            // โหลด table ใหม่
+                  setItemIdForUpdate(null)  // ปิด modal
+                }}
+              />
             </div>
           </div>
         </div>
       )}
-      
-      {/* ✅ Render View Modal เมื่อมี itemIdForDetail */}
+
+      {/* View Modal */}
       {itemIdForDetail && (
         <div className="modal fade show d-block">
           <div className="modal-dialog modal-lg">
@@ -76,8 +81,8 @@ const ListViewProvider: FC<WithChildren> = ({children}) => {
           </div>
         </div>
       )}
-      
-      {/* ✅ Render Delete Modal เมื่อมี itemIdForDelete */}
+
+      {/* Delete Modal */}
       {itemIdForDelete && (
         <div className="modal fade show d-block">
           <div className="modal-dialog modal-dialog-centered">
@@ -93,4 +98,4 @@ const ListViewProvider: FC<WithChildren> = ({children}) => {
 
 const useListView = () => useContext(ListViewContext)
 
-export {ListViewProvider, useListView}
+export { ListViewProvider, useListView }

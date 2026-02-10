@@ -8,7 +8,7 @@ import Swal from 'sweetalert2'
 import { useListView } from '../core/ListViewProvider'
 import { DayOffRequestDTO } from '../core/_models'
 import { createDayOffRequest, getDayOffRequestById, updateDayOffRequest } from '../core/_requests'
-
+import { useQueryResponse } from '../core/QueryResponseProvider'
 /* -------------------- Types -------------------- */
 interface Department {
   _id?: string
@@ -67,6 +67,10 @@ interface LeaveFormValues {
   date_off_number: number
   half_day_period?: 'morning' | 'afternoon'
   reason?: string
+}
+
+interface Props {
+  onSuccess?: () => void
 }
 
 /* -------------------- Constants -------------------- */
@@ -222,7 +226,7 @@ const handleSubmitError = (error: any) => {
 }
 
 /* -------------------- Component -------------------- */
-export const DayOffRequestEditModalForm: FC = () => {
+export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
   /* -------------------- State -------------------- */
   const [departments, setDepartments] = useState<Department[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -235,10 +239,12 @@ export const DayOffRequestEditModalForm: FC = () => {
   const [isLoadingRequest, setIsLoadingRequest] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [currentRequestId, setCurrentRequestId] = useState<string | undefined>(undefined)
-
+  const [hasDateConflict, setHasDateConflict] = useState(false)
+  const [isCheckingConflict, setIsCheckingConflict] = useState(false)
+  const [canSubmit, setCanSubmit] = useState(false)
   const { itemIdForUpdate, setItemIdForUpdate } = useListView()
+  const { refetch } = useQueryResponse()
   const currentMonthRange = useMemo(() => getCurrentMonthRange(), [])
-
   /* -------------------- Formik -------------------- */
   const formik = useFormik<LeaveFormValues>({
     initialValues: {
@@ -327,7 +333,7 @@ export const DayOffRequestEditModalForm: FC = () => {
 
   const validateDateRange = useCallback((): boolean => {
     if (formik.values.day_off_type === 'FULL_DAY') {
-      if (!formik.values.start_date || !formik.values.end_date) return true
+      if (!formik.values.start_date || !formik.values.end_date) return false
 
       const start = new Date(formik.values.start_date)
       const end = new Date(formik.values.end_date)
@@ -431,7 +437,7 @@ export const DayOffRequestEditModalForm: FC = () => {
     excludeRequestId?: string
   ): Promise<{ hasConflict: boolean; conflicts?: any[] }> => {
     try {
-      const response = await axios.get(`${API_URL}/day-off-requests`, {
+      const response = await axios.get(`${API_URL}/day-off-requests/check-conflict`, {
         params: { employee_id: employeeId, status: ['Pending', 'Accepted'] },
       })
 
@@ -488,7 +494,7 @@ export const DayOffRequestEditModalForm: FC = () => {
         params.type = 'full_day'
       }
 
-      const response = await axios.get(`${API_URL}/day-off-requests/check-conflict`, {
+      const response = await axios.get(`${API_URL}/day-off-requests/user/${employeeId}`, {
         params,
         timeout: 5000,
       })
@@ -501,6 +507,32 @@ export const DayOffRequestEditModalForm: FC = () => {
       return await checkLocalDateOverlap(employeeId, startDate, endDate, dayOffType, excludeRequestId)
     }
   }
+
+  /* -------------------- Form Validation -------------------- */
+  const isFormComplete = useCallback((): boolean => {
+    const {
+      department_id,
+      employee_id,
+      supervisor_id,
+      day_off_type,
+      start_date,
+      end_date,
+      half_day_date,
+      half_day_period
+    } = formik.values
+
+    // Check required fields
+    if (!department_id || !employee_id || !supervisor_id || !day_off_type) {
+      return false
+    }
+
+    // Check date fields based on day off type
+    if (day_off_type === 'FULL_DAY') {
+      return !!(start_date && end_date)
+    } else {
+      return !!(half_day_date && half_day_period)
+    }
+  }, [formik.values])
 
   /* -------------------- Form Submission Handler -------------------- */
   async function handleFormSubmit(values: LeaveFormValues, { resetForm }: any) {
@@ -569,60 +601,66 @@ export const DayOffRequestEditModalForm: FC = () => {
         }
       }
 
-      // Check for conflicts (only for create mode)
-      if (!isEditMode) {
-        const loadingToast = toast.loading('Checking for existing day off requests...')
-        let conflictResult
+      // Check for conflicts (both create and edit modes)
+      const loadingToast = toast.loading('Checking for existing day off requests...')
+      let conflictResult
 
-        try {
-          conflictResult = await checkExistingDayOff(
-            values.employee_id,
-            values.day_off_type === 'HALF_DAY' ? values.half_day_date : values.start_date,
-            values.day_off_type === 'FULL_DAY' ? values.end_date : undefined,
-            values.day_off_type,
-            currentRequestId
-          )
-        } finally {
-          toast.dismiss(loadingToast)
-        }
+      try {
+        conflictResult = await checkExistingDayOff(
+          values.employee_id,
+          values.day_off_type === 'HALF_DAY' ? values.half_day_date : values.start_date,
+          values.day_off_type === 'FULL_DAY' ? values.end_date : undefined,
+          values.day_off_type,
+          isEditMode ? currentRequestId : undefined
+        )
+      } finally {
+        toast.dismiss(loadingToast)
+      }
 
-        if (conflictResult.hasConflict) {
-          let conflictMessage = ''
+      if (conflictResult.hasConflict) {
+        let conflictMessage = ''
 
-          if (conflictResult.conflicts && conflictResult.conflicts.length > 0) {
-            const conflict = conflictResult.conflicts[0]
-            if (values.day_off_type === 'HALF_DAY') {
-              const conflictDate = new Date(conflict.start_date_time).toLocaleDateString()
-              const conflictType = conflict.day_off_type === 'HALF_DAY' ? 'half day' : 'full day'
-              conflictMessage = `You already have a ${conflictType} request on ${conflictDate}`
-            } else {
-              const startDate = new Date(conflict.start_date_time).toLocaleDateString()
-              const endDate = new Date(conflict.end_date_time).toLocaleDateString()
-              conflictMessage = `You already have a day off request from ${startDate} to ${endDate}`
+        if (conflictResult.conflicts && conflictResult.conflicts.length > 0) {
+          const conflict = conflictResult.conflicts[0]
+          if (values.day_off_type === 'HALF_DAY') {
+            const conflictDate = new Date(conflict.start_date_time).toLocaleDateString()
+            const conflictType = conflict.day_off_type === 'HALF_DAY' ? 'half day' : 'full day'
+            conflictMessage = `You already have a ${conflictType} request on ${conflictDate}`
+
+            // Additional check for same half-day period
+            if (conflict.day_off_type === 'HALF_DAY') {
+              const conflictPeriod = getHalfDayPeriodFromTime(conflict.start_date_time)
+              if (conflictPeriod === values.half_day_period) {
+                conflictMessage = `You already have a ${values.half_day_period} half-day request on ${conflictDate}`
+              }
             }
           } else {
-            conflictMessage =
-              values.day_off_type === 'HALF_DAY'
-                ? `You already have a day off request for ${new Date(values.half_day_date).toLocaleDateString()}`
-                : `You already have a day off request that overlaps with the selected period`
+            const startDate = new Date(conflict.start_date_time).toLocaleDateString()
+            const endDate = new Date(conflict.end_date_time).toLocaleDateString()
+            conflictMessage = `You already have a day off request from ${startDate} to ${endDate}`
           }
-
-          await Swal.fire({
-            icon: 'warning',
-            title: 'Duplicate Request',
-            html: `
-              <div class="text-start">
-                <p>${conflictMessage}</p>
-                <p class="text-muted mt-2">Please select different dates.</p>
-              </div>
-            `,
-            confirmButtonText: 'OK',
-            confirmButtonColor: '#3085d6',
-          })
-
-          setIsSubmitting(false)
-          return
+        } else {
+          conflictMessage =
+            values.day_off_type === 'HALF_DAY'
+              ? `You already have a day off request for ${new Date(values.half_day_date).toLocaleDateString()}`
+              : `You already have a day off request that overlaps with the selected period`
         }
+
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Duplicate Request',
+          html: `
+            <div class="text-start">
+              <p>${conflictMessage}</p>
+              <p class="text-muted mt-2">Please select different dates.</p>
+            </div>
+          `,
+          confirmButtonText: 'OK',
+          confirmButtonColor: '#3085d6',
+        })
+
+        setIsSubmitting(false)
+        return
       }
 
       // Prepare DTO
@@ -645,8 +683,9 @@ export const DayOffRequestEditModalForm: FC = () => {
 
       // Submit request
       let result
+      // Submit request
       if (isEditMode && currentRequestId) {
-        result = await updateDayOffRequest(currentRequestId, dayOffRequestDTO)
+        await updateDayOffRequest(currentRequestId, dayOffRequestDTO)
         await Swal.fire({
           icon: 'success',
           title: 'Success',
@@ -656,7 +695,7 @@ export const DayOffRequestEditModalForm: FC = () => {
           background: '#f8f9fa',
         })
       } else {
-        result = await createDayOffRequest(dayOffRequestDTO)
+        await createDayOffRequest(dayOffRequestDTO)
         await Swal.fire({
           icon: 'success',
           title: 'Success',
@@ -667,11 +706,17 @@ export const DayOffRequestEditModalForm: FC = () => {
         })
       }
 
-      // Reset form
+      // Reset form and refresh table
       resetForm()
       setItemIdForUpdate(undefined)
       setIsEditMode(false)
       setCurrentRequestId(undefined)
+      setHasDateConflict(false)
+
+      // ✅ Refresh table here
+      await refetch()
+      // Call external onSuccess callback if any
+      if (onSuccess) onSuccess()
     } catch (error: any) {
       handleSubmitError(error)
     } finally {
@@ -690,39 +735,51 @@ export const DayOffRequestEditModalForm: FC = () => {
         if (departments.length === 0) await fetchDepartments()
         if (employees.length === 0) await fetchEmployees()
 
+        // Helper function to extract string ID from various possible types
+        const extractId = (obj: any): string => {
+          if (!obj) return ''
+          if (typeof obj === 'string') return obj
+          if (typeof obj === 'object') {
+            return obj.id || obj._id || ''
+          }
+          return String(obj)
+        }
+
+        // Get employee ID - handle both string and object types
+        const employeeId = extractId(requestData.employee_id)
+
         // Get employee data
         const employee = employees.find(
-          (emp) => emp._id === requestData.employee_id || emp.id === requestData.employee_id
+          (emp) => emp._id === employeeId || emp.id === employeeId
         )
+
         let departmentId = ''
 
         if (employee) {
           if (Array.isArray(employee.department_id) && employee.department_id.length > 0) {
-            departmentId = employee.department_id[0]._id || employee.department_id[0].id || ''
+            departmentId = extractId(employee.department_id[0])
           } else if (typeof employee.department_id === 'string') {
             departmentId = employee.department_id
+          } else if (employee.department_id && typeof employee.department_id === 'object') {
+            departmentId = extractId(employee.department_id)
           }
         }
 
         if (!departmentId && requestData.department_name) {
           const dept = departments.find((d) => d.department_name === requestData.department_name)
-          departmentId = dept?._id || dept?.id || ''
+          departmentId = extractId(dept)
         }
 
-        // Get supervisor ID
+        // Get supervisor ID - handle array of supervisors
         let supervisorId = ''
         if (requestData.supervisor_id) {
           if (Array.isArray(requestData.supervisor_id)) {
             const firstSupervisor = requestData.supervisor_id[0]
             if (firstSupervisor) {
-              if (typeof firstSupervisor === 'string') {
-                supervisorId = firstSupervisor
-              } else if (firstSupervisor.id || firstSupervisor.id) {
-                supervisorId = firstSupervisor.id || firstSupervisor.id || ''
-              }
+              supervisorId = extractId(firstSupervisor)
             }
-          } else if (typeof requestData.supervisor_id === 'string') {
-            supervisorId = requestData.supervisor_id
+          } else {
+            supervisorId = extractId(requestData.supervisor_id)
           }
         }
 
@@ -742,7 +799,7 @@ export const DayOffRequestEditModalForm: FC = () => {
         // Set form values
         const formValues: LeaveFormValues = {
           department_id: departmentId,
-          employee_id: requestData.employee_id?.toString() || '',
+          employee_id: employeeId,
           work_period: '',
           supervisor_id: supervisorId,
           leave_type: '',
@@ -756,8 +813,45 @@ export const DayOffRequestEditModalForm: FC = () => {
         }
 
         formik.setValues(formValues)
+
+        // Set the current request ID for edit mode
+        setCurrentRequestId(requestId)
+        setIsEditMode(true)
+
+        // Check for conflicts with other requests (excluding current one)
+        try {
+          const checkConflictResult = await checkExistingDayOff(
+            employeeId,
+            requestData.day_off_type === 'HALF_DAY'
+              ? startDate
+              : startDate,
+            requestData.day_off_type === 'FULL_DAY'
+              ? endDate
+              : undefined,
+            requestData.day_off_type,
+            requestId
+          )
+
+          if (checkConflictResult.hasConflict) {
+            // Show warning but don't prevent loading
+            toast.warning(
+              <div>
+                <strong>Note:</strong> There are other day off requests that conflict with these dates.
+                <br />
+                <small>You may need to adjust dates to avoid overlap.</small>
+              </div>,
+              { autoClose: 3000 }
+            )
+          }
+
+          setHasDateConflict(checkConflictResult.hasConflict)
+        } catch (error) {
+          console.debug('Conflict check during load failed:', error)
+          setHasDateConflict(false)
+        }
       }
     } catch (error) {
+      console.error('Error loading request data:', error)
       toast.error('Failed to load request data')
     } finally {
       setIsLoadingRequest(false)
@@ -774,12 +868,11 @@ export const DayOffRequestEditModalForm: FC = () => {
   useEffect(() => {
     if (itemIdForUpdate) {
       loadRequestData(itemIdForUpdate)
-      setIsEditMode(true)
-      setCurrentRequestId(itemIdForUpdate)
     } else {
       setIsEditMode(false)
       setCurrentRequestId(undefined)
       formik.resetForm()
+      setHasDateConflict(false)
     }
   }, [itemIdForUpdate])
 
@@ -824,442 +917,423 @@ export const DayOffRequestEditModalForm: FC = () => {
     }
   }, [formik.values.day_off_type, isEditMode])
 
+  // Check for date conflicts in real-time
   useEffect(() => {
-    if (isEditMode) return
+    const checkForConflicts = async () => {
+      const { employee_id, day_off_type, start_date, end_date, half_day_date } = formik.values
 
-    const validateDates = async () => {
-      if (!formik.values.employee_id) return
+      if (!employee_id || !day_off_type) {
+        setHasDateConflict(false)
+        return
+      }
 
-      toast.dismiss()
+      let hasConflict = false
 
       try {
-        let result
-
-        if (formik.values.day_off_type === 'FULL_DAY' && formik.values.start_date && formik.values.end_date) {
-          const startDate = new Date(formik.values.start_date)
-          const endDate = new Date(formik.values.end_date)
-
-          if (endDate < startDate) {
-            toast.warning('End date cannot be before start date')
-            return
-          }
-
-          result = await checkExistingDayOff(
-            formik.values.employee_id,
-            formik.values.start_date,
-            formik.values.end_date,
-            'FULL_DAY'
+        if (day_off_type === 'FULL_DAY' && start_date && end_date) {
+          const result = await checkExistingDayOff(
+            employee_id,
+            start_date,
+            end_date,
+            'FULL_DAY',
+            isEditMode ? currentRequestId : undefined
           )
-
-          if (result.hasConflict && result.conflicts && result.conflicts.length > 0) {
-            const conflictCount = result.conflicts.length
-            toast.warning(
-              <div>
-                <strong>Warning:</strong> You have {conflictCount} conflicting day off request(s)
-                <br />
-                <small>Please select different dates</small>
-              </div>,
-              { autoClose: 5000, closeOnClick: false, draggable: false }
-            )
-          }
-        } else if (formik.values.day_off_type === 'HALF_DAY' && formik.values.half_day_date) {
-          result = await checkExistingDayOff(
-            formik.values.employee_id,
-            formik.values.half_day_date,
+          hasConflict = result.hasConflict
+        } else if (day_off_type === 'HALF_DAY' && half_day_date) {
+          const result = await checkExistingDayOff(
+            employee_id,
+            half_day_date,
             undefined,
-            'HALF_DAY'
+            'HALF_DAY',
+            isEditMode ? currentRequestId : undefined
           )
-
-          if (result.hasConflict && result.conflicts && result.conflicts.length > 0) {
-            const conflict = result.conflicts[0]
-            const conflictDate = new Date(conflict.start_date_time).toLocaleDateString()
-
-            toast.warning(
-              <div>
-                <strong>Warning:</strong> You already have a day off request on {conflictDate}
-                <br />
-                <small>Please select a different date</small>
-              </div>,
-              { autoClose: 5000, closeOnClick: false, draggable: false }
-            )
-          }
+          hasConflict = result.hasConflict
         }
       } catch (error) {
-        console.debug('Background conflict check failed:', error)
+        console.debug('Conflict check failed:', error)
+        hasConflict = false
       }
+
+      setHasDateConflict(hasConflict)
     }
 
-    const timeoutId = setTimeout(validateDates, 1000)
+    const timeoutId = setTimeout(checkForConflicts, 500)
     return () => clearTimeout(timeoutId)
   }, [
     formik.values.employee_id,
+    formik.values.day_off_type,
     formik.values.start_date,
     formik.values.end_date,
     formik.values.half_day_date,
-    formik.values.day_off_type,
     isEditMode,
+    currentRequestId
   ])
+
+  // Update canSubmit based on form state
+  useEffect(() => {
+    const checkIfCanSubmit = () => {
+      const isComplete = isFormComplete()
+      const isValid = formik.isValid
+      const hasNoConflicts = !hasDateConflict
+
+      setCanSubmit(isComplete && isValid && hasNoConflicts && !isSubmitting)
+    }
+
+    checkIfCanSubmit()
+  }, [formik.values, formik.isValid, hasDateConflict, isSubmitting, isFormComplete])
 
   /* -------------------- Render -------------------- */
   return (
     <>
-      {isLoadingRequest && (
-        <div className="text-center py-10">
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="mt-3">Loading request data...</p>
-        </div>
-      )}
-
-      {!isLoadingRequest && (
-        <form className="form" onSubmit={formik.handleSubmit} noValidate>
-          <div>
-            <div className="card-body">
-              {/* Modal Title */}
-              <div className="mb-10">
-                <h2 className="fw-bold text-gray-900">
-                  {isEditMode ? 'Edit Day Off Request' : 'Create Day Off Request'}
-                </h2>
-                <p className="text-muted">
-                  {isEditMode
-                    ? 'Update the day off request details below.'
-                    : 'Fill in the details below to create a new day off request.'}
-                </p>
-              </div>
-
-              {/* Department */}
-              <div className="fv-row mb-10">
-                <label className="required fs-6 fw-bold mb-2">Department</label>
-                <div className="d-flex align-items-center gap-3">
-                  <select
-                    {...formik.getFieldProps('department_id')}
-                    className={clsx('form-select form-select-solid', {
-                      'is-invalid': formik.touched.department_id && formik.errors.department_id,
-                    })}
-                    disabled={loadingDepartments || isSubmitting}
-                    value={formik.values.department_id || ''}
-                    onChange={(e) => formik.setFieldValue('department_id', e.target.value)}
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map((dept) => (
-                      <option key={dept._id || dept.id} value={dept._id || dept.id}>
-                        {dept.department_name}
-                      </option>
-                    ))}
-                  </select>
-                  {loadingDepartments && <span className="spinner-border spinner-border-sm text-primary"></span>}
-                </div>
-                {formik.touched.department_id && formik.errors.department_id && (
-                  <div className="fv-plugins-message-container">
-                    <div className="fv-help-block text-danger">{formik.errors.department_id}</div>
-                  </div>
-                )}
-                {isEditMode && formik.values.department_id && (
-                  <small className="text-muted">
-                    Current:{' '}
-                    {(() => {
-                      const currentDept = departments.find(
-                        (d) => d._id === formik.values.department_id || d.id === formik.values.department_id
-                      )
-                      if (currentDept) return currentDept.department_name
-                      if (loadingDepartments) return 'Loading...'
-                      return `ID: ${formik.values.department_id}`
-                    })()}
-                  </small>
-                )}
-              </div>
-
-              {/* Employee */}
-              <div className="fv-row mb-10">
-                <label className="required fs-6 fw-bold mb-2">Employee</label>
-                <div className="d-flex align-items-center gap-3">
-                  <select
-                    {...formik.getFieldProps('employee_id')}
-                    className={clsx('form-select form-select-solid', {
-                      'is-invalid': formik.touched.employee_id && formik.errors.employee_id,
-                    })}
-                    disabled={loadingEmployees || isSubmitting}
-                    value={formik.values.employee_id || ''}
-                    onChange={(e) => formik.setFieldValue('employee_id', e.target.value)}
-                  >
-                    <option value="">Select Employee</option>
-                    {employees.map((employee) => (
-                      <option key={employee._id || employee.id} value={employee._id || employee.id}>
-                        {getEmployeeName(employee)} - {getEmployeeDepartment(employee)}
-                      </option>
-                    ))}
-                  </select>
-                  {loadingEmployees && <span className="spinner-border spinner-border-sm text-primary"></span>}
-                </div>
-                {formik.touched.employee_id && formik.errors.employee_id && (
-                  <div className="fv-plugins-message-container">
-                    <div className="fv-help-block text-danger">{formik.errors.employee_id}</div>
-                  </div>
-                )}
-                {isEditMode && formik.values.employee_id && (
-                  <small className="text-muted">
-                    Current employee:{' '}
-                    {(() => {
-                      const currentEmployee = employees.find(
-                        (e) => e._id === formik.values.employee_id || e.id === formik.values.employee_id
-                      )
-                      return getEmployeeName(currentEmployee)
-                    })()}
-                  </small>
-                )}
-              </div>
-
-              {/* Supervisor */}
-              <div className="fv-row mb-10">
-                <label className="required fs-6 fw-bold mb-2">Supervisor</label>
-                <div className="d-flex align-items-center gap-3">
-                  <select
-                    {...formik.getFieldProps('supervisor_id')}
-                    className={clsx('form-select form-select-solid', {
-                      'is-invalid': formik.touched.supervisor_id && formik.errors.supervisor_id,
-                    })}
-                    disabled={loadingSupervisors || isSubmitting}
-                    value={formik.values.supervisor_id || ''}
-                    onChange={(e) => formik.setFieldValue('supervisor_id', e.target.value)}
-                  >
-                    <option value="">Select Supervisor</option>
-                    {supervisors.map((sup) => (
-                      <option key={sup._id || sup.id} value={sup._id || sup.id}>
-                        {getSupervisorName(sup)} ({getSupervisorDepartment(sup)})
-                      </option>
-                    ))}
-                  </select>
-                  {loadingSupervisors && <span className="spinner-border spinner-border-sm text-primary"></span>}
-                </div>
-                {formik.touched.supervisor_id && formik.errors.supervisor_id && (
-                  <div className="fv-plugins-message-container">
-                    <div className="fv-help-block text-danger">{formik.errors.supervisor_id}</div>
-                  </div>
-                )}
-                {isEditMode && formik.values.supervisor_id && (
-                  <small className="text-muted">
-                    Current supervisor:{' '}
-                    {(() => {
-                      const currentSupervisor = supervisors.find(
-                        (s) => s._id === formik.values.supervisor_id || s.id === formik.values.supervisor_id
-                      )
-                      return getSupervisorName(currentSupervisor)
-                    })()}
-                  </small>
-                )}
-              </div>
-
-              {/* Day off Type */}
-              <div className="fv-row mb-10">
-                <label className="required fs-6 fw-bold mb-2">Day off Type</label>
-                <div className="d-flex flex-wrap gap-4">
-                  {['FULL_DAY', 'HALF_DAY'].map((type) => (
-                    <div key={type} className="form-check form-check-custom form-check-solid">
-                      <input
-                        className="form-check-input"
-                        type="radio"
-                        name="day_off_type"
-                        id={`type-${type}`}
-                        value={type}
-                        checked={formik.values.day_off_type === type}
-                        onChange={formik.handleChange}
-                        disabled={isSubmitting}
-                      />
-                      <label className="form-check-label fw-semibold" htmlFor={`type-${type}`}>
-                        {type === 'FULL_DAY' ? 'Full Day' : 'Half Day'}
-                      </label>
-                    </div>
+      <form className="form" onSubmit={formik.handleSubmit} noValidate>
+        <div>
+          <div className="card-body">
+            {/* Department */}
+            <div className="fv-row mb-10">
+              <label className="required fs-6 fw-bold mb-2">Department</label>
+              <div className="d-flex align-items-center gap-3">
+                <select
+                  {...formik.getFieldProps('department_id')}
+                  className={clsx('form-select form-select-solid', {
+                    'is-invalid': formik.touched.department_id && formik.errors.department_id,
+                  })}
+                  disabled={loadingDepartments || isSubmitting}
+                  value={formik.values.department_id || ''}
+                  onChange={(e) => formik.setFieldValue('department_id', e.target.value)}
+                >
+                  <option value="">Select Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept._id || dept.id} value={dept._id || dept.id}>
+                      {dept.department_name}
+                    </option>
                   ))}
-                </div>
+                </select>
+                {loadingDepartments && <span className="spinner-border spinner-border-sm text-primary"></span>}
               </div>
-
-              {/* Full Day: Date Range */}
-              {formik.values.day_off_type === 'FULL_DAY' && (
-                <div className="fv-row mb-10">
-                  <div className="row g-6">
-                    <div className="col-md-6">
-                      <label className="required fs-6 fw-bold mb-2">Start Date</label>
-                      <input
-                        type="date"
-                        {...formik.getFieldProps('start_date')}
-                        className={fieldClass('start_date')}
-                        disabled={isSubmitting}
-                        min={currentMonthRange.firstDay}
-                        max={currentMonthRange.lastDay}
-                        onChange={(e) => handleDateChange('start_date', e.target.value)}
-                        value={formik.values.start_date || ''}
-                      />
-                      {formik.touched.start_date && formik.errors.start_date && (
-                        <div className="fv-plugins-message-container">
-                          <div className="fv-help-block text-danger">{formik.errors.start_date}</div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="col-md-6">
-                      <label className="required fs-6 fw-bold mb-2">End Date</label>
-                      <input
-                        type="date"
-                        {...formik.getFieldProps('end_date')}
-                        className={fieldClass('end_date')}
-                        disabled={isSubmitting}
-                        min={formik.values.start_date || currentMonthRange.firstDay}
-                        max={currentMonthRange.lastDay}
-                        onChange={(e) => handleDateChange('end_date', e.target.value)}
-                        value={formik.values.end_date || ''}
-                      />
-                      {formik.touched.end_date && formik.errors.end_date && (
-                        <div className="fv-plugins-message-container">
-                          <div className="fv-help-block text-danger">{formik.errors.end_date}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+              {formik.touched.department_id && formik.errors.department_id && (
+                <div className="fv-plugins-message-container">
+                  <div className="fv-help-block text-danger">{formik.errors.department_id}</div>
                 </div>
               )}
+              {isEditMode && formik.values.department_id && (
+                <small className="text-muted">
+                  Current:{' '}
+                  {(() => {
+                    const currentDept = departments.find(
+                      (d) => d._id === formik.values.department_id || d.id === formik.values.department_id
+                    )
+                    if (currentDept) return currentDept.department_name
+                    if (loadingDepartments) return 'Loading...'
+                    return `ID: ${formik.values.department_id}`
+                  })()}
+                </small>
+              )}
+            </div>
 
-              {/* Half Day: Single Date and Period */}
-              {formik.values.day_off_type === 'HALF_DAY' && (
-                <>
-                  <div className="fv-row mb-10">
-                    <label className="required fs-6 fw-bold mb-2">Date</label>
+            {/* Employee */}
+            <div className="fv-row mb-10">
+              <label className="required fs-6 fw-bold mb-2">Employee</label>
+              <div className="d-flex align-items-center gap-3">
+                <select
+                  {...formik.getFieldProps('employee_id')}
+                  className={clsx('form-select form-select-solid', {
+                    'is-invalid': formik.touched.employee_id && formik.errors.employee_id,
+                  })}
+                  disabled={loadingEmployees || isSubmitting}
+                  value={formik.values.employee_id || ''}
+                  onChange={(e) => formik.setFieldValue('employee_id', e.target.value)}
+                >
+                  <option value="">Select Employee</option>
+                  {employees.map((employee) => (
+                    <option key={employee._id || employee.id} value={employee._id || employee.id}>
+                      {getEmployeeName(employee)} - {getEmployeeDepartment(employee)}
+                    </option>
+                  ))}
+                </select>
+                {loadingEmployees && <span className="spinner-border spinner-border-sm text-primary"></span>}
+              </div>
+              {formik.touched.employee_id && formik.errors.employee_id && (
+                <div className="fv-plugins-message-container">
+                  <div className="fv-help-block text-danger">{formik.errors.employee_id}</div>
+                </div>
+              )}
+              {isEditMode && formik.values.employee_id && (
+                <small className="text-muted">
+                  Current employee:{' '}
+                  {(() => {
+                    const currentEmployee = employees.find(
+                      (e) => e._id === formik.values.employee_id || e.id === formik.values.employee_id
+                    )
+                    return getEmployeeName(currentEmployee)
+                  })()}
+                </small>
+              )}
+            </div>
+
+            {/* Supervisor */}
+            <div className="fv-row mb-10">
+              <label className="required fs-6 fw-bold mb-2">Supervisor</label>
+              <div className="d-flex align-items-center gap-3">
+                <select
+                  {...formik.getFieldProps('supervisor_id')}
+                  className={clsx('form-select form-select-solid', {
+                    'is-invalid': formik.touched.supervisor_id && formik.errors.supervisor_id,
+                  })}
+                  disabled={loadingSupervisors || isSubmitting}
+                  value={formik.values.supervisor_id || ''}
+                  onChange={(e) => formik.setFieldValue('supervisor_id', e.target.value)}
+                >
+                  <option value="">Select Supervisor</option>
+                  {supervisors.map((sup) => (
+                    <option key={sup._id || sup.id} value={sup._id || sup.id}>
+                      {getSupervisorName(sup)} ({getSupervisorDepartment(sup)})
+                    </option>
+                  ))}
+                </select>
+                {loadingSupervisors && <span className="spinner-border spinner-border-sm text-primary"></span>}
+              </div>
+              {formik.touched.supervisor_id && formik.errors.supervisor_id && (
+                <div className="fv-plugins-message-container">
+                  <div className="fv-help-block text-danger">{formik.errors.supervisor_id}</div>
+                </div>
+              )}
+              {isEditMode && formik.values.supervisor_id && (
+                <small className="text-muted">
+                  Current supervisor:{' '}
+                  {(() => {
+                    const currentSupervisor = supervisors.find(
+                      (s) => s._id === formik.values.supervisor_id || s.id === formik.values.supervisor_id
+                    )
+                    return getSupervisorName(currentSupervisor)
+                  })()}
+                </small>
+              )}
+            </div>
+
+            {/* Day off Type */}
+            <div className="fv-row mb-10">
+              <label className="required fs-6 fw-bold mb-2">Day off Type</label>
+              <div className="d-flex flex-wrap gap-4">
+                {['FULL_DAY', 'HALF_DAY'].map((type) => (
+                  <div key={type} className="form-check form-check-custom form-check-solid">
+                    <input
+                      className="form-check-input"
+                      type="radio"
+                      name="day_off_type"
+                      id={`type-${type}`}
+                      value={type}
+                      checked={formik.values.day_off_type === type}
+                      onChange={formik.handleChange}
+                      disabled={isSubmitting}
+                    />
+                    <label className="form-check-label fw-semibold" htmlFor={`type-${type}`}>
+                      {type === 'FULL_DAY' ? 'Full Day' : 'Half Day'}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Full Day: Date Range */}
+            {formik.values.day_off_type === 'FULL_DAY' && (
+              <div className="fv-row mb-10">
+                <div className="row g-6">
+                  <div className="col-md-6">
+                    <label className="required fs-6 fw-bold mb-2">Start Date</label>
                     <input
                       type="date"
-                      {...formik.getFieldProps('half_day_date')}
-                      className={fieldClass('half_day_date')}
+                      {...formik.getFieldProps('start_date')}
+                      className={fieldClass('start_date')}
                       disabled={isSubmitting}
                       min={currentMonthRange.firstDay}
                       max={currentMonthRange.lastDay}
-                      onChange={(e) => handleDateChange('half_day_date', e.target.value)}
-                      value={formik.values.half_day_date || ''}
+                      onChange={(e) => handleDateChange('start_date', e.target.value)}
+                      value={formik.values.start_date || ''}
                     />
-                    {formik.touched.half_day_date && formik.errors.half_day_date && (
+                    {formik.touched.start_date && formik.errors.start_date && (
                       <div className="fv-plugins-message-container">
-                        <div className="fv-help-block text-danger">{formik.errors.half_day_date}</div>
+                        <div className="fv-help-block text-danger">{formik.errors.start_date}</div>
                       </div>
                     )}
                   </div>
-
-                  {/* Half Day Period */}
-                  <div className="fv-row mb-10">
-                    <label className="required fs-6 fw-bold mb-2">Time Period</label>
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <select
-                          {...formik.getFieldProps('half_day_period')}
-                          className={clsx('form-select form-select-solid', {
-                            'is-invalid': formik.touched.half_day_period && formik.errors.half_day_period,
-                          })}
-                          disabled={isSubmitting}
-                          value={formik.values.half_day_period || ''}
-                        >
-                          <option value="">Select Time Period</option>
-                          <option value="morning">Morning (08:30 - 12:00)</option>
-                          <option value="afternoon">Afternoon (13:30 - 17:00)</option>
-                        </select>
-                        {formik.touched.half_day_period && formik.errors.half_day_period && (
-                          <div className="fv-plugins-message-container">
-                            <div className="fv-help-block text-danger">{formik.errors.half_day_period}</div>
-                          </div>
-                        )}
+                  <div className="col-md-6">
+                    <label className="required fs-6 fw-bold mb-2">End Date</label>
+                    <input
+                      type="date"
+                      {...formik.getFieldProps('end_date')}
+                      className={fieldClass('end_date')}
+                      disabled={isSubmitting}
+                      min={formik.values.start_date || currentMonthRange.firstDay}
+                      max={currentMonthRange.lastDay}
+                      onChange={(e) => handleDateChange('end_date', e.target.value)}
+                      value={formik.values.end_date || ''}
+                    />
+                    {formik.touched.end_date && formik.errors.end_date && (
+                      <div className="fv-plugins-message-container">
+                        <div className="fv-help-block text-danger">{formik.errors.end_date}</div>
                       </div>
-                      <div className="col-md-6">
-                        <div className="form-control form-control-solid bg-light">
-                          {formik.values.half_day_period === 'morning'
-                            ? '08:30 - 12:00'
-                            : formik.values.half_day_period === 'afternoon'
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Half Day: Single Date and Period */}
+            {formik.values.day_off_type === 'HALF_DAY' && (
+              <>
+                <div className="fv-row mb-10">
+                  <label className="required fs-6 fw-bold mb-2">Date</label>
+                  <input
+                    type="date"
+                    {...formik.getFieldProps('half_day_date')}
+                    className={fieldClass('half_day_date')}
+                    disabled={isSubmitting}
+                    min={currentMonthRange.firstDay}
+                    max={currentMonthRange.lastDay}
+                    onChange={(e) => handleDateChange('half_day_date', e.target.value)}
+                    value={formik.values.half_day_date || ''}
+                  />
+                  {formik.touched.half_day_date && formik.errors.half_day_date && (
+                    <div className="fv-plugins-message-container">
+                      <div className="fv-help-block text-danger">{formik.errors.half_day_date}</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Half Day Period */}
+                <div className="fv-row mb-10">
+                  <label className="required fs-6 fw-bold mb-2">Time Period</label>
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <select
+                        {...formik.getFieldProps('half_day_period')}
+                        className={clsx('form-select form-select-solid', {
+                          'is-invalid': formik.touched.half_day_period && formik.errors.half_day_period,
+                        })}
+                        disabled={isSubmitting}
+                        value={formik.values.half_day_period || ''}
+                      >
+                        <option value="">Select Time Period</option>
+                        <option value="morning">Morning (08:30 - 12:00)</option>
+                        <option value="afternoon">Afternoon (13:30 - 17:00)</option>
+                      </select>
+                      {formik.touched.half_day_period && formik.errors.half_day_period && (
+                        <div className="fv-plugins-message-container">
+                          <div className="fv-help-block text-danger">{formik.errors.half_day_period}</div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="col-md-6">
+                      <div className="form-control form-control-solid bg-light">
+                        {formik.values.half_day_period === 'morning'
+                          ? '08:30 - 12:00'
+                          : formik.values.half_day_period === 'afternoon'
                             ? '13:30 - 17:00'
                             : 'Please select time period'}
-                        </div>
                       </div>
                     </div>
                   </div>
-                </>
-              )}
-
-              {/* Date off Number (Calculated) */}
-              <div className="fv-row mb-10">
-                <label className="required fs-6 fw-bold mb-2">Date Off Number</label>
-                <div className="input-group">
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    {...formik.getFieldProps('date_off_number')}
-                    className={clsx('form-control form-control-solid', {
-                      'is-invalid': formik.touched.date_off_number && formik.errors.date_off_number,
-                    })}
-                    disabled
-                    readOnly
-                    value={formik.values.date_off_number || ''}
-                  />
-                  <span className="input-group-text bg-light">days</span>
                 </div>
-                <div className="mt-2">
-                  <small className="text-muted">
-                    {formik.values.day_off_type === 'FULL_DAY'
-                      ? 'Each day counts as 1 full day'
-                      : 'Half day counts as 0.5 day'}
-                  </small>
-                </div>
-                {formik.touched.date_off_number && formik.errors.date_off_number && (
-                  <div className="fv-plugins-message-container">
-                    <div className="fv-help-block text-danger">{formik.errors.date_off_number}</div>
-                  </div>
-                )}
-              </div>
+              </>
+            )}
 
-              {/* Reason (Optional) */}
-              <div className="fv-row mb-10">
-                <label className="fs-6 fw-bold mb-2">Reason (Optional)</label>
-                <textarea
-                  {...formik.getFieldProps('reason')}
-                  className="form-control form-control-solid"
-                  rows={3}
-                  placeholder="Enter reason for leave (optional)"
-                  disabled={isSubmitting}
-                  value={formik.values.reason || ''}
+            {/* Date off Number (Calculated) */}
+            <div className="fv-row mb-10">
+              <label className="required fs-6 fw-bold mb-2">Date Off Number</label>
+              <div className="input-group">
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  {...formik.getFieldProps('date_off_number')}
+                  className={clsx('form-control form-control-solid', {
+                    'is-invalid': formik.touched.date_off_number && formik.errors.date_off_number,
+                  })}
+                  disabled
+                  readOnly
+                  value={formik.values.date_off_number || ''}
                 />
+                <span className="input-group-text bg-light">days</span>
               </div>
+              <div className="mt-2">
+                <small className="text-muted">
+                  {formik.values.day_off_type === 'FULL_DAY'
+                    ? 'Each day counts as 1 full day'
+                    : 'Half day counts as 0.5 day'}
+                </small>
+              </div>
+              {formik.touched.date_off_number && formik.errors.date_off_number && (
+                <div className="fv-plugins-message-container">
+                  <div className="fv-help-block text-danger">{formik.errors.date_off_number}</div>
+                </div>
+              )}
             </div>
 
-            {/* Card Footer with Actions */}
-            <div className="card-footer d-flex justify-content-end py-6 px-9 gap-3">
-              <button
-                type="button"
-                className="btn btn-light"
-                onClick={() => {
-                  setItemIdForUpdate(undefined)
-                  setIsEditMode(false)
-                  formik.resetForm()
-                }}
+            {/* Reason (Optional) */}
+            <div className="fv-row mb-10">
+              <label className="fs-6 fw-bold mb-2">Reason (Optional)</label>
+              <textarea
+                {...formik.getFieldProps('reason')}
+                className="form-control form-control-solid"
+                rows={3}
+                placeholder="Enter reason for leave (optional)"
                 disabled={isSubmitting}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={isSubmitting || !formik.isValid}
-              >
-                {isSubmitting ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm align-middle me-2"></span>
-                    {isEditMode ? 'Updating...' : 'Submitting...'}
-                  </>
-                ) : (
-                  isEditMode ? 'Update Request' : 'Submit Request'
-                )}
-              </button>
+                value={formik.values.reason || ''}
+              />
             </div>
-          </div>
-        </form>
-      )}
 
-      {/* Loading Overlay */}
-      {(isSubmitting || isLoadingRequest) && (
-        <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-      )}
+            {/* Conflict Warning */}
+            {hasDateConflict && (
+              <div className="alert alert-warning d-flex align-items-center">
+                <i className="ki-duotone ki-information-5 fs-2 me-4">
+                  <span className="path1"></span>
+                  <span className="path2"></span>
+                  <span className="path3"></span>
+                </i>
+                <div className="d-flex flex-column">
+                  <span className="fw-bold">Warning: Date Conflict Detected</span>
+                  <span>The selected dates conflict with existing day off requests. Please adjust dates.</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Card Footer with Actions */}
+          <div className="card-footer d-flex justify-content-end py-6 px-9 gap-3">
+            <button
+              type="button"
+              className="btn btn-light"
+              onClick={() => {
+                setItemIdForUpdate(undefined)
+                setIsEditMode(false)
+                formik.resetForm()
+                setHasDateConflict(false)
+              }}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className={clsx('btn', {
+                'btn-primary': canSubmit,
+                'btn-secondary': !canSubmit,
+              })}
+              disabled={!canSubmit || isSubmitting}
+              title={!canSubmit ? 'Please fill all required fields and resolve conflicts' : ''}
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="spinner-border spinner-border-sm align-middle me-2"></span>
+                  {isEditMode ? 'Updating...' : 'Submitting...'}
+                </>
+              ) : (
+                isEditMode ? 'Update Request' : 'Submit Request'
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
     </>
   )
 }

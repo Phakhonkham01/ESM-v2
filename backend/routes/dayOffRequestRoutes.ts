@@ -14,6 +14,7 @@ import {
 const router = express.Router();
 
 router.post("/", createDayOffRequest);
+router.get('/check-conflict', checkDayOffConflict);
 router.get("/allrequests", getAllDayOffRequests);
 router.get("/allusers", getDayOffRequestsAllUser);
 router.get("/user/:userId", getDayOffRequestsByUser);
@@ -22,5 +23,4 @@ router.patch("/:id/status", updateDayOffRequestStatus);
 router.put("/:id", updateDayOffRequest);
 router.delete("/:id", deleteDayOffRequest);
 
-router.get('/check-conflict', checkDayOffConflict);
 export default router;

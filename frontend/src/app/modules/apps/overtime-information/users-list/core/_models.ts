@@ -2,9 +2,6 @@
 
 // Helper function to format request data for display
 export const formatRequestOTFieldWork = (request: RequestOTFieldWork): FormattedRequestOTFieldWork => {
-  console.log('🔄 ========== FORMATTING REQUEST ==========')
-  console.log('🔄 Request ID:', request._id)
-  
   // ✅ Extract user information
   const user = request.user_id
   const userName = typeof user === 'object' && user !== null 
@@ -20,20 +17,11 @@ export const formatRequestOTFieldWork = (request: RequestOTFieldWork): Formatted
   
   if (typeof user === 'object' && user !== null) {
     const department = user.department_id
-    
-    console.log('🏢 Department raw:', department)
-    console.log('🏢 Is Array:', Array.isArray(department))
-    
     if (Array.isArray(department)) {
-      console.log('🏢 Department array length:', department.length)
       
       if (department.length > 0) {
         const firstDept = department[0]
-        console.log('🏢 First department:', firstDept)
-        console.log('🏢 First department type:', typeof firstDept)
-        
         if (typeof firstDept === 'object' && firstDept !== null) {
-          console.log('🏢 Department name field:', firstDept.department_name)
           departmentName = firstDept.department_name || 'N/A'
         } else {
           departmentName = 'N/A (not populated)'
@@ -47,8 +35,6 @@ export const formatRequestOTFieldWork = (request: RequestOTFieldWork): Formatted
       departmentName = 'N/A (no department)'
     }
   }
-  
-  console.log('🏢 FINAL department_name:', departmentName)
   
   // ✅ Extract supervisor information with proper typing
   const supervisors = request.supervisor_id
@@ -97,9 +83,6 @@ export const formatRequestOTFieldWork = (request: RequestOTFieldWork): Formatted
     statusColor: getStatusColor(request.status),
   }
   
-  console.log('✅ Formatted department_name:', formatted.department_name)
-  console.log('✅ ==========================================')
-  
   return formatted
 }
 
@@ -139,6 +122,7 @@ export interface RequestOTFieldWork {
   id?: string
   user_id: User | string
   supervisor_id?: User | User[] | string | string[]
+  department_id?: string | string[]
   title: 'OT' | 'FIELD_WORK'
   date: string | Date
   start_hour: string
