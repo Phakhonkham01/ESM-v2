@@ -42,7 +42,7 @@ export type User = {
   role: 'admin' | 'employee' | 'supervisor'
   department_id?: DepartmentIdType
   leave_days: number
-  status: 'Active' | 'Inactive' | 'On Leave' | 'work day' | 'leave day'
+  status: 'Active' | 'Inactive' | 'On Leave'
   // ฟิลด์ใหม่ที่เพิ่ม
   first_name_en: string
   last_name_en: string

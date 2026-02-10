@@ -1,25 +1,49 @@
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable react-hooks/exhaustive-deps */
-import {FC, useContext, useState, useEffect, useMemo} from 'react'
-import {useQuery} from 'react-query'
+import { FC, useContext, useState, useEffect, useMemo } from 'react'
+import { useQuery } from 'react-query'
 import {
   createResponseContext,
   initialQueryResponse,
-  initialQueryState,
-  PaginationState,
   QUERIES,
   stringifyRequestQuery,
   WithChildren,
 } from '../../../../../../_metronic/helpers'
-import {getUsers} from './_requests'
-import {User} from './_models'
-import {useQueryRequest} from './QueryRequestProvider'
+import { getRequestsBySupervisor } from './_requests'
+import { RequestData } from './_models'
+import { useQueryRequest } from './QueryRequestProvider'
 
-const QueryResponseContext = createResponseContext<User>(initialQueryResponse)
-const QueryResponseProvider: FC<WithChildren> = ({children}) => {
-  const {state} = useQueryRequest()
+const QueryResponseContext = createResponseContext<RequestData>(initialQueryResponse)
+
+const QueryResponseProvider: FC<WithChildren> = ({ children }) => {
+  const { state } = useQueryRequest()
   const [query, setQuery] = useState<string>(stringifyRequestQuery(state))
   const updatedQuery = useMemo(() => stringifyRequestQuery(state), [state])
+
+  const getSupervisorId = () => {
+    const authData = localStorage.getItem('user')
+    console.log('🔍 Raw authData:', authData)
+    
+    if (authData) {
+      try {
+        const auth = JSON.parse(authData)
+        console.log('🔍 Parsed auth:', auth)
+        
+        // ✅ แก้ตรงนี้ - รองรับทั้ง 2 รูปแบบ
+        const supervisorId = auth.user?._id || auth._id || ''
+        
+        console.log('🎯 supervisorId:', supervisorId)
+        return supervisorId
+      } catch (error) {
+        console.error('❌ Error parsing auth:', error)
+        return ''
+      }
+    }
+    
+    console.warn('⚠️ No auth in localStorage')
+    return ''
+  }
+
+  const supervisorId = getSupervisorId()
+  console.log('🎯 Final supervisorId:', supervisorId)
 
   useEffect(() => {
     if (query !== updatedQuery) {
@@ -31,16 +55,34 @@ const QueryResponseProvider: FC<WithChildren> = ({children}) => {
     isFetching,
     refetch,
     data: response,
+    error,
   } = useQuery(
-    `${QUERIES.USERS_LIST}-${query}`,
+    `${QUERIES.USERS_LIST}-supervisor-requests-${supervisorId}`,
     () => {
-      return getUsers(query)
+      console.log('🚀 Calling API with supervisorId:', supervisorId)
+      return getRequestsBySupervisor(supervisorId)
     },
-    {cacheTime: 0, keepPreviousData: true, refetchOnWindowFocus: false}
+    {
+      cacheTime: 0,
+      keepPreviousData: true,
+      refetchOnWindowFocus: false,
+      enabled: !!supervisorId, // ✅ ต้องมี supervisorId ถึงจะ fetch
+      onSuccess: (data) => {
+        console.log('✅ Data fetched successfully:', data)
+      },
+      onError: (err: any) => {
+        console.error('❌ Error fetching data:', err)
+        console.error('❌ Error details:', err.response?.data)
+      },
+    }
   )
 
+  console.log('📊 Current response:', response)
+  console.log('📊 Is loading:', isFetching)
+  console.log('📊 Error:', error)
+
   return (
-    <QueryResponseContext.Provider value={{isLoading: isFetching, refetch, response, query}}>
+    <QueryResponseContext.Provider value={{ isLoading: isFetching, refetch, response, query }}>
       {children}
     </QueryResponseContext.Provider>
   )
@@ -49,30 +91,21 @@ const QueryResponseProvider: FC<WithChildren> = ({children}) => {
 const useQueryResponse = () => useContext(QueryResponseContext)
 
 const useQueryResponseData = () => {
-  const {response} = useQueryResponse()
+  const { response } = useQueryResponse()
+  console.log('🔍 useQueryResponseData - response:', response)
+  
   if (!response) {
+    console.log('⚠️ No response')
     return []
   }
-
-  return response?.data || []
-}
-
-const useQueryResponsePagination = () => {
-  const defaultPaginationState: PaginationState = {
-    links: [],
-    ...initialQueryState,
-  }
-
-  const {response} = useQueryResponse()
-  if (!response || !response.payload || !response.payload.pagination) {
-    return defaultPaginationState
-  }
-
-  return response.payload.pagination
+  
+  const data = response?.data || []
+  console.log('🔍 useQueryResponseData - data:', data)
+  return data
 }
 
 const useQueryResponseLoading = (): boolean => {
-  const {isLoading} = useQueryResponse()
+  const { isLoading } = useQueryResponse()
   return isLoading
 }
 
@@ -80,6 +113,5 @@ export {
   QueryResponseProvider,
   useQueryResponse,
   useQueryResponseData,
-  useQueryResponsePagination,
   useQueryResponseLoading,
 }

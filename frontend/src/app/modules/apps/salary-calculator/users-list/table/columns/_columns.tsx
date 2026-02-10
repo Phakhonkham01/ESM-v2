@@ -1,124 +1,87 @@
 import { Column } from 'react-table'
-import { UserInfoCell } from './UserInfoCell'
-import { UserEmailCell } from './UserEmailCell'
-import { UserLeaveDaysCell } from './UserLeaveDaysCell'
-import { UserActionsCell } from './UserActionsCell'
-import { UserStatusCell } from './UserStatusCell'
+import { User, getDepartmentName, getPositionName, formatCurrency, getStatusBadge, getRoleBadge } from '../../core/_models'
 import { UserCustomHeader } from './UserCustomHeader'
-import { UserDepartmentCell } from './UserDepartmentCell'
-import { UserPositionCell } from './UserPositionCell' // ✅ เพิ่มบรรทัดนี้
-import { User } from '../../core/_models'
+import { SalaryActionsCell } from './SalaryActionsCell'
 
-const usersColumns: ReadonlyArray<Column<User>> = [
-  // NO (ไม่ sortable)
+const salaryListColumns: ReadonlyArray<Column<User>> = [
   {
-    Header: () => <th className="min-w-50px text-center">No</th>,
+    Header: (props) => <UserCustomHeader tableProps={props} title="No." className="min-w-50px" />,
     id: 'no',
     Cell: ({ row }) => <div className="text-center">{row.index + 1}</div>,
   },
-
-  // ✅ แก้ไข Name ให้แสดง Full Name (EN)
   {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Name" className="min-w-150px" />
+    Header: (props) => <UserCustomHeader tableProps={props} title="Name" className="min-w-150px" />,
+    id: 'name',
+    Cell: ({ row }) => (
+      <div className="d-flex align-items-center">
+        <div className="symbol symbol-35px me-3">
+          <div className="symbol-label bg-light-primary">
+            <span className="text-primary fw-bold">
+              {row.original.first_name_en.charAt(0)}
+              {row.original.last_name_en.charAt(0)}
+            </span>
+          </div>
+        </div>
+        <div>
+          <div className="fw-bold text-gray-800">
+            {row.original.first_name_en} {row.original.last_name_en}
+          </div>
+          <div className="text-muted fs-7">{row.original.email}</div>
+        </div>
+      </div>
     ),
-    id: 'user_name',
-    accessor: 'user_name',
-    Cell: ({ row }) => {
-      const user = row.original
-      // แสดง first_name + last_name ถ้ามี, ไม่งั้นแสดง user_name
-      const displayName = user.first_name_en && user.last_name_en
-        ? `${user.first_name_en} ${user.last_name_en}`
-        : user.user_name
-      return <UserInfoCell name={displayName} />
-    },
   },
-
-  // Role
   {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Role" className="min-w-100px" />
-    ),
+    Header: (props) => <UserCustomHeader tableProps={props} title="Role" className="min-w-100px" />,
     accessor: 'role',
     Cell: ({ value }) => (
-      <div className="badge badge-light-primary fw-bold">
-        {value?.toUpperCase()}
+      <span className={`badge ${getRoleBadge(value)}`}>
+        {value}
+      </span>
+    ),
+  },
+  {
+    Header: (props) => <UserCustomHeader tableProps={props} title="Department" className="min-w-150px" />,
+    id: 'department',
+    Cell: ({ row }) => <div className="text-gray-800">{getDepartmentName(row.original)}</div>,
+  },
+  {
+    Header: (props) => <UserCustomHeader tableProps={props} title="Position" className="min-w-150px" />,
+    id: 'position',
+    Cell: ({ row }) => <div className="text-gray-800">{getPositionName(row.original)}</div>,
+  },
+  {
+    Header: (props) => <UserCustomHeader tableProps={props} title="Base Salary" className="min-w-125px text-end" />,
+    id: 'base_salary',
+    Cell: ({ row }) => (
+      <div className="text-end fw-bold text-gray-800">
+        {formatCurrency(row.original.base_salary)}
       </div>
     ),
   },
-
-  // Email
   {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Email" className="min-w-150px" />
-    ),
-    accessor: 'user_email',
-    Cell: ({ value }) => <UserEmailCell email={value} />,
-  },
-
-  // Department
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Department" className="min-w-125px" />
-    ),
-    accessor: 'department_id',
-    Cell: ({ value }) => <UserDepartmentCell department_id={value} />,
-  },
-
-  // ✅ เพิ่ม Position Column
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Position" className="min-w-125px" />
-    ),
-    accessor: 'position_id',
-    Cell: ({ value, row }) => {
-      // แสดง position เฉพาะ employee เท่านั้น
-      if (row.original.role !== 'employee') {
-        return <div className="text-muted">-</div>
-      }
-      return <UserPositionCell position_id={value} />
-    },
-  },
-
-  // ✅ เพิ่ม Gender Column (Optional)
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Gender" className="min-w-80px" />
-    ),
-    accessor: 'gender',
-    Cell: ({ value }) => (
-      <div className="">
-        {value === 'male' ? 'Male' : value === 'female' ? 'Female' : 'Other'}
-      </div>
-    ),
-  },
-
-  // Leave Days
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Leave Days" className="min-w-100px" />
-    ),
-    accessor: 'leave_days',
-    Cell: ({ value }) => <UserLeaveDaysCell leave_days={value} />,
-  },
-
-  // Status
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Status" className="min-w-100px" />
-    ),
+    Header: (props) => <UserCustomHeader tableProps={props} title="Status" className="min-w-100px" />,
     accessor: 'status',
-    Cell: ({ value }) => <UserStatusCell status={value} />,
-  },
-
-  // Actions
-  {
-    Header: (props) => (
-      <UserCustomHeader tableProps={props} title="Actions" className="text-end min-w-100px" />
+    Cell: ({ value }) => (
+      <span className={`badge ${getStatusBadge(value)}`}>
+        {value}
+      </span>
     ),
+  },
+  {
+    Header: (props) => <UserCustomHeader tableProps={props} title="Vacation" className="min-w-100px" />,
+    id: 'vacation',
+    Cell: ({ row }) => (
+      <span className="badge badge-light-info">
+        {row.original.vacation_days || 0} days
+      </span>
+    ),
+  },
+  {
+    Header: (props) => <UserCustomHeader tableProps={props} title="Actions" className="text-end min-w-100px" />,
     id: 'actions',
-    Cell: ({ row }) => <UserActionsCell id={row.original.id} />,
+    Cell: ({ row }) => <SalaryActionsCell user={row.original} />,
   },
 ]
 
-export { usersColumns }
+export { salaryListColumns }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Modal } from 'react-bootstrap'
 import { useMutation, useQueryClient } from 'react-query'
-import { createDepartment } from '../core/_requests'
+
 import { toast } from 'react-toastify' // ✅ เพิ่มบรรทัดนี้
 import Swal from 'sweetalert2' // ✅ เพิ่มบรรทัดนี้
 
@@ -28,7 +28,7 @@ const CreateDepartmentModal: React.FC<Props> = ({
     const queryClient = useQueryClient()
 
     const createMutation = useMutation({
-        mutationFn: createDepartment,
+      
 
         onSuccess: (newDepartment: Department) => {
             console.log('✅ Department created successfully:', newDepartment)
@@ -80,7 +80,7 @@ const CreateDepartmentModal: React.FC<Props> = ({
         }
         
         console.log('📤 Submitting department:', departmentName)
-        createMutation.mutate({ department_name: departmentName.trim() })
+        
     }
 
     // ✅ Handle Enter key press

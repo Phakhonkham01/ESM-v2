@@ -8,7 +8,7 @@ const UsersListFilter = () => {
   const { updateState } = useQueryRequest()
   const { isLoading } = useQueryResponse()
   const [role, setRole] = useState<string>('')
-  const [status, setStatus] = useState<string | undefined>(undefined)
+  const [status, setStatus] = useState<string>('')
 
   // เรียก reinitialization ตอน mount
   useEffect(() => {
@@ -18,7 +18,7 @@ const UsersListFilter = () => {
   // ฟังก์ชันรีเซ็ต
   const resetData = () => {
     setRole('')
-    setStatus(undefined)
+    setStatus('')
     updateState({ filter: undefined, ...initialQueryState })
     MenuComponent.reinitialization() // รีเซ็ต UI dropdown
   }
@@ -28,7 +28,7 @@ const UsersListFilter = () => {
     const filter: Record<string, string> = {}
 
     if (role) filter.role = role
-    if (status !== undefined) filter.status = status  // เฉพาะ status ที่มีค่า
+    if (status) filter.status = status  // เฉพาะ status ที่มีค่า
 
     updateState({
       filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -91,7 +91,7 @@ const UsersListFilter = () => {
               data-placeholder='Select status'
               data-allow-clear='true'
               data-hide-search='true'
-              onChange={(e) => setStatus(e.target.value || undefined)}
+              onChange={(e) => setStatus(e.target.value || '')}
               value={status || ''}
             >
               <option value=''>All Status</option>

@@ -10,7 +10,8 @@ import departmentRoutes from './routes/departmentRoutes';
 import userRoutes from './routes/userRoutes';
 import requestOTandFieldWorkRoutes from "./routes/requestOTandFieldWorkRoutes";
 import dayOffRoutes from './routes/dayOffRequestRoutes'
-
+import salaryRoutes from "./routes/salaryRoutes.js";
+import emailRoutes from './routes/emailRoutest.js'
 // Connect to Database
 await connectDB();
 
@@ -42,7 +43,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/users', userRoutes);
 app.use("/api/requestOTandFieldWorkRoutes", requestOTandFieldWorkRoutes);
 app.use('/api/day-off-requests',dayOffRoutes)
-
+app.use("/api/salaries", salaryRoutes);
+app.use('/api/salary', emailRoutes); // Email route: POST /api/salary/send-email
 // Health Check Route
 app.get('/api/health', (req: Request, res: Response) => {
     res.status(200).json({ 

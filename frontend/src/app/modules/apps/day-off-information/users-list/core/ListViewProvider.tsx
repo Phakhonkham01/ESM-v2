@@ -14,7 +14,7 @@ import {useQueryResponse, useQueryResponseData} from './QueryResponseProvider'
 
 // ✅ Import Modal components
 import { DayOffRequestEditModalForm } from '../user-edit-modal/UserEditModalForm'
-import { DayOffRequestViewModalForm } from '../user-edit-modal/dayoff-deatils'
+import { DayOffRequestViewModalForm } from '../user-edit-modal/Dayoff-deatils'
 
 const ListViewContext = createContext<ListViewContextProps>(initialListView)
 

@@ -1,116 +1,129 @@
-import {ID, Response} from '../../../../../../_metronic/helpers'
+import { Response } from '../../../../../../_metronic/helpers'
 
-// ✅ ประกาศ interface ก่อน
-export interface Department {
-  _id?: string
-  id?: string
-  department_name: string
-  createdAt?: Date
-  updatedAt?: Date
-}
-
-export interface Position {
-  _id?: string
-  id?: string
-  position_name: string
-  department_id: string | Department
-  createdAt?: Date
-  updatedAt?: Date
-}
-
-// ✅ ประกาศ Type หลังจาก interface
-export type DepartmentIdType = 
-  | string 
-  | string[] 
-  | Department 
-  | Department[]
-  | null
-  | undefined
-
-export type PositionIdType = 
-  | string 
-  | Position 
-  | null
-  | undefined
-
-// ✅ ตอนนี้สามารถใช้ DepartmentIdType และ PositionIdType ได้แล้ว
-export type User = {
-  id?: ID
-  user_name: string
-  user_email: string
-  password?: string
-  role: 'admin' | 'employee' | 'supervisor'
-  department_id?: DepartmentIdType
-  leave_days: number
-  status: 'Active' | 'Inactive' | 'On Leave' | 'work day' | 'leave day'
-  // ฟิลด์ใหม่ที่เพิ่ม
+// Interface for users
+export interface User {
+  _id: string
   first_name_en: string
   last_name_en: string
-  nickname_en?: string
-  first_name_la: string
-  last_name_la: string
-  nickname_la?: string
-  date_of_birth: string
-  start_work: string
-  gender: 'male' | 'female' | 'other'
-  position_id?: PositionIdType
+  email: string
+  role: string
+  status: string
   base_salary?: number
+  department_id?: Array<{
+    _id: string
+    department_name?: string
+    name?: string
+  }> | {
+    _id: string
+    department_name?: string
+    name?: string
+  }
+  position_id?: {
+    _id: string
+    position_name?: string
+    name?: string
+  }
+  vacation_days?: number
+  created_at?: string
+  date_of_birth?: string
 }
 
+// Interface for existing salaries
+export interface ExistingSalary {
+  _id: string
+  month: number
+  year: number
+  status: string
+  net_salary: number
+}
+
+export interface SalarySummaryStats {
+  totalUsers: number
+  activeUsers: number
+  totalBaseSalary: number
+}
+
+// Query Response Type
 export type UsersQueryResponse = Response<Array<User>>
 
-export const initialUser: User = {
-  user_name: '',
-  user_email: '',
-  role: 'employee',
-  department_id: null,
-  leave_days: 15,
-  status: 'Active',
-  // ค่าเริ่มต้นสำหรับฟิลด์ใหม่
-  first_name_en: '',
-  last_name_en: '',
-  nickname_en: '',
-  first_name_la: '',
-  last_name_la: '',
-  nickname_la: '',
-  date_of_birth: '',
-  start_work: '',
-  gender: 'male',
-  position_id: null,
-  base_salary: 0,
-}
-
-// Helper functions สำหรับการแปลง type
-export const extractDepartmentId = (departmentId: DepartmentIdType): string | string[] | null => {
-  if (!departmentId) return null
-  
-  if (Array.isArray(departmentId)) {
-    return departmentId.map(dept => 
-      typeof dept === 'string' ? dept : dept._id || dept.id || ''
-    ).filter(Boolean) as string[]
+// Helper functions
+export const getDepartmentName = (user: User): string => {
+  if (!user.department_id) {
+    return '-'
   }
   
-  if (typeof departmentId === 'object' && departmentId !== null) {
-    return departmentId._id || departmentId.id || ''
+  if (Array.isArray(user.department_id)) {
+    if (user.department_id.length === 0) {
+      return '-'
+    }
+    
+    const department = user.department_id[0]
+    if (!department || typeof department !== 'object') {
+      return '-'
+    }
+    
+    if (department.department_name) {
+      return department.department_name
+    }
+    if (department.name) {
+      return department.name
+    }
+    return '-'
+  } else {
+    const department = user.department_id
+    if (department.department_name) {
+      return department.department_name
+    }
+    if (department.name) {
+      return department.name
+    }
+    return '-'
+  }
+}
+
+export const getPositionName = (user: User): string => {
+  if (!user.position_id) {
+    return '-'
   }
   
-  return departmentId as string
-}
-
-export const extractPositionId = (positionId: PositionIdType): string | null => {
-  if (!positionId) return null
-  
-  if (typeof positionId === 'object' && positionId !== null) {
-    return positionId._id || positionId.id || ''
+  const position = user.position_id
+  if (position.position_name) {
+    return position.position_name
   }
-  
-  return positionId as string
+  if (position.name) {
+    return position.name
+  }
+  return '-'
 }
 
-export const isDepartmentObject = (dept: unknown): dept is Department => {
-  return typeof dept === 'object' && dept !== null && 'department_name' in dept
+export const formatCurrency = (amount: number | undefined) => {
+  if (!amount) return '-'
+  return amount.toLocaleString('th-TH', {
+    style: 'currency',
+    currency: 'THB',
+    minimumFractionDigits: 2,
+  })
 }
 
-export const isPositionObject = (pos: unknown): pos is Position => {
-  return typeof pos === 'object' && pos !== null && 'position_name' in pos
+export const getMonthName = (month: number) => {
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ]
+  return months[month - 1] || ''
+}
+
+export const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'Active':
+      return 'badge-light-success'
+    case 'Inactive':
+      return 'badge-light-danger'
+    default:
+      return 'badge-light-secondary'
+  }
+}
+
+export const getRoleBadge = (role: string) => {
+  return 'badge-light-primary'
 }

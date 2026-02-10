@@ -31,7 +31,7 @@ const RequestDayOffUser = () => {
           }
         />
       </Route>
-      <Route index element={<Navigate to='/crafted/requestsdayoffuser' />} />
+      <Route index element={<Navigate to='/crafted/requestsdayoffuser/dayofflist' />} />
     </Routes>
   )
 }

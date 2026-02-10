@@ -78,7 +78,6 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
     accessor: 'start_date_time',
     Cell: ({ value }) => {
       if (!value) return <span className="text-muted">N/A</span>
-
       const date = new Date(value)
       return (
         <div className="d-flex flex-column">
@@ -99,7 +98,6 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
     accessor: 'end_date_time',
     Cell: ({ value }) => {
       if (!value) return <span className="text-muted">N/A</span>
-
       const date = new Date(value)
       return (
         <div className="d-flex flex-column">
@@ -134,7 +132,6 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
     Cell: ({ value }) => {
       let className = 'badge-light-secondary'
       let icon = 'bi-question-circle'
-
       if (value === 'Pending') {
         className = 'badge-light-warning'
         icon = 'bi-clock-history'
@@ -147,7 +144,6 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
         className = 'badge-light-danger'
         icon = 'bi-x-circle'
       }
-
       return (
         <span className={`badge ${className} fw-bold`}>
           <i className={`bi ${icon} me-1`}></i>
@@ -164,7 +160,6 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
     Cell: ({ row }) => {
       const request = row.original
       const requestId = request._id || request._id
-
       return <DayOffRequestActionsCell id={requestId} />
     },
   },
