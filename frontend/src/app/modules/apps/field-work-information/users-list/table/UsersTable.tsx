@@ -15,10 +15,6 @@ const UsersTable = () => {
   
   // ✅ Process data with FIELD_WORK filter
   const data = useMemo(() => {
-    console.log('📦 ========== REQUEST TABLE DATA PROCESSING ==========')
-    console.log('📦 Raw requests from API:', requests)
-    console.log('📦 Number of requests:', requests?.length || 0)
-
     if (!requests || requests.length === 0) {
       console.log('⚠️ No requests available')
       return []
@@ -26,34 +22,17 @@ const UsersTable = () => {
 
     // 🔥 FILTER: กรองเฉพาะ FIELD_WORK เท่านั้น
     const fieldWorkRequests = requests.filter(request => {
-      // ลองเช็ค structure ของ request
-      console.log('🔍 Checking request structure:', request)
-      
       // กรองตาม title เท่านั้น (จาก error message)
       return request.title === 'FIELD_WORK'
     })
     
-    console.log('📊 After FIELD_WORK filter:', fieldWorkRequests.length, 'requests')
-
     // ✅ Format only FIELD_WORK requests
     const formattedData = fieldWorkRequests.map((request, index) => {
-      console.log(`\n🔄 ========== FORMATTING FIELD_WORK REQUEST ${index + 1}/${fieldWorkRequests.length} ==========`)
       
       const formatted = formatRequestOTFieldWork(request)
       
-      console.log('✅ Formatted result:', formatted)
-      
       return formatted
     })
-
-    console.log('📦 ========== FINAL FORMATTED DATA ==========')
-    console.log('📦 Total FIELD_WORK records:', formattedData.length)
-    
-    if (formattedData.length > 0) {
-      console.log('📦 Sample formatted record:', formattedData[0])
-    }
-    console.log('📦 ==========================================\n')
-
     return formattedData
   }, [requests])
   
@@ -63,8 +42,6 @@ const UsersTable = () => {
     columns,
     data,
   })
-
-  console.log('🔢 Table rendering with', rows.length, 'FIELD_WORK rows')
 
   return (
     <KTCardBody className='py-4'>

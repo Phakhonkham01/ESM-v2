@@ -21,16 +21,16 @@ interface User {
 // ✅ Helper to extract user name
 const extractUserName = (userData: string | User | null | undefined): string => {
   if (!userData) return 'N/A'
-  
+
   if (typeof userData === 'string') return userData
-  
+
   if (typeof userData === 'object' && userData !== null) {
     const user = userData as User
-    return user.user_name || 
-           `${user.first_name_en || ''} ${user.last_name_en || ''}`.trim() || 
-           'Unknown'
+    return user.user_name ||
+      `${user.first_name_en || ''} ${user.last_name_en || ''}`.trim() ||
+      'Unknown'
   }
-  
+
   return 'N/A'
 }
 
@@ -39,22 +39,22 @@ const extractSupervisorNames = (
   supervisorData: string | string[] | User | User[] | null | undefined
 ): string => {
   if (!supervisorData) return 'N/A'
-  
+
   if (Array.isArray(supervisorData)) {
     const names = supervisorData
       .map(sup => extractUserName(sup))
       .filter(name => name !== 'N/A')
-    
+
     return names.length > 0 ? names.join(', ') : 'N/A'
   }
-  
+
   return extractUserName(supervisorData)
 }
 
 // ✅ Helper to format date
 const formatDate = (date: Date | string | null | undefined): string => {
   if (!date) return 'N/A'
-  
+
   try {
     const dateObj = new Date(date)
     return format(dateObj, 'dd/MM/yyyy')
@@ -105,18 +105,18 @@ const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClos
   // Calculate hours worked
   const calculateHours = (): string => {
     if (!request.start_hour || !request.end_hour) return 'N/A'
-    
+
     try {
       const [startH, startM] = request.start_hour.split(':').map(Number)
       const [endH, endM] = request.end_hour.split(':').map(Number)
-      
+
       const startMinutes = startH * 60 + startM
       const endMinutes = endH * 60 + endM
-      
+
       const diffMinutes = endMinutes - startMinutes
       const hours = Math.floor(diffMinutes / 60)
       const minutes = diffMinutes % 60
-      
+
       return `${hours}h ${minutes}m`
     } catch {
       return 'N/A'
@@ -132,17 +132,16 @@ const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClos
       Accepted: 'badge-success',
       Rejected: 'badge-danger'
     }
-    
+
     const status = request.status || 'Pending'
     const colorClass = statusColors[status as keyof typeof statusColors] || 'badge-secondary'
-    
+
     return (
       <span className={`badge ${colorClass} fs-6`}>
-        <i className={`bi ${
-          status === 'Pending' ? 'bi-clock-history' :
+        <i className={`bi ${status === 'Pending' ? 'bi-clock-history' :
           status === 'Accepted' ? 'bi-check-circle-fill' :
-          'bi-x-circle-fill'
-        } me-1`}></i>
+            'bi-x-circle-fill'
+          } me-1`}></i>
         {status}
       </span>
     )
@@ -151,7 +150,7 @@ const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClos
   // Type badge
   const getTypeBadge = () => {
     const isOT = request.title === 'OT'
-    
+
     return (
       <span className={`badge ${isOT ? 'badge-primary' : 'badge-info'} fs-6`}>
         <i className={`bi ${isOT ? 'bi-clock' : 'bi-briefcase'} me-1`}></i>
@@ -161,108 +160,104 @@ const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClos
   }
 
   return (
-    <div className="card">
-      <div className="card-header border-0 pt-5">
-        <h3 className="card-title align-items-start flex-column">
-          <span className="card-label fw-bold fs-3 mb-1">Request Details</span>
-          <span className="text-muted mt-1 fw-semibold fs-7">View OT/Field Work Request</span>
-        </h3>
-        <div className="card-toolbar">
-          {getStatusBadge()}
-        </div>
-      </div>
-
+    <div>
       <div className="card-body py-3">
-        {/* Type & Date Section */}
         <div className="row mb-7">
           <div className="col-md-6">
-            <label className="fw-bold text-muted fs-7 mb-2">Request Type</label>
-            <div>{getTypeBadge()}</div>
-          </div>
-          <div className="col-md-6">
-            <label className="fw-bold text-muted fs-7 mb-2">Request Date</label>
-            <div className="fw-semibold fs-6 text-gray-800">
-              <i className="bi bi-calendar-event me-2 text-primary"></i>
-              {requestDate}
-            </div>
-          </div>
-        </div>
-
-        {/* Employee Section */}
-        <div className="mb-7">
-          <label className="fw-bold text-muted fs-7 mb-2">Employee</label>
-          <div className="d-flex align-items-center">
-            <div className="symbol symbol-40px symbol-circle me-3">
-              <div className="symbol-label bg-light-primary">
-                <i className="bi bi-person-fill text-primary fs-4"></i>
+            <div className="mb-3">
+              <div className="fw-bold text-muted fs-7 mb-2">Request Type</div>
+              <div className="d-flex gap-2">
+                {getTypeBadge()}
+                {getStatusBadge()}
               </div>
             </div>
-            <div className="fw-semibold fs-6 text-gray-800">{employeeName}</div>
-          </div>
-        </div>
-
-        {/* Supervisors Section */}
-        <div className="mb-7">
-          <label className="fw-bold text-muted fs-7 mb-2">Supervisor(s)</label>
-          <div className="d-flex align-items-center">
-            <div className="symbol symbol-40px symbol-circle me-3">
-              <div className="symbol-label bg-light-success">
-                <i className="bi bi-people-fill text-success fs-4"></i>
+            <div>
+              <div className="fw-bold text-muted fs-7 mb-2 pt-7">Request Date</div>
+              <div className="fw-bold fs-5 text-gray-800">
+                <i className="bi bi-calendar-event me-2 text-primary"></i>
+                {requestDate}
               </div>
             </div>
-            <div className="fw-semibold fs-6 text-gray-800">{supervisorNames}</div>
           </div>
-        </div>
 
-        {/* Time Section */}
-        <div className="row mb-7">
-          <div className="col-md-4">
-            <label className="fw-bold text-muted fs-7 mb-2">Start Time</label>
-            <div className="fw-semibold fs-6 text-gray-800">
-              <i className="bi bi-clock me-2 text-success"></i>
-              {startHour}
-            </div>
-          </div>
-          <div className="col-md-4">
-            <label className="fw-bold text-muted fs-7 mb-2">End Time</label>
-            <div className="fw-semibold fs-6 text-gray-800">
-              <i className="bi bi-clock me-2 text-danger"></i>
-              {endHour}
-            </div>
-          </div>
-          <div className="col-md-4">
-            <label className="fw-bold text-muted fs-7 mb-2">Total Hours</label>
-            <div className="fw-semibold fs-6 text-primary">
-              <i className="bi bi-hourglass-split me-2"></i>
-              {totalHours}
+          <div className="col-md-6">
+            <div className="border p-4 text-center ">
+              <div className="fw-bold text-muted fs-7 mb-2">Total Duration</div>
+              <div className="fw-bold fs-4 text-success">
+                <i className="bi bi-hourglass-split me-2"></i>
+                {totalHours}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Fuel & Date Off Section */}
-        <div className="row mb-7">
+        {/* Employee & Supervisor Section */}
+        <div className="row mb-5">
           <div className="col-md-6">
-            <label className="fw-bold text-muted fs-7 mb-2">Fuel Cost</label>
-            <div className="fw-semibold fs-6 text-gray-800">
-              <i className="bi bi-fuel-pump me-2 text-warning"></i>
-              {request.fuel?.toLocaleString() || '0'} LAK
+            <div className="d-flex align-items-center mb-5">
+              <div className="symbol symbol-50px symbol-circle me-4">
+                <div className="symbol-label bg-light-primary">
+                  <i className="bi bi-person-fill text-primary fs-2"></i>
+                </div>
+              </div>
+              <div>
+                <div className="fw-bold text-muted fs-7 mb-1">Employee</div>
+                <div className="fw-bold fs-5 text-gray-800">{employeeName}</div>
+              </div>
             </div>
           </div>
           <div className="col-md-6">
-            <label className="fw-bold text-muted fs-7 mb-2">Compensation Date Off</label>
-            <div className="fw-semibold fs-6 text-gray-800">
-              <i className="bi bi-calendar-check me-2 text-info"></i>
-              {dateOff}
+            <div className="d-flex align-items-center mb-5">
+              <div className="symbol symbol-50px symbol-circle me-4">
+                <div className="symbol-label bg-light-success">
+                  <i className="bi bi-people-fill text-success fs-2"></i>
+                </div>
+              </div>
+              <div>
+                <div className="fw-bold text-muted fs-7 mb-1">Supervisor</div>
+                <div className="fw-bold fs-5 text-gray-800">{supervisorNames}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Time Range Section */}
+        <div className="row mb-7">
+          <div className="col-md-4">
+            <div className="border rounded p-4 text-center">
+              <div className="fw-bold text-muted fs-7 mb-2">Start Time</div>
+              <div className="fw-bold fs-5 text-gray-800">
+                <i className="bi bi-clock text-success me-2"></i>
+                {startHour}
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="border rounded p-4 text-center">
+              <div className="fw-bold text-muted fs-7 mb-2">End Time</div>
+              <div className="fw-bold fs-5 text-gray-800">
+                <i className="bi bi-clock text-danger me-2"></i>
+                {endHour}
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="border rounded p-4 text-center">
+              <div className="fw-bold text-muted fs-7 mb-2">Fuel Cost</div>
+              <div className="fw-bold fs-5 text-gray-800">
+                <i className="bi bi-fuel-pump me-2 text-warning"></i>
+                {request.fuel?.toLocaleString() || '0'} LAK
+              </div>
             </div>
           </div>
         </div>
 
         {/* Reason Section */}
         <div className="mb-7">
-          <label className="fw-bold text-muted fs-7 mb-2">Reason</label>
-          <div className="card bg-light-primary border-primary border-dashed">
-            <div className="card-body p-4">
-              <p className="text-gray-800 mb-0">
+          <div className="fw-bold text-muted fs-7 mb-3">Reason for Request</div>
+          <div className="card bg-light-primary border-primary border-2">
+            <div className="card-body p-5">
+              <p className="text-gray-800 fs-5 mb-0">
                 {request.reason || 'No reason provided'}
               </p>
             </div>
@@ -272,10 +267,11 @@ const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClos
         {/* Description Section */}
         {request.description && (
           <div className="mb-7">
-            <label className="fw-bold text-muted fs-7 mb-2">Additional Description</label>
-            <div className="card bg-light border-dashed">
-              <div className="card-body p-4">
-                <p className="text-gray-700 mb-0">
+            <div className="fw-bold text-muted fs-7 mb-3">Additional Description</div>
+            <div className="card bg-light border-2">
+              <div className="card-body p-5">
+                <p className="text-gray-700 fs-5 mb-0">
+                  <i className="bi bi-card-text text-gray-600 me-2"></i>
                   {request.description}
                 </p>
               </div>
@@ -284,32 +280,45 @@ const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClos
         )}
 
         {/* Timestamps */}
-        {request.createdAt && (
-          <div className="border-top pt-5 mt-5">
-            <div className="row">
-              <div className="col-md-6">
-                <label className="fw-bold text-muted fs-8 mb-1">Created At</label>
-                <div className="text-gray-600 fs-7">
-                  <i className="bi bi-calendar-plus me-1"></i>
-                  {format(new Date(request.createdAt), 'dd/MM/yyyy HH:mm')}
-                </div>
-              </div>
-              {request.updatedAt && (
-                <div className="col-md-6">
-                  <label className="fw-bold text-muted fs-8 mb-1">Last Updated</label>
-                  <div className="text-gray-600 fs-7">
-                    <i className="bi bi-clock-history me-1"></i>
-                    {format(new Date(request.updatedAt), 'dd/MM/yyyy HH:mm')}
+        <div className="border-top pt-5 mt-5">
+          <div className="row">
+            <div className="col-md-6">
+              <div className="d-flex align-items-center">
+                <div className="symbol symbol-40px symbol-circle me-3">
+                  <div className="symbol-label bg-light">
+                    <i className="bi bi-calendar-plus text-primary"></i>
                   </div>
                 </div>
-              )}
+                <div>
+                  <div className="fw-bold text-muted fs-7">Created At</div>
+                  <div className="fw-bold fs-6 text-gray-800">
+                    {request.createdAt ? format(new Date(request.createdAt), 'dd/MM/yyyy HH:mm') : 'N/A'}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="col-md-6">
+              <div className="d-flex align-items-center">
+                <div className="symbol symbol-40px symbol-circle me-3">
+                  <div className="symbol-label bg-light">
+                    <i className="bi bi-clock-history text-success"></i>
+                  </div>
+                </div>
+                <div>
+                  <div className="fw-bold text-muted fs-7">Last Updated</div>
+                  <div className="fw-bold fs-6 text-gray-800">
+                    {request.updatedAt ? format(new Date(request.updatedAt), 'dd/MM/yyyy HH:mm') : 'N/A'}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
-       <div className="card-footer d-flex justify-content-end py-4 px-6">
-        {onClose && (
+      {/* Close Button (only for modal/dialog contexts) */}
+      {onClose && (
+        <div className="d-flex justify-content-end py-4 px-6 border-top">
           <button
             type="button"
             className="btn btn-primary"
@@ -318,8 +327,8 @@ const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClos
             <i className="bi bi-x-circle me-2"></i>
             Close
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

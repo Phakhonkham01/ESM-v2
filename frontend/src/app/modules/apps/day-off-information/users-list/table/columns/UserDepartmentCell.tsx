@@ -1,5 +1,5 @@
 import { FC } from 'react'
-import { Department } from '../../core/_models'
+import { Department } from '../../../../field-work-information/users-list/core/_models'
 
 type Props = {
   department_id?: string | string[] | Department | Department[] | null

@@ -68,8 +68,7 @@ const mapRequest = (request: RequestOTFieldWork & { _id?: string }): RequestOTFi
 
 // GET ALL REQUESTS - ✅ UPDATED to populate user with department
 export const getRequests = async (query?: string): Promise<RequestOTFieldWorksQueryResponse> => {
-  console.log('📋 Getting all requests')
-  
+
   try {
     // ✅ Add populate parameter to get user details with department
     const baseUrl = query ? `${REQUEST_URL}?${query}` : REQUEST_URL

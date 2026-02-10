@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import {FC, useState, createContext, useContext, useMemo} from 'react'
 import {
   ID,
@@ -17,6 +16,9 @@ const ListViewContext = createContext<ListViewContextProps>(initialListView)
 const ListViewProvider: FC<WithChildren> = ({children}) => {
   const [selected, setSelected] = useState<Array<ID>>(initialListView.selected)
   const [itemIdForUpdate, setItemIdForUpdate] = useState<ID>(initialListView.itemIdForUpdate)
+  const [itemIdForDetail, setItemIdForDetail] = useState<ID>(initialListView.itemIdForDetail)
+  const [itemIdForDelete, setItemIdForDelete] = useState<ID>(initialListView.itemIdForDelete)
+  
   const {isLoading} = useQueryResponse()
   const data = useQueryResponseData()
   const disabled = useMemo(() => calculatedGroupingIsDisabled(isLoading, data), [isLoading, data])
@@ -28,6 +30,10 @@ const ListViewProvider: FC<WithChildren> = ({children}) => {
         selected,
         itemIdForUpdate,
         setItemIdForUpdate,
+        itemIdForDetail,
+        setItemIdForDetail,
+        itemIdForDelete,
+        setItemIdForDelete,
         disabled,
         isAllSelected,
         onSelect: (id: ID) => {

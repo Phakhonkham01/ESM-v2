@@ -66,10 +66,12 @@ export type ListViewContextProps = {
   // NULL => (CREATION MODE) | MODAL IS OPENED
   // NUMBER => (EDIT MODE) | MODAL IS OPENED
   // UNDEFINED => MODAL IS CLOSED
-  itemIdForDetail?: ID // ✅ Add this
+  itemIdForDetail?: ID
   itemIdForUpdate?: ID
+  itemIdForDelete?: ID // ✅ Add delete state
   setItemIdForUpdate: Dispatch<SetStateAction<ID>>
   setItemIdForDetail: Dispatch<SetStateAction<ID>>
+  setItemIdForDelete: Dispatch<SetStateAction<ID>> // ✅ Add delete setter
   isAllSelected: boolean
   disabled: boolean
 }
@@ -80,8 +82,11 @@ export const initialListView: ListViewContextProps = {
   onSelectAll: () => {},
   clearSelected: () => {},
   itemIdForDetail: undefined,
+  itemIdForUpdate: undefined,
+  itemIdForDelete: undefined, // ✅ Add delete initial state
   setItemIdForUpdate: () => {},
   setItemIdForDetail: () => {},
+  setItemIdForDelete: () => {}, // ✅ Add delete setter
   isAllSelected: false,
   disabled: false,
 }

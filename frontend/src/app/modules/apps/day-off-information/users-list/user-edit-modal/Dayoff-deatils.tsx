@@ -32,7 +32,6 @@ export const DayOffRequestViewModalForm: FC = () => {
             const data = await getDayOffRequestById(itemIdForDetail)
             setRequest(data)
         } catch (err: any) {
-            console.error('Error fetching request details:', err)
             setError('Unable to load request details. Please try again.')
             setRequest(null)
         } finally {

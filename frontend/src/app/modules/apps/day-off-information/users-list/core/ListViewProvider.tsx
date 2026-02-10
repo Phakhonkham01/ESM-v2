@@ -15,6 +15,7 @@ import {useQueryResponse, useQueryResponseData} from './QueryResponseProvider'
 // ✅ Import Modal components
 import { DayOffRequestEditModalForm } from '../user-edit-modal/UserEditModalForm'
 import { DayOffRequestViewModalForm } from '../user-edit-modal/Dayoff-deatils'
+import { DayOffRequestDeleteModal } from '../user-edit-modal/UserDeleteModal' // ✅ Import Delete Modal
 
 const ListViewContext = createContext<ListViewContextProps>(initialListView)
 
@@ -22,6 +23,7 @@ const ListViewProvider: FC<WithChildren> = ({children}) => {
   const [selected, setSelected] = useState<Array<ID>>(initialListView.selected)
   const [itemIdForUpdate, setItemIdForUpdate] = useState<ID>(initialListView.itemIdForUpdate)
   const [itemIdForDetail, setItemIdForDetail] = useState<ID>(initialListView.itemIdForDetail)
+  const [itemIdForDelete, setItemIdForDelete] = useState<ID>(initialListView.itemIdForDelete) // ✅ Add delete state
   
   const {isLoading} = useQueryResponse()
   const data = useQueryResponseData()
@@ -34,8 +36,10 @@ const ListViewProvider: FC<WithChildren> = ({children}) => {
         selected,
         itemIdForUpdate,
         itemIdForDetail,
+        itemIdForDelete, // ✅ Add to context value
         setItemIdForUpdate,
         setItemIdForDetail,
+        setItemIdForDelete, // ✅ Add setter to context value
         disabled,
         isAllSelected,
         onSelect: (id: ID) => {
@@ -53,7 +57,7 @@ const ListViewProvider: FC<WithChildren> = ({children}) => {
       
       {/* ✅ Render Edit Modal เมื่อมี itemIdForUpdate */}
       {itemIdForUpdate && (
-        <div className="modal fade show " >
+        <div className="modal fade show">
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <DayOffRequestEditModalForm />
@@ -68,6 +72,17 @@ const ListViewProvider: FC<WithChildren> = ({children}) => {
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <DayOffRequestViewModalForm />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* ✅ Render Delete Modal เมื่อมี itemIdForDelete */}
+      {itemIdForDelete && (
+        <div className="modal fade show d-block">
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <DayOffRequestDeleteModal />
             </div>
           </div>
         </div>
