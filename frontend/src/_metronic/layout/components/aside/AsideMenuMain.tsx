@@ -150,25 +150,16 @@ export function AsideMenuMain() {
         title='User-Profile'
         fontIcon='bi-calendar-event'
       />
-  
-  
-
       <AsideMenuItem
         to='/apps/requests'
         icon='check-circle'
-        title='Requests'
+        title='Requests Ot/Field Work Supervisor'
         fontIcon='bi-calendar-event'
       />
-      <AsideMenuItem
-        to='/apps/user-required'
-        icon='abstract-10'
-        title='User Required'
-        fontIcon='bi-calendar-event'
-      />
-      <AsideMenuItem
-        to='/apps/holiday/holidays'
-        icon='tree'
-        title='Holidays'
+    <AsideMenuItem
+        to='/apps/salary-history'
+        icon='check-circle'
+        title='Salary History'
         fontIcon='bi-calendar-event'
       />
     </>

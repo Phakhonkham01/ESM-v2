@@ -1,11 +1,11 @@
 import { Route, Routes, Outlet, Navigate } from 'react-router-dom'
 import { PageLink, PageTitle } from '../../../../_metronic/layout/core'
-import { SupervisorRequestsListWrapper } from './users-list/SupervisorRequestsList'
+import { SalaryListWrapper } from './users-list/SalaryList'
 
-const requestsBreadcrumbs: Array<PageLink> = [
+const salaryBreadcrumbs: Array<PageLink> = [
   {
-    title: 'Supervisor Requests',
-    path: '/apps/request',
+    title: 'Salary Management',
+    path: '/apps/salary-history',
     isSeparator: false,
     isActive: false,
   },
@@ -17,7 +17,7 @@ const requestsBreadcrumbs: Array<PageLink> = [
   },
 ]
 
-const SupervisorRequestsPage = () => {
+const SalaryManagementPage = () => {
   return (
     <Routes>
       <Route element={<Outlet />}>
@@ -25,17 +25,17 @@ const SupervisorRequestsPage = () => {
           index
           element={
             <>
-              <PageTitle breadcrumbs={requestsBreadcrumbs}>
-                Supervisor Requests
+              <PageTitle breadcrumbs={salaryBreadcrumbs}>
+                Salary Management
               </PageTitle>
-              <SupervisorRequestsListWrapper />
+              <SalaryListWrapper />
             </>
           }
         />
       </Route>
-      <Route index element={<Navigate to="/apps/request" />} />
+      <Route index element={<Navigate to="/apps/salary-history" />} />
     </Routes>
   )
 }
 
-export default SupervisorRequestsPage
+export default SalaryManagementPage
