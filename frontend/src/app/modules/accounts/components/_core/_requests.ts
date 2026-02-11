@@ -17,7 +17,7 @@ export interface OTFieldWorkRequest {
   end_hour: string // Format: "HH:mm"
   fuel?: number
   reason?: string
-  status?: 'Pending' | 'Accept' | 'Reject'
+  status?: 'Pending' | 'Accepted' | 'Rejected'
   created_at?: Date
 }
 

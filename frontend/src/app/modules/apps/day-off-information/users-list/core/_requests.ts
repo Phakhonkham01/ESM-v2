@@ -1,7 +1,13 @@
-// src/app/modules/apps/day-off-request/core/_requests.ts
 import axios, { AxiosResponse } from 'axios'
 import { ID, Response } from '../../../../../../_metronic/helpers'
-import { DayOffRequest, DayOffRequestDTO, UpdateStatusDTO, FormattedDayOffRequest } from './_models'
+import { 
+  DayOffRequest, 
+  DayOffRequestDTO, 
+  UpdateStatusDTO, 
+  FormattedDayOffRequest,
+  formatDayOffRequest,
+  extractUserInfo
+} from './_models'
 
 // ใช้ environment variable หรือค่า default
 const API_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:8001/api'
@@ -19,7 +25,7 @@ const axiosInstance = axios.create({
 interface DayOffRequestsAllUserResponse {
   success: boolean
   count: number
-  requests: FormattedDayOffRequest[]
+  requests: DayOffRequest[]
 }
 
 interface DayOffRequestResponse {
@@ -33,6 +39,7 @@ interface DayOffRequestsQueryResponseData {
   success: boolean
   count: number
   data: DayOffRequest[]
+  requests?: DayOffRequest[]
 }
 
 // Helper function to normalize user data
@@ -49,41 +56,43 @@ const normalizeUserData = (userData: any): any => {
       last_name_en: userData.last_name_en,
       user_email: userData.user_email || userData.email,
       employee_id: userData.employee_id,
+      department_id: userData.department_id,
+      position_id: userData.position_id,
     }
   }
 
   // If it's just an ID string
   return userData
 }
+
 // Helper function to map day off request
 const mapDayOffRequest = (request: any): DayOffRequest => {
   // ✅ ตรวจสอบว่า request มีค่าหรือไม่
   if (!request) {
+    console.error('❌ mapDayOffRequest received null/undefined request')
     throw new Error('Cannot map null or undefined request')
   }
 
-  if (Array.isArray(request.supervisor_id)) {
-    console.log('📋 Supervisor IDs array:', request.supervisor_id.map((item: any) => {
-      if (item && typeof item === 'object') {
-        return {
-          type: typeof item,
-          _bsontype: item._bsontype,
-          toString: item.toString ? item.toString() : 'no toString',
-          value: item
-        }
-      }
-      return item
-    }))
-  }
+  console.log('🔍 Raw request data for mapping:', {
+    _id: request._id,
+    id: request.id,
+    supervisor_id: request.supervisor_id,
+    supervisor_id_type: typeof request.supervisor_id,
+    is_supervisor_array: Array.isArray(request.supervisor_id),
+  })
 
+  // ใช้ formatDayOffRequest เพื่อแปลงเป็น FormattedDayOffRequest ก่อน
+  const formatted = formatDayOffRequest(request)
+  
   return {
     ...request,
+    ...formatted,
     id: request._id || request.id,
     _id: request._id || request.id,
     employee_id: normalizeUserData(request.employee_id),
     supervisor_id: Array.isArray(request.supervisor_id)
       ? request.supervisor_id.map(normalizeUserData)
-      : [normalizeUserData(request.supervisor_id)], // ✅ แปลงเป็น array เสมอ
+      : [normalizeUserData(request.supervisor_id)],
     user_id: normalizeUserData(request.user_id),
   }
 }
@@ -95,9 +104,26 @@ const mapDayOffRequest = (request: any): DayOffRequest => {
 // GET ALL DAY OFF REQUESTS (FORMATTED) - สำหรับตาราง
 export const getDayOffRequestsAllUser = async (): Promise<DayOffRequestsAllUserResponse> => {
   try {
+    console.log('📋 Fetching formatted day off requests from:', `${DAY_OFF_REQUEST_URL}/allusers`)
     const response = await axiosInstance.get<DayOffRequestsAllUserResponse>(`${DAY_OFF_REQUEST_URL}/allusers`)
-    return response.data
+
+    // ✅ FORMAT DATA: แปลงข้อมูลดิบเป็น FormattedDayOffRequest
+    const formattedRequests: DayOffRequest[] = response.data.requests.map(request => {
+      return mapDayOffRequest(request)
+    })
+
+    console.log('✅ Get all day off requests response:', {
+      count: formattedRequests.length,
+      sample: formattedRequests[0]
+    })
+
+    return {
+      success: true,
+      count: formattedRequests.length,
+      requests: formattedRequests
+    }
   } catch (error: any) {
+    console.error('❌ Get all day off requests error:', error)
     throw new Error(error.response?.data?.message || 'Failed to fetch day off requests')
   }
 }
@@ -105,25 +131,36 @@ export const getDayOffRequestsAllUser = async (): Promise<DayOffRequestsAllUserR
 // GET ALL DAY OFF REQUESTS (RAW) - แก้ไขให้รองรับทั้งกรณีมี params และไม่มี
 export const getAllDayOffRequests = async (params?: any): Promise<Response<DayOffRequest[]>> => {
   try {
-    // ลองใช้ endpoint /allusers ก่อน ถ้าไม่ได้ค่อยใช้ endpoint หลัก
-    try {
-      // พยายามใช้ /allusers endpoint ที่รู้ว่าทำงานได้
-      const allUsersResponse = await axiosInstance.get<DayOffRequestsAllUserResponse>(`${DAY_OFF_REQUEST_URL}/allusers`)
+    console.log('📋 Fetching raw day off requests with params:', params)
 
-      // แปลง formatted response เป็น raw format พร้อม normalize user data
-      const rawData: DayOffRequest[] = allUsersResponse.data.requests.map(mapDayOffRequest)
-      return { data: rawData }
+    try {
+      // พยายามใช้ /allusers endpoint
+      const response = await axiosInstance.get<DayOffRequestsAllUserResponse>(`${DAY_OFF_REQUEST_URL}/allusers`)
+
+      const formattedData: DayOffRequest[] = response.data.requests.map(request => mapDayOffRequest(request))
+
+      console.log('✅ Get day off requests response:', { 
+        count: formattedData.length,
+        sample: formattedData[0] 
+      })
+
+      return { 
+        data: formattedData 
+      }
 
     } catch (allUsersError) {
-      const response = await axiosInstance.get<DayOffRequestsQueryResponseData>(DAY_OFF_REQUEST_URL)
-
-      const formattedResponse: Response<DayOffRequest[]> = {
-        data: response.data.data ? response.data.data.map(mapDayOffRequest) : []
-      }
-      return formattedResponse
+      console.log('⚠️ /allusers endpoint failed, trying main endpoint...')
+      throw allUsersError
     }
 
   } catch (error: any) {
+    console.error('❌ Get day off requests error:', error)
+    console.error('Error details:', {
+      status: error.response?.status,
+      message: error.response?.data?.message,
+      url: error.config?.url
+    })
+
     // Return empty array instead of throwing error to prevent app crash
     console.warn('⚠️ Returning empty array due to error')
     return { data: [] }
@@ -133,13 +170,20 @@ export const getAllDayOffRequests = async (params?: any): Promise<Response<DayOf
 // GET DAY OFF REQUESTS BY USER
 export const getDayOffRequestsByUser = async (userId: string): Promise<Response<DayOffRequest[]>> => {
   try {
+    console.log(`📋 Getting day off requests for user: ${userId}`)
     const response = await axiosInstance.get<DayOffRequestsQueryResponseData>(`${DAY_OFF_REQUEST_URL}/user/${userId}`)
 
-    const formattedResponse: Response<DayOffRequest[]> = {
-      data: response.data.data ? response.data.data.map(mapDayOffRequest) : []
-    }
-    return formattedResponse
+    const requests = response.data.data || response.data.requests || []
+    const formattedData: DayOffRequest[] = requests.map(request => mapDayOffRequest(request))
+
+    console.log('✅ Get user day off requests response:', {
+      count: formattedData.length,
+      sample: formattedData[0]
+    })
+
+    return { data: formattedData }
   } catch (error: any) {
+    console.error('❌ Get user day off requests error:', error)
     return { data: [] }
   }
 }
@@ -147,13 +191,20 @@ export const getDayOffRequestsByUser = async (userId: string): Promise<Response<
 // GET DAY OFF REQUESTS FOR SUPERVISOR DASHBOARD
 export const getDayOffRequestsForSupervisorDashboard = async (supervisorId: string): Promise<Response<DayOffRequest[]>> => {
   try {
+    console.log(`📋 Getting supervisor dashboard requests for: ${supervisorId}`)
     const response = await axiosInstance.get<DayOffRequestsQueryResponseData>(`${DAY_OFF_REQUEST_URL}/supervisor-dashboard/${supervisorId}`)
 
-    const formattedResponse: Response<DayOffRequest[]> = {
-      data: response.data.data ? response.data.data.map(mapDayOffRequest) : []
-    }
-    return formattedResponse
+    const requests = response.data.data || response.data.requests || []
+    const formattedData: DayOffRequest[] = requests.map(request => mapDayOffRequest(request))
+
+    console.log('✅ Get supervisor dashboard requests response:', {
+      count: formattedData.length,
+      sample: formattedData[0]
+    })
+
+    return { data: formattedData }
   } catch (error: any) {
+    console.error('❌ Get supervisor dashboard requests error:', error)
     return { data: [] }
   }
 }
@@ -161,10 +212,14 @@ export const getDayOffRequestsForSupervisorDashboard = async (supervisorId: stri
 // CREATE DAY OFF REQUEST
 export const createDayOffRequest = async (requestData: DayOffRequestDTO & { date_off_number?: number }): Promise<DayOffRequest> => {
   try {
+    console.log('📤 Creating day off request with data:', JSON.stringify(requestData, null, 2))
+
     // แปลง supervisor_id ให้เป็น array เสมอ
     const supervisorIdArray = Array.isArray(requestData.supervisor_id)
       ? requestData.supervisor_id
-      : [requestData.supervisor_id];
+      : [requestData.supervisor_id]
+
+    console.log('🔍 Converted supervisor_id to array:', supervisorIdArray)
 
     const payload: any = {
       user_id: requestData.user_id,
@@ -182,34 +237,35 @@ export const createDayOffRequest = async (requestData: DayOffRequestDTO & { date
       payload.date_off_number = requestData.date_off_number
     }
 
-    // เพิ่ม timeout และเพิ่ม error handling
+    console.log('📦 Final payload to send:', JSON.stringify(payload, null, 2))
+    console.log('🚀 Sending to:', DAY_OFF_REQUEST_URL)
+
     const response = await axiosInstance.post<DayOffRequestResponse>(DAY_OFF_REQUEST_URL, payload, {
-      timeout: 10000, // 10 seconds timeout
+      timeout: 10000,
     })
 
-    // ตรวจสอบว่า response.data.data มีค่าหรือไม่
-    if (!response.data || !response.data.data) {
-      // ถ้าไม่มี data แต่มี request ใน response (กรณี backend ใช้ชื่อ field ต่างกัน)
-      if (response.data?.request) {
-        const mappedRequest = mapDayOffRequest(response.data.request)
-        return mappedRequest
-      }
+    console.log('✅ Create day off request success:', {
+      status: response.status,
+      data: response.data
+    })
 
-      // ถ้า response มาปกติแต่ไม่มี data field
-      if (response.data && typeof response.data === 'object') {
-        // ลอง map response.data ตรงๆ
-        const mappedRequest = mapDayOffRequest(response.data)
-        return mappedRequest
-      }
-
+    // ตรวจสอบว่ามี data ใน response หรือไม่
+    if (!response.data || (!response.data.data && !response.data.request)) {
+      console.error('❌ No data in response:', response.data)
       throw new Error('No data received from server')
     }
 
-    return mapDayOffRequest(response.data.data)
-  } catch (error: any) {
-    if (error.response) {
-      let errorMessage = 'Failed to create day off request'
+    const responseData = response.data.data || response.data.request
+    return mapDayOffRequest(responseData)
 
+  } catch (error: any) {
+    console.error('❌ Create day off request error details:')
+
+    if (error.response) {
+      console.error('🔴 Response status:', error.response.status)
+      console.error('🔴 Response data:', error.response.data)
+      
+      let errorMessage = 'Failed to create day off request'
       if (error.response.data?.message) {
         errorMessage = error.response.data.message
       } else if (error.response.data?.error) {
@@ -221,8 +277,10 @@ export const createDayOffRequest = async (requestData: DayOffRequestDTO & { date
 
       throw new Error(errorMessage)
     } else if (error.request) {
+      console.error('🔴 No response received:', error.request)
       throw new Error('No response from server. Please check your connection.')
     } else {
+      console.error('🔴 Error setting up request:', error.message)
       throw new Error(error.message || 'Failed to create day off request')
     }
   }
@@ -231,13 +289,19 @@ export const createDayOffRequest = async (requestData: DayOffRequestDTO & { date
 // UPDATE DAY OFF REQUEST STATUS
 export const updateDayOffRequestStatus = async (id: string, statusData: UpdateStatusDTO): Promise<DayOffRequest> => {
   try {
+    console.log(`✏️ Updating status for request ${id} to:`, statusData.status)
+
     const response = await axiosInstance.patch<DayOffRequestResponse>(
       `${DAY_OFF_REQUEST_URL}/${id}/status`,
       statusData
     )
 
-    return mapDayOffRequest(response.data.data)
+    console.log('✅ Update status response:', response.data)
+    
+    const responseData = response.data.data || response.data.request
+    return mapDayOffRequest(responseData)
   } catch (error: any) {
+    console.error(`❌ Update status error for request ${id}:`, error)
     throw new Error(error.response?.data?.message || 'Failed to update status')
   }
 }
@@ -245,21 +309,27 @@ export const updateDayOffRequestStatus = async (id: string, statusData: UpdateSt
 // UPDATE DAY OFF REQUEST
 export const updateDayOffRequest = async (id: string, requestData: Partial<DayOffRequestDTO>): Promise<DayOffRequest> => {
   try {
+    console.log(`✏️ Updating day off request ${id}:`, requestData)
+
     const response = await axiosInstance.put<DayOffRequestResponse>(
       `${DAY_OFF_REQUEST_URL}/${id}`,
       requestData
     )
 
-    // ✅ FIX: Backend ใช้ชื่อ field เป็น "request" แทน "data"
-    const updatedRequest = response.data.data || response.data.request
+    console.log('✅ Update day off request response:', response.data)
 
-    if (!updatedRequest) {
-      throw new Error('Invalid response structure: missing data/request field')
+    const responseData = response.data.data || response.data.request
+
+    if (!responseData) {
+      console.error('❌ No data in response:', response.data)
+      throw new Error('Invalid response structure: missing data')
     }
 
-    return mapDayOffRequest(updatedRequest)
+    return mapDayOffRequest(responseData)
 
   } catch (error: any) {
+    console.error(`❌ Update day off request error for ${id}:`, error)
+    console.error('Error response:', error.response?.data)
     throw new Error(error.response?.data?.message || error.message || 'Failed to update day off request')
   }
 }
@@ -267,12 +337,16 @@ export const updateDayOffRequest = async (id: string, requestData: Partial<DayOf
 // DELETE DAY OFF REQUEST
 export const deleteDayOffRequest = async (id: string): Promise<{ success: boolean; message: string }> => {
   try {
+    console.log(`🗑️ Deleting day off request ${id}`)
+
     const response = await axiosInstance.delete<{ success: boolean; message: string }>(
       `${DAY_OFF_REQUEST_URL}/${id}`
     )
 
+    console.log('✅ Delete day off request response:', response.data)
     return response.data
   } catch (error: any) {
+    console.error(`❌ Delete day off request error for ${id}:`, error)
     throw new Error(error.response?.data?.message || 'Failed to delete day off request')
   }
 }
@@ -280,70 +354,31 @@ export const deleteDayOffRequest = async (id: string): Promise<{ success: boolea
 // DELETE MULTIPLE DAY OFF REQUESTS
 export const deleteSelectedDayOffRequests = async (ids: string[]): Promise<{ success: boolean }> => {
   try {
+    console.log(`🗑️ Deleting multiple day off requests:`, ids)
+
     // Delete each request individually
     const deletePromises = ids.map(id => deleteDayOffRequest(id))
     await Promise.all(deletePromises)
+
+    console.log('✅ Successfully deleted all requests')
     return { success: true }
   } catch (error: any) {
+    console.error('❌ Error deleting multiple requests:', error)
     return { success: false }
   }
 }
 
+// GET DAY OFF REQUEST BY ID
 export const getDayOffRequestById = async (id: string): Promise<FormattedDayOffRequest> => {
   try {
-    // ใช้ endpoint หลักสำหรับดึงข้อมูลโดย ID
-    const response = await axiosInstance.get(`${DAY_OFF_REQUEST_URL}/${id}`);
+    const response = await axios.get(`${API_URL}/day-off-requests/${id}`)
+    const data = response.data.data || response.data
 
-    // ดึงข้อมูล request จาก response
-    let requestData = response.data.data || response.data.request || response.data;
-
-    if (!requestData) {
-      throw new Error('No request data found');
-    }
-
-    // Ensure proper ID structure
-    if (!requestData._id && !requestData.id) {
-      requestData._id = id;
-    }
-
-    // Ensure supervisor_id is properly formatted
-    let supervisorId = requestData.supervisor_id;
-    if (supervisorId) {
-      if (Array.isArray(supervisorId)) {
-        // Extract IDs from supervisor objects if needed
-        supervisorId = supervisorId.map((sup: any) => {
-          if (sup && typeof sup === 'object') {
-            return sup._id || sup.id || sup;
-          }
-          return sup;
-        });
-      }
-    }
-
-    // Ensure employee_id is string
-    let employeeId = requestData.employee_id;
-    if (employeeId && typeof employeeId === 'object') {
-      employeeId = employeeId._id || employeeId.id || '';
-    }
-
-    const formattedRequest: FormattedDayOffRequest = {
-      ...requestData,
-      _id: requestData._id || requestData.id,
-      id: requestData._id || requestData.id,
-      employee_id: employeeId,
-      supervisor_id: supervisorId,
-      employee_name: requestData.employee_name || 'N/A',
-      employee_email: requestData.employee_email || '',
-      supervisor_name: requestData.supervisor_name || 'N/A',
-      department_name: requestData.department_name || 'N/A',
-      user_name: requestData.user_name || 'N/A',
-      status: requestData.status || 'Pending'
-    };
-
-    return formattedRequest;
-
-  } catch (error: any) {
-    throw new Error(`Failed to fetch request ${id}: ${error.message || 'Unknown error'}`);
+    // ใช้ formatDayOffRequest เพื่อแปลงข้อมูล
+    return formatDayOffRequest(data)
+  } catch (error) {
+    console.error('Error fetching day off request:', error)
+    throw error
   }
 }
 
@@ -393,6 +428,7 @@ export const checkDateOverlap = async (
       overlappingRequests
     }
   } catch (error) {
+    console.error('Error checking date overlap:', error)
     return {
       hasOverlap: false,
       overlappingRequests: []

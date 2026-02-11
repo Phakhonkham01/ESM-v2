@@ -9,14 +9,23 @@ interface PopulatedUser {
   first_name_en?: string;
   last_name_en?: string;
   user_email?: string;
-  employee_id?: string; // ถ้ามีในฐานข้อมูล
+  employee_id?: string;
+  leave_days?: number;
+  department_id?: {
+    _id: Types.ObjectId;
+    department_name?: string;
+  };
+  position_id?: {
+    _id: Types.ObjectId;
+    position_name?: string;
+  };
 }
 
 // ✅ Interface สำหรับ DayOffRequest ที่ถูก populate
 interface PopulatedDayOffRequest {
   _id: Types.ObjectId;
   user_id: Types.ObjectId | PopulatedUser;
-  supervisor_id: Types.ObjectId | PopulatedUser;
+  supervisor_id: Types.ObjectId | PopulatedUser | PopulatedUser[];
   employee_id: Types.ObjectId | PopulatedUser;
   day_off_type: "FULL_DAY" | "HALF_DAY";
   start_date_time: Date;
@@ -26,6 +35,7 @@ interface PopulatedDayOffRequest {
   status: "Pending" | "Accepted" | "Rejected";
   created_at: Date;
 }
+
 /* ============================================================
    POPULATION HELPER - ✅ Centralized population config
 ============================================================ */
@@ -85,9 +95,11 @@ export const createDayOffRequest = async (
   res: Response
 ): Promise<void> => {
   try {
+    console.log('📥 Received data:', req.body);
+    
     const {
       user_id,
-      supervisor_id, // รับเป็น array
+      supervisor_id,
       employee_id,
       day_off_type,
       start_date_time,
@@ -107,6 +119,7 @@ export const createDayOffRequest = async (
       !end_date_time ||
       !title?.trim()
     ) {
+      console.log('❌ Missing fields');
       res.status(400).json({ message: "Missing required fields" });
       return;
     }
@@ -160,10 +173,16 @@ export const createDayOffRequest = async (
       status: "Pending",
     });
 
+    // ✅ Populate before sending response
+    const populatedRequest = await DayOffRequestModel.findById(request._id)
+      .populate(getPopulateConfig());
+
+    console.log('✅ Created request:', populatedRequest);
+
     res.status(201).json({
       success: true,
       message: "Day off request submitted successfully",
-      request,
+      request: populatedRequest,
     });
   } catch (error: any) {
     console.error("DAY OFF CREATE ERROR:", error);
@@ -187,140 +206,84 @@ export const getDayOffRequestsAllUser = async (
   res: Response
 ): Promise<void> => {
   try {
+    console.log('📋 Fetching all day off requests');
+
+    // ✅ Use centralized population config
     const requests = await DayOffRequestModel.find({})
-      .populate({
-        path: "user_id",
-        select: "first_name_en last_name_en user_email employee_id",
-        model: User
-      })
-      .populate({
-        path: "employee_id",
-        select: "first_name_en last_name_en user_email employee_id",
-        model: User
-      })
-      // FIX: supervisor_id เป็น array ต้องใช้ path ที่ถูกต้อง
-      // ใช้ aggregate หรือ populate แบบพิเศษ
-      .lean(); // ใช้ lean() เพื่อได้ plain object
+      .populate(getPopulateConfig())
+      .sort({ created_at: -1 })
+      .lean();
 
-    // เนื่องจาก Mongoose populate ไม่รองรับ array โดยตรง ให้มาทำใน code
-    const formattedRequests = await Promise.all(
-      requests.map(async (request) => {
-        // ดึงข้อมูล supervisor จาก array ของ supervisor_id
-        let supervisors: PopulatedUser[] = [];
-        
-        if (request.supervisor_id && Array.isArray(request.supervisor_id)) {
-          // ถ้าเป็น array ของ ObjectIds
-          if (request.supervisor_id.length > 0) {
-            supervisors = await User.find({
-              _id: { $in: request.supervisor_id }
-            })
-            .select("first_name_en last_name_en user_email employee_id")
-            .lean();
-          }
-        }
-        
-        // Format user info
-        const formatUserInfo = (user: any) => {
-          if (!user) return { id: '', name: 'Unknown', email: '', employeeId: '' };
-          
-          if (user._id) {
-            return {
-              id: user._id.toString(),
-              name: `${user.first_name_en || ''} ${user.last_name_en || ''}`.trim(),
-              email: user.user_email || '',
-              employeeId: user.employee_id || ''
-            };
-          }
-          
-          return { id: '', name: 'Unknown', email: '', employeeId: '' };
-        };
+    console.log(`✅ Found ${requests.length} requests`);
 
-        const userInfo = formatUserInfo(request.user_id);
-        const employeeInfo = formatUserInfo(request.employee_id);
-        
-        // Format supervisor info
-        let supervisorNames: string[] = [];
-        let supervisorEmails: string[] = [];
-        let supervisorIds: string[] = [];
-        
-        if (supervisors.length > 0) {
-          supervisorNames = supervisors.map(sup => 
-            `${sup.first_name_en || ''} ${sup.last_name_en || ''}`.trim()
-          );
-          supervisorEmails = supervisors.map(sup => sup.user_email || '');
-          supervisorIds = supervisors.map(sup => sup._id.toString());
-        }
-
-        return {
-          _id: request._id.toString(),
-          user_id: userInfo.id,
-          user_name: userInfo.name,
-          employee_id: employeeInfo.employeeId || employeeInfo.id,
-          employee_name: employeeInfo.name,
-          employee_email: employeeInfo.email,
-          supervisor_id: supervisorIds,
-          supervisor_name: supervisorNames,
-          supervisor_email: supervisorEmails,
-          day_off_type: request.day_off_type,
-          start_date_time: request.start_date_time,
-          end_date_time: request.end_date_time,
-          date_off_number: request.date_off_number,
-          title: request.title,
-          status: request.status,
-          created_at: request.created_at,
-        };
-      })
-    );
+    // Log sample for debugging
+    if (requests.length > 0) {
+      const sample = requests[0] as any;
+      console.log('🔍 Sample request:', {
+        _id: sample._id,
+        employee: sample.employee_id,
+        department: sample.employee_id?.department_id,
+        title: sample.title
+      });
+    }
 
     res.status(200).json({
       success: true,
-      count: formattedRequests.length,
-      requests: formattedRequests,
+      count: requests.length,
+      requests: requests,
     });
   } catch (error) {
     console.error("GET DAY OFF REQUESTS ERROR:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
-// ✅ เพิ่มฟังก์ชันนี้
+
+/**
+ * ======================================================
+ * GET DAY OFF REQUEST BY ID
+ * ======================================================
+ */
 export const getDayOffRequestById = async (
   req: Request,
-  res: Response,
-  next: Function
+  res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params
+    const { id } = req.params;
 
+    console.log(`📋 Fetching request by ID: ${id}`);
+
+    // ✅ Use centralized population config
     const request = await DayOffRequestModel.findById(id)
-      .populate({
-        path: 'employee_id',
-        select: 'employee_id first_name_en last_name_en email',
-      })
-      .populate({
-        path: 'supervisor_id',
-        select: 'employee_id first_name_en last_name_en email',
-      })
-      .lean()
+      .populate(getPopulateConfig())
+      .lean();
 
     if (!request) {
       res.status(404).json({
         success: false,
         message: 'Day off request not found',
-      })
-      return
+      });
+      return;
     }
+
+    console.log('✅ Found request:', {
+      _id: (request as any)._id,
+      employee: (request as any).employee_id?.first_name_en,
+      department: (request as any).employee_id?.department_id?.department_name
+    });
 
     res.status(200).json({
       success: true,
       data: request,
-    })
+    });
   } catch (error) {
-    next(error)
+    console.error('❌ Get request by ID error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
-}
+};
+
 /**
  * ======================================================
- * GET ALL DAY OFF REQUESTS
+ * GET ALL DAY OFF REQUESTS WITH FILTERS
  * ======================================================
  */
 export const getAllDayOffRequests = async (
@@ -328,16 +291,35 @@ export const getAllDayOffRequests = async (
   res: Response
 ): Promise<void> => {
   try {
-    const requests = await DayOffRequestModel.find()
-      .populate("employee_id", "first_name_en last_name_en user_email employee_id")
-      .populate("supervisor_id", "first_name_en last_name_en user_email employee_id")
-      .populate("user_id", "first_name_en last_name_en user_email employee_id")
+    const { startDate, endDate, status } = req.query;
+    const query: any = {};
+
+    // Filter by date range
+    if (startDate && endDate) {
+      query.start_date_time = {
+        $gte: new Date(startDate as string),
+        $lte: new Date(endDate as string)
+      };
+    }
+
+    // Filter by status
+    if (status && ["Pending", "Accepted", "Rejected"].includes(status as string)) {
+      query.status = status;
+    }
+
+    console.log('📋 Query filters:', query);
+
+    // ✅ Use centralized population config
+    const requests = await DayOffRequestModel.find(query)
+      .populate(getPopulateConfig())
       .sort({ created_at: -1 });
+
+    console.log(`✅ Found ${requests.length} requests`);
 
     res.status(200).json({
       success: true,
       count: requests.length,
-      requests, // ✅ return populated objects DIRECTLY
+      requests,
     });
   } catch (error) {
     console.error("GET DAY OFF REQUESTS ERROR:", error);
@@ -362,93 +344,45 @@ export const getDayOffRequestsForSupervisorDashboard = async (
       return;
     }
 
-    // Find supervisor by ID
-    const supervisor = await User.findById(supervisorId);
+    console.log(`📋 Fetching requests for supervisor: ${supervisorId}`);
+
+    const supervisor = await User.findById(supervisorId)
+      .populate([
+        {
+          path: "department_id",
+          select: "department_name _id"
+        },
+        {
+          path: "position_id",
+          select: "position_name _id"
+        }
+      ]);
 
     if (!supervisor) {
       res.status(404).json({ success: false, message: "Supervisor not found" });
       return;
     }
 
-    // Query day off requests for this supervisor
+    // ✅ Use centralized population config
     const requests = await DayOffRequestModel.find({
       supervisor_id: supervisor._id
     })
-      .populate({
-        path: 'user_id',
-        select: 'first_name_en last_name_en user_email employee_id',
-        model: User
-      })
-      .populate({
-        path: 'supervisor_id',
-        select: 'first_name_en last_name_en user_email employee_id',
-        model: User
-      })
-      .populate({
-        path: 'employee_id',
-        select: 'first_name_en last_name_en user_email employee_id',
-        model: User
-      })
+      .populate(getPopulateConfig())
       .sort({ created_at: -1 });
 
-    // Format response
-    const formattedRequests = requests.map(request => {
-      const reqObj = request.toObject() as PopulatedDayOffRequest;
-
-      // Helper function
-      const getUserDisplayInfo = (userField: Types.ObjectId | PopulatedUser) => {
-        if (!userField) return { id: '', display: 'Unknown', email: '', employeeId: '' };
-
-        if (userField instanceof Types.ObjectId || typeof userField === 'string') {
-          return { id: userField.toString(), display: userField.toString().substring(0, 8), email: '', employeeId: '' };
-        }
-
-        const user = userField as PopulatedUser;
-        if (user._id) {
-          const name = `${user.first_name_en || ''} ${user.last_name_en || ''}`.trim();
-          const display = name || user.user_email || user._id.toString().substring(0, 8);
-          return {
-            id: user._id.toString(),
-            display: display,
-            email: user.user_email || '',
-            employeeId: user.employee_id || ''
-          };
-        }
-
-        return { id: '', display: 'Unknown', email: '', employeeId: '' };
-      };
-
-      const employee = getUserDisplayInfo(reqObj.employee_id);
-      const supervisorInfo = getUserDisplayInfo(reqObj.supervisor_id);
-
-      return {
-        _id: reqObj._id,
-        user_id: reqObj.user_id,
-        employee_id: employee.employeeId || employee.id,
-        employee_name: employee.display,
-        employee_email: employee.email,
-        supervisor_id: supervisorInfo.employeeId || supervisorInfo.id,
-        supervisor_name: supervisorInfo.display,
-        supervisor_email: supervisorInfo.email,
-        day_off_type: reqObj.day_off_type,
-        start_date_time: reqObj.start_date_time,
-        end_date_time: reqObj.end_date_time,
-        date_off_number: reqObj.date_off_number,
-        title: reqObj.title,
-        status: reqObj.status,
-        created_at: reqObj.created_at,
-      };
-    });
+    console.log(`✅ Found ${requests.length} requests for supervisor`);
 
     res.status(200).json({
       success: true,
       supervisor: {
         id: supervisor._id,
         name: `${supervisor.first_name_en} ${supervisor.last_name_en}`,
-        email: (supervisor as any).user_email
+        email: (supervisor as any).user_email,
+        department: (supervisor as any).department_id,
+        position: (supervisor as any).position_id
       },
-      count: formattedRequests.length,
-      requests: formattedRequests,
+      count: requests.length,
+      requests: requests,
     });
   } catch (error) {
     console.error("GET SUPERVISOR DASHBOARD REQUESTS ERROR:", error);
@@ -473,18 +407,21 @@ export const getDayOffRequestsByUser = async (
       return;
     }
 
+    console.log(`📋 Fetching requests for user: ${userId}`);
+
+    // ✅ Use centralized population config
     const requests = await DayOffRequestModel.find({
       $or: [{ employee_id: userId }, { user_id: userId }],
     })
-      .populate("user_id", "first_name_en last_name_en user_email employee_id")
-      .populate("employee_id", "first_name_en last_name_en user_email employee_id")
-      .populate("supervisor_id", "first_name_en last_name_en user_email employee_id")
+      .populate(getPopulateConfig())
       .sort({ created_at: -1 });
+
+    console.log(`✅ Found ${requests.length} requests for user`);
 
     res.status(200).json({
       success: true,
       count: requests.length,
-      requests, // ✅ DO NOT MODIFY populated fields
+      requests,
     });
   } catch (error) {
     console.error("GET DAY OFF REQUESTS ERROR:", error);
@@ -495,6 +432,7 @@ export const getDayOffRequestsByUser = async (
 /**
  * ======================================================
  * UPDATE DAY OFF REQUEST STATUS (Supervisor / Admin)
+ * ✅ เพิ่มการหัก leave_days เมื่อ Approve
  * ======================================================
  */
 export const updateDayOffRequestStatus = async (
@@ -515,76 +453,78 @@ export const updateDayOffRequestStatus = async (
       return;
     }
 
+    console.log(`🔄 Updating request ${id} to status: ${status}`);
+
+    // ✅ หา request ก่อน populate
+    const request = await DayOffRequestModel.findById(id);
+
+    if (!request) {
+      res.status(404).json({ success: false, message: "Request not found" });
+      return;
+    }
+
+    // ✅ ถ้า Approve และยังไม่เคย Approve มาก่อน
+    if (status === "Accepted" && request.status !== "Accepted") {
+      // หัก leave_days ของ employee
+      const employee = await User.findById(request.employee_id);
+      
+      if (!employee) {
+        res.status(404).json({ success: false, message: "Employee not found" });
+        return;
+      }
+
+      // ตรวจสอบว่ามีวันลาพอหรือไม่
+      if (employee.leave_days < request.date_off_number) {
+        res.status(400).json({ 
+          success: false, 
+          message: `Insufficient leave days. Employee has ${employee.leave_days} days remaining, but request is for ${request.date_off_number} days.` 
+        });
+        return;
+      }
+
+      // หัก leave_days
+      employee.leave_days -= request.date_off_number;
+      await employee.save();
+
+      console.log(`✅ Deducted ${request.date_off_number} days from employee ${employee._id}. Remaining: ${employee.leave_days}`);
+    }
+
+    // ✅ ถ้า Reject request ที่เคย Approve ไว้แล้ว ให้คืนวันลา
+    if (status === "Rejected" && request.status === "Accepted") {
+      const employee = await User.findById(request.employee_id);
+      
+      if (employee) {
+        employee.leave_days += request.date_off_number;
+        await employee.save();
+
+        console.log(`✅ Restored ${request.date_off_number} days to employee ${employee._id}. New balance: ${employee.leave_days}`);
+      }
+    }
+
+    // ✅ อัพเดท status และ populate
     const updated = await DayOffRequestModel.findByIdAndUpdate(
       id,
       { status },
       { new: true }
     )
-      .populate({
-        path: 'user_id',
-        select: 'first_name_en last_name_en user_email employee_id',
-        model: User
-      })
-      .populate({
-        path: 'supervisor_id',
-        select: 'first_name_en last_name_en user_email employee_id',
-        model: User
-      })
-      .populate({
-        path: 'employee_id',
-        select: 'first_name_en last_name_en user_email employee_id',
-        model: User
-      });
+      .populate(getPopulateConfig());
 
     if (!updated) {
       res.status(404).json({ success: false, message: "Request not found" });
       return;
     }
 
-    // Format response
-    const reqObj = updated.toObject() as PopulatedDayOffRequest;
-
-    const formatUser = (user: Types.ObjectId | PopulatedUser) => {
-      if (!user) return { id: '', name: 'Unknown', email: '', employeeId: '' };
-
-      if (user instanceof Types.ObjectId || typeof user === 'string') {
-        return { id: user.toString(), name: user.toString().substring(0, 8), email: '', employeeId: '' };
-      }
-
-      const userData = user as PopulatedUser;
-      return {
-        id: userData._id?.toString() || '',
-        name: `${userData.first_name_en || ''} ${userData.last_name_en || ''}`.trim(),
-        email: userData.user_email || '',
-        employeeId: userData.employee_id || ''
-      };
-    };
-
-    const employee = formatUser(reqObj.employee_id);
-    const supervisor = formatUser(reqObj.supervisor_id);
-
-    const formattedRequest = {
-      _id: reqObj._id,
-      user_id: reqObj.user_id,
-      employee_id: employee.employeeId || employee.id,
-      employee_name: employee.name,
-      employee_email: employee.email,
-      supervisor_id: supervisor.employeeId || supervisor.id,
-      supervisor_name: supervisor.name,
-      supervisor_email: supervisor.email,
-      day_off_type: reqObj.day_off_type,
-      start_date_time: reqObj.start_date_time,
-      end_date_time: reqObj.end_date_time,
-      date_off_number: reqObj.date_off_number,
-      title: reqObj.title,
-      status: reqObj.status,
-      created_at: reqObj.created_at,
-    };
+    console.log('✅ Updated request status:', {
+      _id: updated._id,
+      status: updated.status
+    });
 
     res.status(200).json({
       success: true,
-      message: `Status updated to ${status}`,
-      request: formattedRequest,
+      message: status === "Accepted" 
+        ? `Status updated to ${status}. ${request.date_off_number} day(s) deducted from employee's leave balance.`
+        : `Status updated to ${status}`,
+      request: updated,
     });
   } catch (error) {
     console.error("UPDATE STATUS ERROR:", error);
@@ -611,7 +551,8 @@ export const updateDayOffRequest = async (
       supervisor_id,
     } = req.body;
 
-    // ================= VALIDATION =================
+    console.log(`🔄 Updating request ${id}`);
+
     if (
       !day_off_type ||
       !start_date_time ||
@@ -665,7 +606,6 @@ export const updateDayOffRequest = async (
       return;
     }
 
-    // ================= RECALCULATE DATE OFF NUMBER =================
     let date_off_number = 0;
 
     if (day_off_type === "HALF_DAY") {
@@ -676,7 +616,6 @@ export const updateDayOffRequest = async (
       date_off_number = diffDays + 1;
     }
 
-    // ================= UPDATE REQUEST =================
     request.day_off_type = day_off_type;
     request.start_date_time = start_date_time;
     request.end_date_time = end_date_time;
@@ -686,11 +625,14 @@ export const updateDayOffRequest = async (
 
     await request.save();
 
-    // Populate and format response
+    // ✅ Use centralized population config
     const updatedRequest = await DayOffRequestModel.findById(id)
-      .populate("user_id", "first_name_en last_name_en user_email employee_id")
-      .populate("supervisor_id", "first_name_en last_name_en user_email employee_id")
-      .populate("employee_id", "first_name_en last_name_en user_email employee_id");
+      .populate(getPopulateConfig());
+
+    console.log('✅ Updated request:', {
+      _id: updatedRequest?._id,
+      title: updatedRequest?.title
+    });
 
     res.status(200).json({
       success: true,
@@ -720,6 +662,8 @@ export const deleteDayOffRequest = async (
       return;
     }
 
+    console.log(`🗑️ Deleting request ${id}`);
+
     const request = await DayOffRequestModel.findById(id);
 
     if (!request) {
@@ -737,6 +681,8 @@ export const deleteDayOffRequest = async (
 
     await request.deleteOne();
 
+    console.log('✅ Deleted request:', id);
+
     res.status(200).json({
       success: true,
       message: "Day off request deleted successfully",
@@ -746,7 +692,6 @@ export const deleteDayOffRequest = async (
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
 
 /**
  * ======================================================
@@ -760,13 +705,12 @@ export const checkDayOffConflict = async (
   try {
     const {
       employee_id,
-      date,          // For half day (single date)
-      start_date,    // For full day range start
-      end_date,      // For full day range end
-      exclude_id,    // Optional: Exclude current request when editing
+      date,
+      start_date,
+      end_date,
+      exclude_id,
     } = req.query;
 
-    // ================= VALIDATION =================
     if (!employee_id) {
       res.status(400).json({
         success: false,
@@ -775,22 +719,20 @@ export const checkDayOffConflict = async (
       return;
     }
 
-    // Convert query params
+    console.log('🔍 Checking conflicts for employee:', employee_id);
+
     const employeeId = employee_id as string;
     const excludeId = exclude_id as string | undefined;
 
-    // Prepare query conditions
     const query: any = {
       employee_id: employeeId,
-      status: { $in: ["Pending", "Accepted"] }, // Only check active requests
+      status: { $in: ["Pending", "Accepted"] },
     };
 
-    // Exclude current request if editing
     if (excludeId) {
       query._id = { $ne: excludeId };
     }
 
-    // ================= HALF DAY CONFLICT CHECK =================
     if (date && !start_date && !end_date) {
       const checkDate = new Date(date as string);
 
@@ -802,22 +744,18 @@ export const checkDayOffConflict = async (
         return;
       }
 
-      // Set time boundaries for the day
       const startOfDay = new Date(checkDate);
       startOfDay.setHours(0, 0, 0, 0);
 
       const endOfDay = new Date(checkDate);
       endOfDay.setHours(23, 59, 59, 999);
 
-      // Check for any day off that overlaps with this date
       query.$or = [
-        // Case 1: Full day that includes this date
         {
           day_off_type: "FULL_DAY",
           start_date_time: { $lte: endOfDay },
           end_date_time: { $gte: startOfDay }
         },
-        // Case 2: Half day on the same date
         {
           day_off_type: "HALF_DAY",
           start_date_time: {
@@ -827,9 +765,7 @@ export const checkDayOffConflict = async (
         }
       ];
 
-    }
-    // ================= FULL DAY CONFLICT CHECK =================
-    else if (start_date && end_date && !date) {
+    } else if (start_date && end_date && !date) {
       const startDate = new Date(start_date as string);
       const endDate = new Date(end_date as string);
 
@@ -849,31 +785,25 @@ export const checkDayOffConflict = async (
         return;
       }
 
-      // Set time boundaries
       const startOfRange = new Date(startDate);
       startOfRange.setHours(0, 0, 0, 0);
 
       const endOfRange = new Date(endDate);
       endOfRange.setHours(23, 59, 59, 999);
 
-      // Check for overlapping requests
       query.$or = [
-        // Case 1: New request starts within existing request
         {
           start_date_time: { $lte: startOfRange },
           end_date_time: { $gte: startOfRange }
         },
-        // Case 2: New request ends within existing request
         {
           start_date_time: { $lte: endOfRange },
           end_date_time: { $gte: endOfRange }
         },
-        // Case 3: Existing request is completely within new request
         {
           start_date_time: { $gte: startOfRange },
           end_date_time: { $lte: endOfRange }
         },
-        // Case 4: New request is completely within existing request
         {
           start_date_time: { $lte: startOfRange },
           end_date_time: { $gte: endOfRange }
@@ -887,16 +817,24 @@ export const checkDayOffConflict = async (
       return;
     }
 
-    // ================= EXECUTE QUERY =================
+    // ✅ Use centralized population config (only employee needed here)
     const existingRequests = await DayOffRequestModel.find(query)
       .populate({
         path: "employee_id",
-        select: "first_name_en last_name_en user_email employee_id",
-        model: User
+        select: "first_name_en last_name_en user_email employee_id department_id position_id",
+        populate: [
+          {
+            path: "department_id",
+            select: "department_name _id"
+          },
+          {
+            path: "position_id",
+            select: "position_name _id"
+          }
+        ]
       })
       .sort({ start_date_time: 1 });
 
-    // ================= FORMAT RESPONSE =================
     const conflicts = existingRequests.map(req => {
       const request = req.toObject();
       const employee = request.employee_id as any;
@@ -911,6 +849,8 @@ export const checkDayOffConflict = async (
         employee_name: employee
           ? `${employee.first_name_en || ''} ${employee.last_name_en || ''}`.trim()
           : 'Unknown',
+        employee_department: employee?.department_id?.department_name || '',
+        employee_position: employee?.position_id?.position_name || '',
         conflict_type: getConflictType(
           new Date(request.start_date_time),
           new Date(request.end_date_time),
@@ -919,6 +859,8 @@ export const checkDayOffConflict = async (
         )
       };
     });
+
+    console.log(`✅ Found ${conflicts.length} conflicts`);
 
     res.status(200).json({
       success: true,
@@ -949,7 +891,6 @@ const getConflictType = (
   newEnd?: Date
 ): string => {
   if (!newEnd) {
-    // Half day check
     const newDate = newStart;
     const existingStartDate = existingStart.toDateString();
     const newDateStr = newDate.toDateString();
@@ -960,7 +901,6 @@ const getConflictType = (
     return "OVERLAPPING_RANGE";
   }
 
-  // Full day check
   const existingStartDate = new Date(existingStart).setHours(0, 0, 0, 0);
   const existingEndDate = new Date(existingEnd).setHours(23, 59, 59, 999);
   const newStartDate = new Date(newStart).setHours(0, 0, 0, 0);
@@ -980,4 +920,54 @@ const getConflictType = (
   }
 
   return "OVERLAPPING";
+};
+
+/**
+ * ======================================================
+ * GET DAY OFF REQUEST STATS
+ * ======================================================
+ */
+export const getDayOffStats = async (
+  _: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const total = await DayOffRequestModel.countDocuments();
+    const pending = await DayOffRequestModel.countDocuments({ status: "Pending" });
+    const accepted = await DayOffRequestModel.countDocuments({ status: "Accepted" });
+    const rejected = await DayOffRequestModel.countDocuments({ status: "Rejected" });
+    const fullDay = await DayOffRequestModel.countDocuments({ day_off_type: "FULL_DAY" });
+    const halfDay = await DayOffRequestModel.countDocuments({ day_off_type: "HALF_DAY" });
+
+    console.log('📊 Day off stats:', {
+      total,
+      pending,
+      accepted,
+      rejected,
+      fullDay,
+      halfDay
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        total,
+        byStatus: {
+          pending,
+          accepted,
+          rejected,
+        },
+        byType: {
+          fullDay,
+          halfDay,
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ Get stats error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  }
 };

@@ -241,10 +241,12 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
   const [currentRequestId, setCurrentRequestId] = useState<string | undefined>(undefined)
   const [hasDateConflict, setHasDateConflict] = useState(false)
   const [isCheckingConflict, setIsCheckingConflict] = useState(false)
+  const [dateConflictMessage, setDateConflictMessage] = useState<string>('')
   const [canSubmit, setCanSubmit] = useState(false)
   const { itemIdForUpdate, setItemIdForUpdate } = useListView()
   const { refetch } = useQueryResponse()
   const currentMonthRange = useMemo(() => getCurrentMonthRange(), [])
+  
   /* -------------------- Formik -------------------- */
   const formik = useFormik<LeaveFormValues>({
     initialValues: {
@@ -405,25 +407,31 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
     }
   }
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (): Promise<Employee[]> => {
     setLoadingEmployees(true)
     try {
       const res = await axios.get<Employee[]>(`${API_URL}/users?role=employee`)
-      setEmployees(res.data || [])
+      const employeesData = res.data || []
+      setEmployees(employeesData)
+      return employeesData
     } catch (err: any) {
       toast.error('Unable to load employees')
+      return []
     } finally {
       setLoadingEmployees(false)
     }
   }
 
-  const fetchSupervisors = async () => {
+  const fetchSupervisors = async (): Promise<Supervisor[]> => {
     setLoadingSupervisors(true)
     try {
       const res = await axios.get(`${API_URL}/users?role=supervisor`)
-      setSupervisors(res.data || [])
+      const supervisorsData = res.data || []
+      setSupervisors(supervisorsData)
+      return supervisorsData
     } catch (err: any) {
       toast.error('Unable to load supervisors')
+      return []
     } finally {
       setLoadingSupervisors(false)
     }
@@ -507,6 +515,84 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
       return await checkLocalDateOverlap(employeeId, startDate, endDate, dayOffType, excludeRequestId)
     }
   }
+
+  /* -------------------- NEW: Check and Show Conflict Function -------------------- */
+  const checkAndShowConflict = useCallback(async () => {
+    const { employee_id, day_off_type, start_date, end_date, half_day_date, half_day_period } = formik.values
+
+    // ถ้าข้อมูลไม่ครบ ล้างข้อความ
+    if (!employee_id || !day_off_type) {
+      setHasDateConflict(false)
+      setDateConflictMessage('')
+      return
+    }
+
+    // ตรวจสอบตามประเภท
+    let shouldCheck = false
+    let checkDate = ''
+    let checkEndDate = ''
+
+    if (day_off_type === 'FULL_DAY' && start_date && end_date) {
+      shouldCheck = true
+      checkDate = start_date
+      checkEndDate = end_date
+    } else if (day_off_type === 'HALF_DAY' && half_day_date) {
+      shouldCheck = true
+      checkDate = half_day_date
+    }
+
+    if (!shouldCheck) {
+      setHasDateConflict(false)
+      setDateConflictMessage('')
+      return
+    }
+
+    // เริ่มตรวจสอบ
+    setIsCheckingConflict(true)
+    try {
+      const result = await checkExistingDayOff(
+        employee_id,
+        checkDate,
+        day_off_type === 'FULL_DAY' ? checkEndDate : undefined,
+        day_off_type,
+        isEditMode ? currentRequestId : undefined
+      )
+
+      if (result.hasConflict && result.conflicts && result.conflicts.length > 0) {
+        const conflict = result.conflicts[0]
+        let message = ''
+
+        if (day_off_type === 'HALF_DAY') {
+          const conflictDate = new Date(conflict.start_date_time).toLocaleDateString('th-TH')
+          const conflictType = conflict.day_off_type === 'HALF_DAY' ? 'ครึ่งวัน' : 'เต็มวัน'
+          
+          if (conflict.day_off_type === 'HALF_DAY') {
+            const conflictPeriod = getHalfDayPeriodFromTime(conflict.start_date_time)
+            const periodThai = conflictPeriod === 'morning' ? 'ช่วงเช้า' : 'ช่วงบ่าย'
+            message = `⚠️ คุณมีคำขอลาแล้วในวันที่ ${conflictDate} (${conflictType} - ${periodThai})`
+          } else {
+            message = `⚠️ คุณมีคำขอลาแล้วในวันที่ ${conflictDate} (${conflictType})`
+          }
+        } else {
+          const startDate = new Date(conflict.start_date_time).toLocaleDateString('th-TH')
+          const endDate = new Date(conflict.end_date_time).toLocaleDateString('th-TH')
+          message = `⚠️ คุณมีคำขอลาแล้วในช่วงวันที่ ${startDate} ถึง ${endDate}`
+        }
+
+        setDateConflictMessage(message)
+        setHasDateConflict(true)
+      } else {
+        setDateConflictMessage('')
+        setHasDateConflict(false)
+      }
+    } catch (error) {
+      console.debug('Conflict check failed:', error)
+      setDateConflictMessage('')
+      setHasDateConflict(false)
+    } finally {
+      setIsCheckingConflict(false)
+    }
+  }, [formik.values, isEditMode, currentRequestId, checkExistingDayOff])
 
   /* -------------------- Form Validation -------------------- */
   const isFormComplete = useCallback((): boolean => {
@@ -601,64 +687,9 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
         }
       }
 
-      // Check for conflicts (both create and edit modes)
-      const loadingToast = toast.loading('Checking for existing day off requests...')
-      let conflictResult
-
-      try {
-        conflictResult = await checkExistingDayOff(
-          values.employee_id,
-          values.day_off_type === 'HALF_DAY' ? values.half_day_date : values.start_date,
-          values.day_off_type === 'FULL_DAY' ? values.end_date : undefined,
-          values.day_off_type,
-          isEditMode ? currentRequestId : undefined
-        )
-      } finally {
-        toast.dismiss(loadingToast)
-      }
-
-      if (conflictResult.hasConflict) {
-        let conflictMessage = ''
-
-        if (conflictResult.conflicts && conflictResult.conflicts.length > 0) {
-          const conflict = conflictResult.conflicts[0]
-          if (values.day_off_type === 'HALF_DAY') {
-            const conflictDate = new Date(conflict.start_date_time).toLocaleDateString()
-            const conflictType = conflict.day_off_type === 'HALF_DAY' ? 'half day' : 'full day'
-            conflictMessage = `You already have a ${conflictType} request on ${conflictDate}`
-
-            // Additional check for same half-day period
-            if (conflict.day_off_type === 'HALF_DAY') {
-              const conflictPeriod = getHalfDayPeriodFromTime(conflict.start_date_time)
-              if (conflictPeriod === values.half_day_period) {
-                conflictMessage = `You already have a ${values.half_day_period} half-day request on ${conflictDate}`
-              }
-            }
-          } else {
-            const startDate = new Date(conflict.start_date_time).toLocaleDateString()
-            const endDate = new Date(conflict.end_date_time).toLocaleDateString()
-            conflictMessage = `You already have a day off request from ${startDate} to ${endDate}`
-          }
-        } else {
-          conflictMessage =
-            values.day_off_type === 'HALF_DAY'
-              ? `You already have a day off request for ${new Date(values.half_day_date).toLocaleDateString()}`
-              : `You already have a day off request that overlaps with the selected period`
-        }
-
-        await Swal.fire({
-          icon: 'warning',
-          title: 'Duplicate Request',
-          html: `
-            <div class="text-start">
-              <p>${conflictMessage}</p>
-              <p class="text-muted mt-2">Please select different dates.</p>
-            </div>
-          `,
-          confirmButtonText: 'OK',
-          confirmButtonColor: '#3085d6',
-        })
-
+      // Check for conflicts (simple check)
+      if (hasDateConflict) {
+        toast.error('กรุณาเลือกวันที่ที่ไม่ซ้ำกับคำขอลาที่มีอยู่แล้ว')
         setIsSubmitting(false)
         return
       }
@@ -681,8 +712,6 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
         title: values.reason?.trim() || 'Day off request',
       }
 
-      // Submit request
-      let result
       // Submit request
       if (isEditMode && currentRequestId) {
         await updateDayOffRequest(currentRequestId, dayOffRequestDTO)
@@ -712,10 +741,9 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
       setIsEditMode(false)
       setCurrentRequestId(undefined)
       setHasDateConflict(false)
+      setDateConflictMessage('')
 
-      // ✅ Refresh table here
       await refetch()
-      // Call external onSuccess callback if any
       if (onSuccess) onSuccess()
     } catch (error: any) {
       handleSubmitError(error)
@@ -731,9 +759,28 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
       const requestData = await getDayOffRequestById(requestId)
 
       if (requestData) {
-        // Load necessary data if not already loaded
-        if (departments.length === 0) await fetchDepartments()
-        if (employees.length === 0) await fetchEmployees()
+        let departmentsData = departments
+        let employeesData = employees
+        let supervisorsData = supervisors
+
+        // Load departments if not already loaded
+        if (departmentsData.length === 0) {
+          departmentsData = await fetchDepartments()
+        }
+
+        // Load employees if not already loaded
+        if (employeesData.length === 0) {
+          await fetchEmployees()
+          await new Promise(resolve => setTimeout(resolve, 100))
+          employeesData = employees.length > 0 ? employees : employeesData
+        }
+
+        // Load supervisors if not already loaded
+        if (supervisorsData.length === 0) {
+          await fetchSupervisors()
+          await new Promise(resolve => setTimeout(resolve, 100))
+          supervisorsData = supervisors.length > 0 ? supervisors : supervisorsData
+        }
 
         // Helper function to extract string ID from various possible types
         const extractId = (obj: any): string => {
@@ -745,11 +792,11 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
           return String(obj)
         }
 
-        // Get employee ID - handle both string and object types
+        // Get employee ID
         const employeeId = extractId(requestData.employee_id)
 
         // Get employee data
-        const employee = employees.find(
+        const employee = employeesData.find(
           (emp) => emp._id === employeeId || emp.id === employeeId
         )
 
@@ -765,12 +812,15 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
           }
         }
 
+        // Fallback: try to find department by name if ID not found
         if (!departmentId && requestData.department_name) {
-          const dept = departments.find((d) => d.department_name === requestData.department_name)
-          departmentId = extractId(dept)
+          const dept = departmentsData.find((d) => d.department_name === requestData.department_name)
+          if (dept) {
+            departmentId = extractId(dept)
+          }
         }
 
-        // Get supervisor ID - handle array of supervisors
+        // Get supervisor ID
         let supervisorId = ''
         if (requestData.supervisor_id) {
           if (Array.isArray(requestData.supervisor_id)) {
@@ -817,38 +867,6 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
         // Set the current request ID for edit mode
         setCurrentRequestId(requestId)
         setIsEditMode(true)
-
-        // Check for conflicts with other requests (excluding current one)
-        try {
-          const checkConflictResult = await checkExistingDayOff(
-            employeeId,
-            requestData.day_off_type === 'HALF_DAY'
-              ? startDate
-              : startDate,
-            requestData.day_off_type === 'FULL_DAY'
-              ? endDate
-              : undefined,
-            requestData.day_off_type,
-            requestId
-          )
-
-          if (checkConflictResult.hasConflict) {
-            // Show warning but don't prevent loading
-            toast.warning(
-              <div>
-                <strong>Note:</strong> There are other day off requests that conflict with these dates.
-                <br />
-                <small>You may need to adjust dates to avoid overlap.</small>
-              </div>,
-              { autoClose: 3000 }
-            )
-          }
-
-          setHasDateConflict(checkConflictResult.hasConflict)
-        } catch (error) {
-          console.debug('Conflict check during load failed:', error)
-          setHasDateConflict(false)
-        }
       }
     } catch (error) {
       console.error('Error loading request data:', error)
@@ -873,6 +891,7 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
       setCurrentRequestId(undefined)
       formik.resetForm()
       setHasDateConflict(false)
+      setDateConflictMessage('')
     }
   }, [itemIdForUpdate])
 
@@ -917,47 +936,9 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
     }
   }, [formik.values.day_off_type, isEditMode])
 
-  // Check for date conflicts in real-time
+  // NEW: Check for date conflicts in real-time when date changes
   useEffect(() => {
-    const checkForConflicts = async () => {
-      const { employee_id, day_off_type, start_date, end_date, half_day_date } = formik.values
-
-      if (!employee_id || !day_off_type) {
-        setHasDateConflict(false)
-        return
-      }
-
-      let hasConflict = false
-
-      try {
-        if (day_off_type === 'FULL_DAY' && start_date && end_date) {
-          const result = await checkExistingDayOff(
-            employee_id,
-            start_date,
-            end_date,
-            'FULL_DAY',
-            isEditMode ? currentRequestId : undefined
-          )
-          hasConflict = result.hasConflict
-        } else if (day_off_type === 'HALF_DAY' && half_day_date) {
-          const result = await checkExistingDayOff(
-            employee_id,
-            half_day_date,
-            undefined,
-            'HALF_DAY',
-            isEditMode ? currentRequestId : undefined
-          )
-          hasConflict = result.hasConflict
-        }
-      } catch (error) {
-        console.debug('Conflict check failed:', error)
-        hasConflict = false
-      }
-
-      setHasDateConflict(hasConflict)
-    }
-
-    const timeoutId = setTimeout(checkForConflicts, 500)
+    const timeoutId = setTimeout(checkAndShowConflict, 500)
     return () => clearTimeout(timeoutId)
   }, [
     formik.values.employee_id,
@@ -965,8 +946,8 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
     formik.values.start_date,
     formik.values.end_date,
     formik.values.half_day_date,
-    isEditMode,
-    currentRequestId
+    formik.values.half_day_period,
+    checkAndShowConflict
   ])
 
   // Update canSubmit based on form state
@@ -1175,6 +1156,18 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
                     )}
                   </div>
                 </div>
+                {/* Show conflict message below date inputs for FULL_DAY */}
+                {isCheckingConflict && (
+                  <div className="mt-3 text-muted">
+                    <span className="spinner-border spinner-border-sm me-2"></span>
+                    กำลังตรวจสอบวันที่...
+                  </div>
+                )}
+                {!isCheckingConflict && dateConflictMessage && (
+                  <div className="alert alert-warning mt-3 py-2 px-3 mb-0">
+                    <small>{dateConflictMessage}</small>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1196,6 +1189,18 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
                   {formik.touched.half_day_date && formik.errors.half_day_date && (
                     <div className="fv-plugins-message-container">
                       <div className="fv-help-block text-danger">{formik.errors.half_day_date}</div>
+                    </div>
+                  )}
+                  {/* Show conflict message below date input for HALF_DAY */}
+                  {isCheckingConflict && (
+                    <div className="mt-2 text-muted">
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      กำลังตรวจสอบวันที่...
+                    </div>
+                  )}
+                  {!isCheckingConflict && dateConflictMessage && (
+                    <div className="alert alert-warning mt-2 py-2 px-3 mb-0">
+                      <small>{dateConflictMessage}</small>
                     </div>
                   )}
                 </div>
@@ -1281,21 +1286,6 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
                 value={formik.values.reason || ''}
               />
             </div>
-
-            {/* Conflict Warning */}
-            {hasDateConflict && (
-              <div className="alert alert-warning d-flex align-items-center">
-                <i className="ki-duotone ki-information-5 fs-2 me-4">
-                  <span className="path1"></span>
-                  <span className="path2"></span>
-                  <span className="path3"></span>
-                </i>
-                <div className="d-flex flex-column">
-                  <span className="fw-bold">Warning: Date Conflict Detected</span>
-                  <span>The selected dates conflict with existing day off requests. Please adjust dates.</span>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Card Footer with Actions */}
@@ -1308,6 +1298,7 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess }) => {
                 setIsEditMode(false)
                 formik.resetForm()
                 setHasDateConflict(false)
+                setDateConflictMessage('')
               }}
               disabled={isSubmitting}
             >

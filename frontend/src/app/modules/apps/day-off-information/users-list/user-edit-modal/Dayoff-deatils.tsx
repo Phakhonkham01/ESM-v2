@@ -149,8 +149,8 @@ export const DayOffRequestViewModalForm: FC = () => {
                     }
                 }}
             >
-                <div className="modal-dialog modal-lg modal-dialog-centered">
-                    <div className="modal-content">
+                <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                    <div className="modal-content ">
                         {/* Modal Header */}
                         <div className="modal-header">
                             <h5 className="modal-title">
@@ -167,7 +167,7 @@ export const DayOffRequestViewModalForm: FC = () => {
                         </div>
 
                         {/* Modal Body */}
-                        <div className="modal-body">
+                        <div className="modal-body p-20">
                             {loading ? (
                                 <div className="text-center py-5">
                                     <div className="spinner-border text-primary" role="status">
@@ -189,217 +189,178 @@ export const DayOffRequestViewModalForm: FC = () => {
                                     </button>
                                 </div>
                             ) : request ? (
-                                <div className="row g-6">
-                                    {/* Status Badge */}
-                                    <div className="col-12 mb-4">
-                                        <div className="d-flex justify-content-between align-items-center">
-                                            <span className={clsx('badge', getStatusBadgeClass(request.status), 'fs-6 px-3 py-2')}>
-                                                <i className={clsx('bi', getStatusIcon(request.status), 'me-2')}></i>
-                                                {request.status || 'Unknown Status'}
-                                            </span>
-                                            <span className={clsx('badge', getDayOffTypeBadgeClass(request.day_off_type), 'fs-6 px-3 py-2')}>
-                                                {request.day_off_type === 'FULL_DAY' ? 'Full Day' : 'Half Day'}
-                                            </span>
+                                <div className="card-body py-3">
+                                    {/* Request Type & Status */}
+                                    <div className="row mb-7">
+                                        <div className="col-md-6">
+                                            <div className="mb-3">
+                                                <div className="fw-bold text-muted fs-7 mb-2">Request Type & Status</div>
+                                                <div className="d-flex gap-2">
+                                                    <span className={clsx('badge', getDayOffTypeBadgeClass(request.day_off_type), 'fs-6 px-3 py-2')}>
+                                                        {request.day_off_type === 'FULL_DAY' ? 'Full Day' : 'Half Day'}
+                                                    </span>
+                                                    <span className={clsx('badge', getStatusBadgeClass(request.status), 'fs-6 px-3 py-2')}>
+                                                        <i className={clsx('bi', getStatusIcon(request.status), 'me-2')}></i>
+                                                        {request.status || 'Unknown Status'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="fw-bold text-muted fs-7 mb-2 pt-7">Request Date</div>
+                                                <div className="fw-bold fs-5 text-gray-800">
+                                                    <i className="bi bi-calendar-event me-2 text-primary"></i>
+                                                    {formatDate(getSafeString(request?.created_at))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="col-md-6">
+                                            <div className="border p-4 text-center">
+                                                <div className="fw-bold text-muted fs-7 mb-2">Total Days Off</div>
+                                                <div className="fw-bold fs-4 text-success">
+                                                    <i className="bi bi-calendar-check me-2"></i>
+                                                    {request.date_off_number} {request.date_off_number === 1 ? 'Day' : 'Days'}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* Employee Information */}
-                                    <div className="col-md-6">
-                                        <div className="card card-flush bg-light mb-6">
-                                            <div className="card-header">
-                                                <h6 className="card-title text-gray-800 fw-bold">
-                                                    <i className="bi bi-person-badge me-2"></i>
-                                                    Employee Information
-                                                </h6>
-                                            </div>
-                                            <div className="card-body">
-                                                <div className="mb-3">
-                                                    <label className="text-gray-600 fw-semibold d-block mb-1">Employee Name</label>
-                                                    <div className="fw-bold text-gray-800">
-                                                        {request.employee_name || 'N/A'}
+                                    {/* Employee & Supervisor Section */}
+                                    <div className="row mb-5">
+                                        <div className="col-md-6">
+                                            <div className="d-flex align-items-center mb-5">
+                                                <div className="symbol symbol-50px symbol-circle me-4">
+                                                    <div className="symbol-label bg-light-primary">
+                                                        <i className="bi bi-person-fill text-primary fs-2"></i>
                                                     </div>
                                                 </div>
-
-                                                {request.employee_email && (
-                                                    <div className="mb-3">
-                                                        <label className="text-gray-600 fw-semibold d-block mb-1">Email</label>
-                                                        <div className="text-gray-800">
-                                                            <i className="bi bi-envelope me-2"></i>
+                                                <div>
+                                                    <div className="fw-bold text-muted fs-7 mb-1">Employee</div>
+                                                    <div className="fw-bold fs-5 text-gray-800">{request.employee_name || 'N/A'}</div>
+                                                    {request.employee_email && (
+                                                        <div className="text-muted fs-7">
+                                                            <i className="bi bi-envelope me-1"></i>
                                                             {request.employee_email}
                                                         </div>
-                                                    </div>
-                                                )}
-
-                                                {request.department_name && (
-                                                    <div className="mb-3">
-                                                        <label className="text-gray-600 fw-semibold d-block mb-1">Department</label>
-                                                        <div className="text-gray-800">
-                                                            <i className="bi bi-building me-2"></i>
-                                                            {request.department_name}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Supervisor Information */}
-                                    <div className="col-md-6">
-                                        <div className="card card-flush bg-light mb-6">
-                                            <div className="card-header">
-                                                <h6 className="card-title text-gray-800 fw-bold">
-                                                    <i className="bi bi-person-check me-2"></i>
-                                                    Supervisor Information
-                                                </h6>
-                                            </div>
-                                            <div className="card-body">
-                                                <div className="mb-3">
-                                                    <label className="text-gray-600 fw-semibold d-block mb-1">Supervisor Name</label>
-                                                    <div className="fw-bold text-gray-800">
-                                                        {request.supervisor_name || 'N/A'}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Request Details */}
-                                    <div className="col-12">
-                                        <div className="card card-flush bg-light mb-6">
-                                            <div className="card-header">
-                                                <h6 className="card-title text-gray-800 fw-bold">
-                                                    <i className="bi bi-calendar-event me-2"></i>
-                                                    Request Details
-                                                </h6>
-                                            </div>
-                                            <div className="card-body">
-                                                <div className="row">
-                                                    {/* Start Date & Time - ✅ แก้ไขตรงนี้ */}
-                                                    <div className="col-md-6 mb-4">
-                                                        <label className="text-gray-600 fw-semibold d-block mb-1">Start Date & Time</label>
-                                                        <div className="fw-bold text-gray-800">
-                                                            <div className="d-flex align-items-center">
-                                                                <i className="bi bi-calendar-date text-primary me-2"></i>
-                                                                <div>
-                                                                    <div>{formatDate(getSafeString(request?.start_date_time))}</div>
-                                                                    <div className="text-muted fs-7">
-                                                                        <div>{formatTime(getSafeString(request?.start_date_time))}</div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* End Date & Time - ✅ แก้ไขตรงนี้ */}
-                                                    <div className="col-md-6 mb-4">
-                                                        <label className="text-gray-600 fw-semibold d-block mb-1">End Date & Time</label>
-                                                        <div className="fw-bold text-gray-800">
-                                                            <div className="d-flex align-items-center">
-                                                                <i className="bi bi-calendar-date text-primary me-2"></i>
-                                                                <div>
-                                                                    <div>{formatDate(getSafeString(request?.end_date_time))}</div>
-                                                                    <div className="text-muted fs-7">
-                                                                        <div>{formatTime(getSafeString(request?.end_date_time))}</div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Days Information */}
-                                                    <div className="col-md-6 mb-4">
-                                                        <label className="text-gray-600 fw-semibold d-block mb-1">Total Days Off</label>
-                                                        <div className="fw-bold text-gray-800">
-                                                            <span className="badge badge-light-primary fs-6 px-3 py-2">
-                                                                {request.date_off_number} {request.date_off_number === 1 ? 'day' : 'days'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Half Day Period (if applicable) */}
-                                                    {request.day_off_type === 'HALF_DAY' && (
-                                                        <div className="col-md-6 mb-4">
-                                                            <label className="text-gray-600 fw-semibold d-block mb-1">Time Period</label>
-                                                            <div className="fw-bold text-gray-800">
-                                                                <span className="badge badge-light-info fs-6 px-3 py-2">
-                                                                    {getHalfDayPeriodText(request)}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Reason (if available) */}
-                                                {request.reason && (
-                                                    <div className="mt-4">
-                                                        <label className="text-gray-600 fw-semibold d-block mb-2">Reason</label>
-                                                        <div className="p-3 bg-white rounded border">
-                                                            <p className="mb-0">{request.reason}</p>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Title (if available) */}
-                                                {request.title && request.title !== 'Day off request' && (
-                                                    <div className="mt-4">
-                                                        <label className="text-gray-600 fw-semibold d-block mb-2">Title</label>
-                                                        <div className="text-gray-800 fw-bold">
-                                                            {request.title}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Metadata */}
-                                    <div className="col-12">
-                                        <div className="card card-flush bg-light">
-                                            <div className="card-header">
-                                                <h6 className="card-title text-gray-800 fw-bold">
-                                                    <i className="bi bi-info-circle me-2"></i>
-                                                    Additional Information
-                                                </h6>
-                                            </div>
-                                            <div className="card-body">
-                                                <div className="row text-muted fs-7">
-                                                    {request.created_at && (
-                                                        <div className="col-md-6">
-                                                            <div className="d-flex align-items-center mb-2">
-                                                                <i className="bi bi-calendar-plus me-2"></i>
-                                                                <div>
-                                                                    <div className="fw-semibold">Created</div>
-                                                                    <div>{formatDateTime(getSafeString(request?.created_at))}</div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {request.updated_at && (
-                                                        <div className="col-md-6">
-                                                            <div className="d-flex align-items-center mb-2">
-                                                                <i className="bi bi-calendar-check me-2"></i>
-                                                                <div>
-                                                                    <div className="fw-semibold">Last Updated</div>
-                                                                    <div>{formatDateTime(getSafeString(request?.updated_at))}</div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {request._id && (
-                                                        <div className="col-12 mt-2">
-                                                            <div className="d-flex align-items-center">
-                                                                <i className="bi bi-hash me-2"></i>
-                                                                <div>
-                                                                    <div className="fw-semibold">Request ID</div>
-                                                                    <div className="font-monospace fs-7">{request._id}</div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
+                                        </div>
+                                        <div className="col-md-6">
+                                            <div className="d-flex align-items-center mb-5">
+                                                <div className="symbol symbol-50px symbol-circle me-4">
+                                                    <div className="symbol-label bg-light-success">
+                                                        <i className="bi bi-people-fill text-success fs-2"></i>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="fw-bold text-muted fs-7 mb-1">Supervisor</div>
+                                                    <div className="fw-bold fs-5 text-gray-800">{request.supervisor_name || 'N/A'}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {request.department_name && (
+                                            <div className="col-md-6">
+                                                <div className="d-flex align-items-center mb-5">
+                                                    <div className="symbol symbol-50px symbol-circle me-4">
+                                                        <div className="symbol-label bg-light-info">
+                                                            <i className="bi bi-building text-info fs-2"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="fw-bold text-muted fs-7 mb-1">Department</div>
+                                                        <div className="fw-bold fs-5 text-gray-800">{request.department_name}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Time Range Section */}
+                                    <div className="row mb-7">
+                                        <div className="col-md-4">
+                                            <div className="border rounded p-4 text-center">
+                                                <div className="fw-bold text-muted fs-7 mb-2">Start Date & Time</div>
+                                                <div className="fw-bold fs-6 text-gray-800 h-65px">
+                                                    <i className="bi bi-clock text-success me-2"></i>
+                                                    <div>{formatDate(getSafeString(request?.start_date_time))}</div>
+                                                    <div className="text-muted fs-7 mt-1">{formatTime(getSafeString(request?.start_date_time))}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="col-md-4">
+                                            <div className="border rounded p-4 text-center">
+                                                <div className="fw-bold text-muted fs-7 mb-2">End Date & Time</div>
+                                                <div className="fw-bold fs-6 text-gray-800 h-65px">
+                                                    <i className="bi bi-clock text-danger me-2"></i>
+                                                    <div>{formatDate(getSafeString(request?.end_date_time))}</div>
+                                                    <div className="text-muted fs-7 mt-1">{formatTime(getSafeString(request?.end_date_time))}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {request.day_off_type === 'HALF_DAY' && (
+                                            <div className="col-md-4">
+                                                <div className="border rounded p-4 text-center">
+                                                    <div className="fw-bold text-muted fs-7 mb-2">Time Period</div>
+                                                    <div className="fw-bold fs-5 text-gray-800 h-65px">
+                                                        <i className="bi bi-hourglass-split me-2 text-warning"></i>
+                                                        {getHalfDayPeriodText(request)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Title Section */}
+                                    {request.title && request.title !== 'Day off request' && (
+                                        <div className="mb-7">
+                                            <div className="fw-bold text-muted fs-7 mb-3">Reason for Request</div>
+                                            <div className="card bg-light-primary border-primary border-2">
+                                                <div className="card-body p-5">
+                                                    <p className="text-gray-700 fs-5 mb-0">
+                                                        <i className="bi bi-card-text text-gray-600 me-2"></i>
+                                                        {request.title}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Timestamps */}
+                                    <div className="border-top pt-5 mt-5">
+                                        <div className="row">
+                                            <div className="col-md-4">
+                                                <div className="d-flex align-items-center">
+                                                    <div className="symbol symbol-40px symbol-circle me-3">
+                                                        <div className="symbol-label bg-light">
+                                                            <i className="bi bi-calendar-plus text-primary"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="fw-bold text-muted fs-7">Created At</div>
+                                                        <div className="fw-bold fs-6 text-gray-800">
+                                                            {formatDateTime(getSafeString(request?.created_at))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {request._id && (
+                                                <div className="col-md-4">
+                                                    <div className="d-flex align-items-center">
+                                                        <div className="symbol symbol-40px symbol-circle me-3">
+                                                            <div className="symbol-label bg-light">
+                                                                <i className="bi bi-hash text-info"></i>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="fw-bold text-muted fs-7">Request ID</div>
+                                                            <div className="fw-bold fs-7 text-gray-800 font-monospace">
+                                                                {request._id.substring(0, 8)}...
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -409,18 +370,6 @@ export const DayOffRequestViewModalForm: FC = () => {
                                     <p className="mt-3 text-muted">No request data found</p>
                                 </div>
                             )}
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="modal-footer">
-                            <button
-                                type="button"
-                                className="btn btn-light"
-                                onClick={handleClose}
-                                disabled={loading}
-                            >
-                                Close
-                            </button>
                         </div>
                     </div>
                 </div>
