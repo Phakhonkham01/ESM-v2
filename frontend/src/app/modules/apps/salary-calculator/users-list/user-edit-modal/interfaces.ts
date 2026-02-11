@@ -36,6 +36,7 @@ export interface PrefillData {
     day_off_days_this_month?: number
     used_vacation_days_this_year?: number
     total_vacation_days?: number
+    leave_days?: number
     exceed_days?: number
   }
   month: number

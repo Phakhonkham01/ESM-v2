@@ -8,36 +8,17 @@ import { useListView } from './core/ListViewProvider'
 import { KTCard } from '../../../../../_metronic/helpers'
 import { useState } from 'react'
 import { User } from './core/_models'
-// import { getExistingSalaries } from './core/_requests'
 
 const SalaryList = () => {
-  const { itemIdForUpdate } = useListView()
+  // FIX: also grab setItemIdForUpdate so we can actually clear it on close
+  const { itemIdForUpdate, setItemIdForUpdate } = useListView()
 
-//   const [existingSalaries, setExistingSalaries] = useState<any[]>([])
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
-
-//   const checkExistingSalary = (userId: string, month: number, year: number) => {
-//     return existingSalaries.some(
-//       (salary) => salary.month === month && salary.year === year
-//     )
-//   }
-
-//   const handleOpenCalculator = async (user: User) => {
-//     setSelectedUser(user)
-//     try {
-//       const salaries = await getExistingSalaries(user._id)
-//       setExistingSalaries(salaries)
-//     } catch (error) {
-//       console.error('Error fetching salaries:', error)
-//     }
-//     setShowConfirmDialog(true)
-//   }
 
   const handleCloseModal = () => {
     setShowConfirmDialog(false)
     setSelectedUser(null)
-    // setExistingSalaries([])
   }
 
   return (
@@ -46,7 +27,7 @@ const SalaryList = () => {
         <UsersListHeader />
         <SalaryListTable />
       </KTCard>
-      
+
       {showConfirmDialog && selectedUser && (
         <div
           className="modal fade show d-block"
@@ -78,11 +59,13 @@ const SalaryList = () => {
           <div className="modal-backdrop fade show"></div>
         </div>
       )}
-      
+
       {itemIdForUpdate && (
         <SalaryCalculatorModal
           userId={itemIdForUpdate}
-          onClose={() => {}}
+          // FIX: was () => {} (empty, did nothing).
+          // Now clears itemIdForUpdate → modal unmounts → backdrop disappears automatically.
+          onClose={() => setItemIdForUpdate(undefined)}
         />
       )}
     </>

@@ -538,50 +538,12 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     }
   }
 
-  // Fix: เพิ่มฟังก์ชัน handleClose แยกเพื่อป้องกันการเรียกซ้ำ
-  const handleClose = useCallback((e?: React.MouseEvent) => {
-    // ป้องกันการเรียกซ้ำถ้ามี event bubbling
-    if (e) {
-      e.stopPropagation();
-    }
-    
-    setActiveStep(0);
-    setFormData({
-      user_id: userId,
-      salary: 0,
-      fuel_costs: 0,
-      month: selectedMonth,
-      year: selectedYear,
-      bonus: 0,
-      commission: 0,
-      money_not_spent_on_holidays: 0,
-      other_income: 0,
-      office_expenses: 0,
-      cut_off_pay_days: 0,
-      cut_off_pay_amount: 0,
-      social_security: 0,
-      working_days: 22,
-      notes: '',
-    });
-
-    setManualOT({
-      weekday: { hours: 0, rate_per_hour: 0 },
-      weekend: {
-        hours: 0,
-        days: 0,
-        rate_per_hour: 0,
-        rate_per_day: 0,
-      },
-    });
-
-    setManualOTDetails([]);
-    setError(null);
-    setSuccess(false);
-    setPrefillData(null);
-    
-    // เรียก onClose จาก props เท่านั้น
-    onClose();
-  }, [onClose, userId, selectedMonth, selectedYear]);
+  // The backdrop is a React-rendered element in SalaryCalculatorModal.
+  // Calling onClose() triggers setItemIdForUpdate(undefined) in the parent,
+  // which unmounts the entire modal + backdrop automatically. No DOM cleanup needed.
+  const handleClose = useCallback(() => {
+    onClose()
+  }, [onClose])
 
   const steps = [
     "Basic Information",
@@ -608,8 +570,7 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
       addManualOTDetail,
       clearManualOT,
       calculateManualOTSummary,
-      handleCutOffDaysChange, // Add this to the props
-      // Fix: เพิ่มฟังก์ชัน handleMonthChange และ handleYearChange
+      handleCutOffDaysChange,
       onMonthChange: (month: number) => setSelectedMonth(month),
       onYearChange: (year: number) => setSelectedYear(year),
     }
@@ -648,11 +609,11 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
       {/* Header */}
       <div className="modal-header" style={{ borderBottom: '1px solid #eee' }}>
         <h2 className="fw-bold mb-0">Payroll Calculation System</h2>
+        {/* Close button — handleClose uses Bootstrap JS API directly */}
         <div
           className="btn btn-icon btn-sm btn-active-light-primary ms-2"
-          onClick={(e) => handleClose(e)}
+          onClick={handleClose}
           style={{ cursor: 'pointer' }}
-          data-bs-dismiss="modal" // เพิ่ม attribute นี้เพื่อปิด modal
           aria-label="Close"
         >
           <KTIcon iconName="cross" className="fs-1" />
