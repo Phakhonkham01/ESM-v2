@@ -2,7 +2,6 @@
 
 // Helper function to format request data for display
 export const formatRequestOTFieldWork = (request: RequestOTFieldWork): FormattedRequestOTFieldWork => {
-  // ✅ Extract user information
   const user = request.user_id
   const userName = typeof user === 'object' && user !== null 
     ? user.user_name || 'N/A'

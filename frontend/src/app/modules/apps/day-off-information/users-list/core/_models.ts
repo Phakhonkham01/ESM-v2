@@ -290,18 +290,3 @@ export const sortRequestsByDate = (
     return order === 'asc' ? dateA - dateB : dateB - dateA
   })
 }
-
-// ✅ Debug helper
-export const debugRequestData = (request: any, label: string = 'Request') => {
-  console.log(`🔍 ${label} Debug:`, {
-    _id: request._id,
-    employee_id: request.employee_id,
-    employee_name: request.employee_name,
-    employee_department: request.employee_department,
-    department_name: request.department_name,
-    supervisor_name: request.supervisor_name,
-    supervisor_type: typeof request.supervisor_name,
-    isArray: Array.isArray(request.supervisor_name),
-    fullRequest: request
-  })
-}

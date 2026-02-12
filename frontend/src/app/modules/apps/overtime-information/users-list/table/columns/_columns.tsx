@@ -54,16 +54,8 @@ const requestsColumns: ReadonlyArray<Column<FormattedRequestOTFieldWork>> = [
     ),
     id: 'department',
     accessor: 'department_name',
-    Cell: ({ value, row }) => {
-      const request = row.original
+    Cell: ({ value }) => {
       const departmentName = value
-      
-      console.log('🏢 Rendering department cell:', {
-        requestId: request._id,
-        department_name: departmentName,
-        value: value
-      })
-      
       // Check if department is missing or not populated
       if (!departmentName || departmentName === 'N/A' || departmentName.includes('Not populated')) {
         return (

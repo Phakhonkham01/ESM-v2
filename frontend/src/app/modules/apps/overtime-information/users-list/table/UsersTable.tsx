@@ -15,56 +15,21 @@ const UsersTable = () => {
   
   // ✅ Filter and format data with detailed logging
   const data = useMemo(() => {
-    console.log('📦 ========== USERS TABLE DATA PROCESSING ==========')
-    console.log('📦 Raw requests from API:', requests)
-    console.log('📦 Number of requests:', requests?.length || 0)
-
     if (!requests || requests.length === 0) {
-      console.log('⚠️ No requests available')
       return []
     }
-
-    // Log first request in detail
-    console.log('📦 First request sample (before filter):', requests[0])
 
     // ✅ Filter OT requests only
     const filteredRequests = requests.filter(request => {
       const isOT = request.title === 'OT'
-      console.log(`🔍 Request ${request._id}:`, {
-        title: request.title,
-        isOT,
-        user_id: request.user_id,
-        user_name: typeof request.user_id === 'object' ? request.user_id?.user_name : 'string'
-      })
       return isOT
     })
 
-    console.log('📊 Filtered OT Requests count:', filteredRequests.length)
-    
-    if (filteredRequests.length > 0) {
-      console.log('📊 First filtered request:', filteredRequests[0])
-    }
-
     // ✅ Format each request
     const formattedData = filteredRequests.map((request, index) => {
-      console.log(`\n🔄 ========== FORMATTING REQUEST ${index + 1}/${filteredRequests.length} ==========`)
       const formatted = formatRequestOTFieldWork(request)
-      console.log('✅ Formatted result:', {
-        _id: formatted._id,
-        user_name: formatted.user_name,
-        department_name: formatted.department_name,
-        title: formatted.title
-      })
       return formatted
     })
-
-    console.log('📦 ========== FINAL FORMATTED DATA ==========')
-    console.log('📦 Total formatted records:', formattedData.length)
-    if (formattedData.length > 0) {
-      console.log('📦 Sample formatted record:', formattedData[0])
-    }
-    console.log('📦 ==========================================\n')
-
     return formattedData
   }, [requests])
   
@@ -74,8 +39,6 @@ const UsersTable = () => {
     columns,
     data,
   })
-
-  console.log('🔢 Table rendering with', rows.length, 'rows')
 
   return (
     <KTCardBody className='py-4'>
@@ -96,11 +59,6 @@ const UsersTable = () => {
             {rows.length > 0 ? (
               rows.map((row: Row<FormattedRequestOTFieldWork>, i) => {
                 prepareRow(row)
-                console.log(`🎨 Rendering row ${i + 1}:`, {
-                  _id: row.original._id,
-                  user_name: row.original.user_name,
-                  department_name: row.original.department_name
-                })
                 return <CustomRow row={row} key={`row-${i}-${row.id}`} />
               })
             ) : (

@@ -113,8 +113,6 @@ const formatTime = (time: string | null | undefined): string => {
 }
 
 const RequestOTFieldWorkViewModal: FC<Props> = ({ request, isUserLoading, onClose }) => {
-  console.log('🔍 Modal rendering with:', { request, isUserLoading })
-
   if (isUserLoading) {
     return (
       <div className="text-center py-10">

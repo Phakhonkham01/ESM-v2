@@ -13,7 +13,6 @@ const UserDepartmentCell: FC<Props> = ({ department_id }) => {
 
   // ✅ กรณีเป็น Array (สำหรับ Supervisor ที่มีหลาย departments)
   if (Array.isArray(department_id)) {
-    // ถ้าเป็น array ว่าง
     if (department_id.length === 0) {
       return <span className="text-muted">No department</span>
     }

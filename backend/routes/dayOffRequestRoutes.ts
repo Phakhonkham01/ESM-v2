@@ -4,7 +4,7 @@ import {
   getAllDayOffRequests,
   getDayOffRequestsAllUser,
   getDayOffRequestsByUser,
-  getDayOffRequestById,        // ✅ เพิ่มบรรทัดนี้
+  getDayOffRequestById,
   updateDayOffRequestStatus,
   updateDayOffRequest,
   deleteDayOffRequest,
@@ -18,7 +18,7 @@ router.get('/check-conflict', checkDayOffConflict);
 router.get("/allrequests", getAllDayOffRequests);
 router.get("/allusers", getDayOffRequestsAllUser);
 router.get("/user/:userId", getDayOffRequestsByUser);
-router.get("/:id", getDayOffRequestById);          // ✅ เพิ่มบรรทัดนี้
+router.get("/:id", getDayOffRequestById);
 router.patch("/:id/status", updateDayOffRequestStatus);
 router.put("/:id", updateDayOffRequest);
 router.delete("/:id", deleteDayOffRequest);

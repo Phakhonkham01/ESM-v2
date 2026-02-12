@@ -44,7 +44,6 @@ interface ApiErrorResponse {
   message?: string
 }
 
-// ✅ เพิ่ม interface สำหรับ backend response
 interface BackendRequestsResponse {
   requests: RequestOTFieldWork[]
 }
@@ -78,19 +77,6 @@ export const getRequests = async (query?: string): Promise<RequestOTFieldWorksQu
     
     const { data }: AxiosResponse<BackendRequestsResponse> = await axios.get(url)
     
-    console.log('✅ Raw backend response:', data)
-    
-    if (data.requests && data.requests.length > 0) {
-      const firstRequest = data.requests[0] as any
-      
-      console.log('🔍 First request sample:', {
-        _id: firstRequest._id,
-        user_id: firstRequest.user_id,
-        user_id_type: typeof firstRequest.user_id,
-        department_info: firstRequest.user_id?.department_id
-      })
-    }
-    
     const requestsArray = data.requests || []
     
     return {
@@ -106,16 +92,11 @@ export const getRequests = async (query?: string): Promise<RequestOTFieldWorksQu
 
 // GET REQUEST BY ID - ✅ UPDATED to populate user with department
 export const getRequestById = async (id: ID): Promise<RequestOTFieldWork> => {
-  console.log('🔍 Getting request by ID:', id)
-  
   try {
     // ✅ Add populate parameter
     const { data }: AxiosResponse<BackendRequestResponse> = await axios.get(
       `${REQUEST_URL}/${id}?populate=user_id`
     )
-    
-    console.log('✅ Get request response:', data)
-    
     return mapRequest(data.request)
   } catch (error: unknown) {
     console.error(`❌ Get request ${id} error:`, error)
@@ -132,15 +113,12 @@ interface CreateRequestResponse {
 export const createRequest = async (
   requestData: RequestOTFieldWorkDTO
 ): Promise<RequestOTFieldWork> => {
-  console.log('📤 Creating request with data:', requestData)
-  
   try {
     const { data }: AxiosResponse<CreateRequestResponse> = await axios.post(
       REQUEST_URL,
       requestData
     )
     
-    console.log('✅ Create request response:', data)
     return mapRequest(data.request)
   } catch (error: unknown) {
     console.error('❌ Create request error:', {
@@ -174,15 +152,11 @@ export const updateRequest = async ({
   id: string
   data: RequestOTFieldWorkDTO
 }): Promise<RequestOTFieldWork> => {
-  console.log(`✏️ Updating request ${id} with data:`, requestData)
-  
   try {
     const { data }: AxiosResponse<UpdateRequestResponse> = await axios.put(
       `${REQUEST_URL}/${id}`,
       requestData
     )
-    
-    console.log('✅ Update request response:', data)
     return mapRequest(data.request)
   } catch (error: unknown) {
     console.error(`❌ Update request ${id} error:`, {
@@ -211,15 +185,12 @@ export const updateRequestStatus = async ({
   id: string
   status: 'Pending' | 'Accepted' | 'Rejected'
 }): Promise<RequestOTFieldWork> => {
-  console.log(`✏️ Updating request ${id} status to:`, status)
-  
   try {
     const { data }: AxiosResponse<UpdateRequestResponse> = await axios.patch(
       `${REQUEST_URL}/${id}/status`,
       { status }
     )
     
-    console.log('✅ Update request status response:', data)
     return mapRequest(data.request)
   } catch (error: unknown) {
     console.error(`❌ Update request ${id} status error:`, error)
@@ -238,11 +209,8 @@ export const updateRequestStatus = async ({
 
 // DELETE REQUEST
 export const deleteRequest = async (requestId: ID): Promise<void> => {
-  console.log(`🗑️ Deleting request ${requestId}`)
-  
   try {
     await axios.delete(`${REQUEST_URL}/${requestId}`)
-    console.log('✅ Delete request success')
   } catch (error: unknown) {
     console.error(`❌ Delete request ${requestId} error:`, {
       response: (error as ApiErrorResponse).response?.data,
@@ -267,10 +235,7 @@ export const deleteRequest = async (requestId: ID): Promise<void> => {
 export const deleteSelectedRequests = async (
   requestIds: ID[]
 ): Promise<void> => {
-  console.log('🗑️ Deleting multiple requests:', requestIds)
-  
   await Promise.all(requestIds.map(deleteRequest))
-  console.log('✅ Successfully deleted all requests')
 }
 
 /* =========================

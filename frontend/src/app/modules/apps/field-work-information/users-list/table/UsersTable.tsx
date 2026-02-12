@@ -16,7 +16,6 @@ const UsersTable = () => {
   // ✅ Process data with FIELD_WORK filter
   const data = useMemo(() => {
     if (!requests || requests.length === 0) {
-      console.log('⚠️ No requests available')
       return []
     }
 

@@ -10,9 +10,7 @@ const UsersListGrouping = () => {
   const {query} = useQueryResponse()
 
   const deleteSelectedItems = useMutation(() => deleteSelectedRequests(selected), {
-    // 💡 response of the mutation is passed to onSuccess
     onSuccess: () => {
-      // ✅ update detail view directly
       queryClient.invalidateQueries([`${QUERIES.USERS_LIST}-${query}`])
       clearSelected()
     },

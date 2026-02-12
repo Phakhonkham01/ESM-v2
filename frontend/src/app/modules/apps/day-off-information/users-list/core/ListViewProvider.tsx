@@ -55,22 +55,6 @@ const ListViewProvider: FC<WithChildren> = ({ children }) => {
     >
       {children}
 
-      {/* Edit Modal */}
-      {itemIdForUpdate && (
-        <div className="">
-          <div className="modal-dialog modal-lg">
-            <div className="modal-content">
-              <DayOffRequestEditModalForm
-                onSuccess={() => {
-                  refreshTable()            // โหลด table ใหม่
-                  setItemIdForUpdate(null)  // ปิด modal
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* View Modal */}
       {itemIdForDetail && (
         <div className="modal fade show d-block">

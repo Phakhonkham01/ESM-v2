@@ -57,8 +57,6 @@ export const createRequest = async (
   res: Response
 ): Promise<void> => {
   try {
-    console.log('📥 Received data:', req.body)
-    
     const {
       user_id,
       supervisor_id, // array
@@ -83,7 +81,6 @@ export const createRequest = async (
       !start_hour ||
       !end_hour
     ) {
-      console.log('❌ Missing fields')
       res.status(400).json({ message: "Missing required fields" });
       return;
     }
@@ -153,8 +150,6 @@ export const createRequest = async (
     const populatedRequest = await RequestModel.findById(request._id)
       .populate(getPopulateConfig());
 
-    console.log('✅ Created request:', populatedRequest)
-
     res.status(201).json({
       message: "Request submitted successfully",
       request: populatedRequest,
@@ -192,26 +187,10 @@ export const getAllRequests = async (req: Request, res: Response) => {
       query.title = title;
     }
 
-    console.log('📋 Query filters:', query);
-
     // ✅ Use centralized population config
     const requests = await RequestModel.find(query)
       .populate(getPopulateConfig())
       .sort({ createdAt: -1 });
-
-    console.log('✅ Found requests:', requests.length);
-    
-    // Log sample for debugging
-    if (requests.length > 0) {
-      const sample = requests[0] as any;
-      console.log('🔍 Sample request:', {
-        _id: sample._id,
-        user_id: sample.user_id,
-        user_name: sample.user_id?.user_name,
-        department: sample.user_id?.department_id,
-        title: sample.title
-      });
-    }
 
     res.json({ 
       success: true,
@@ -248,8 +227,6 @@ export const getRequestsByUser = async (
     const requests = await RequestModel.find({ user_id: userId })
       .populate(getPopulateConfig())
       .sort({ createdAt: -1 });
-
-    console.log(`✅ Found ${requests.length} requests for user ${userId}`);
 
     res.json({ 
       success: true,
@@ -288,8 +265,6 @@ export const getRequestsBySupervisor = async (
     })
       .populate(getPopulateConfig())
       .sort({ createdAt: -1 });
-
-    console.log(`✅ Found ${requests.length} requests for supervisor ${supervisorId}`);
 
     res.json({
       success: true,
@@ -330,13 +305,6 @@ export const getRequestById = async (req: Request, res: Response) => {
       });
       return;
     }
-
-    console.log('✅ Found request:', {
-      _id: request._id,
-      user: (request as any).user_id?.user_name,
-      department: (request as any).user_id?.department_id?.department_name
-    });
-
     res.json({ 
       success: true,
       request 
@@ -383,12 +351,6 @@ export const updateRequestStatus = async (
       res.status(404).json({ message: "Request not found" });
       return;
     }
-
-    console.log('✅ Updated request status:', {
-      _id: updated._id,
-      status: updated.status
-    });
-
     res.json({ 
       success: true,
       message: "Status updated", 
@@ -472,11 +434,6 @@ export const updateRequest = async (
     )
       .populate(getPopulateConfig()); // ✅ Use centralized population
 
-    console.log('✅ Updated request:', {
-      _id: updated?._id,
-      title: updated?.title
-    });
-
     res.json({
       success: true,
       message: "Request updated successfully",
@@ -517,8 +474,6 @@ export const deleteRequest = async (
       return;
     }
 
-    console.log('✅ Deleted request:', deleted._id);
-
     res.json({ 
       success: true,
       message: "Request deleted successfully", 
@@ -548,15 +503,6 @@ export const getRequestStats = async (
     const rejected = await RequestModel.countDocuments({ status: "Rejected" });
     const ot = await RequestModel.countDocuments({ title: "OT" });
     const fieldWork = await RequestModel.countDocuments({ title: "FIELD_WORK" });
-
-    console.log('📊 Request stats:', {
-      total,
-      pending,
-      accepted,
-      rejected,
-      ot,
-      fieldWork
-    });
 
     res.json({
       success: true,
