@@ -971,7 +971,7 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                                         <div className="d-flex justify-content-between">
                                             <span className="text-muted">ມື້ພັກທີ່ມີທັງໝົດ:</span>
                                             <span className="fw-medium">
-                                                {calculated.total_vacation_days} ມື້
+                                                {calculated.leave_days} ມື້
                                             </span>
                                         </div>
 
@@ -1504,6 +1504,7 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
         </div>
     )
 }
+
 
 export const Step3AdditionalIncome: React.FC<StepComponentsProps> = ({
     formData,
