@@ -9,9 +9,11 @@ import authRoutes from './routes/authRoutes';
 import departmentRoutes from './routes/departmentRoutes';
 import userRoutes from './routes/userRoutes';
 import requestOTandFieldWorkRoutes from "./routes/requestOTandFieldWorkRoutes";
-import dayOffRoutes from './routes/dayOffRequestRoutes'
+import dayOffRoutes from './routes/dayOffRequestRoutes';
+import satSunRoutes from './routes/sat_sunRequestRoutes.js'; // ✅ เพิ่ม Saturday/Sunday routes
 import salaryRoutes from "./routes/salaryRoutes.js";
-import emailRoutes from './routes/emailRoutest.js'
+import emailRoutes from './routes/emailRoutest.js';
+
 // Connect to Database
 await connectDB();
 
@@ -40,11 +42,12 @@ app.use('/api/positions', positionRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/users', userRoutes);
 app.use("/api/requestOTandFieldWorkRoutes", requestOTandFieldWorkRoutes);
-app.use('/api/day-off-requests',dayOffRoutes)
+app.use('/api/day-off-requests', dayOffRoutes);
+app.use('/api/sat-sun-requests', satSunRoutes); // ✅ เพิ่ม Saturday/Sunday endpoint
 app.use("/api/salaries", salaryRoutes);
 app.use('/api/salary', emailRoutes); // Email route: POST /api/salary/send-email
+
 // Health Check Route
 app.get('/api/health', (req: Request, res: Response) => {
     res.status(200).json({ 
@@ -58,7 +61,18 @@ app.get('/api/health', (req: Request, res: Response) => {
 app.get('/', (req: Request, res: Response) => {
     res.json({ 
         message: 'Employee Leave Management API',
-        version: '1.0.0'
+        version: '1.0.0',
+        endpoints: {
+            auth: '/api/auth',
+            users: '/api/users',
+            departments: '/api/departments',
+            positions: '/api/positions',
+            dayOffRequests: '/api/day-off-requests',
+            satSunRequests: '/api/sat-sun-requests', // ✅ แสดงใน API documentation
+            otAndFieldWork: '/api/requestOTandFieldWorkRoutes',
+            salaries: '/api/salaries',
+            health: '/api/health'
+        }
     });
 });
 
@@ -89,6 +103,8 @@ const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🌐 API URL: http://localhost:${PORT}/api`);
+    console.log(`📅 Day Off Requests: http://localhost:${PORT}/api/day-off-requests`);
+    console.log(`🗓️  Sat-Sun Requests: http://localhost:${PORT}/api/sat-sun-requests`); // ✅ แสดง endpoint ใหม่
 });
 
 // Handle unhandled promise rejections

@@ -37,6 +37,7 @@
     "react-apexcharts": "1.4.0",
     "react-bootstrap": "2.5.0-beta.1",
     "react-copy-to-clipboard": "5.1.0",
+    "react-datepicker": "^9.1.0",
     "react-day-picker": "^9.13.0",
     "react-dom": "^18.2.0",
     "react-flatpickr": "^3.10.13",
@@ -50,6 +51,7 @@
     "react-topbar-progress-indicator": "4.1.1",
     "socicon": "3.0.5",
     "sweetalert2": "^11.26.17",
+    "sweetalert2-react-content": "^5.1.1",
     "yup": "^1.0.0"
   },
   "devDependencies": {

@@ -73,7 +73,7 @@ const salaryListColumns: ReadonlyArray<Column<User>> = [
     id: 'vacation',
     Cell: ({ row }) => (
       <span className="badge badge-light-info">
-        {row.original.vacation_days || 0} days
+        {row.original.leave_days || 0} days
       </span>
     ),
   },

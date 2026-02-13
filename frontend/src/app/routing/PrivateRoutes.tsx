@@ -27,9 +27,9 @@ const PrivateRoutes = () => {
   const RequestDayOffUser = lazy(() => import('../modules/apps/request-day-off-user/UsersPage'))
   const Salary = lazy(() => import('../modules/apps/salary-calculator/SalaryCalculationPage'))
   const SupervosorDayOffPage = lazy(() => import('../modules/apps/request-day-off/SupervisorDayOffPage'))
-  
+  const RequestOtFieldWork = lazy(() => import('../modules/apps/request-ot-field-work/UsersPage'))
   const Request_OT_Field_Work_User = lazy(() => import('../modules/apps/request-ot-field-work-user/ReqOtAndFieldWorkUserPage'))
-  
+  const Salary_History = lazy(() => import('../modules/apps/salary-history/SalaryManagementPage'))
   
   
   
@@ -75,6 +75,15 @@ const PrivateRoutes = () => {
           element={
             <SuspensedView>
               <Salary />
+            </SuspensedView>
+          }
+          
+        />
+        <Route
+          path='apps/requests/*'
+          element={
+            <SuspensedView>
+              <RequestOtFieldWork />
             </SuspensedView>
           }
           
@@ -154,6 +163,14 @@ const PrivateRoutes = () => {
           element={
             <SuspensedView>
               <ChatPage />
+            </SuspensedView>
+          }
+        />
+        <Route
+          path='apps/salary-history/*'
+          element={
+            <SuspensedView>
+              <Salary_History />
             </SuspensedView>
           }
         />

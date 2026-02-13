@@ -23,7 +23,7 @@ export interface User {
     position_name?: string
     name?: string
   }
-  vacation_days?: number
+  leave_days?: number
   created_at?: string
   date_of_birth?: string
 }
@@ -124,6 +124,6 @@ export const getStatusBadge = (status: string) => {
   }
 }
 
-export const getRoleBadge = (role: string) => {
+export const getRoleBadge = () => {
   return 'badge-light-primary'
 }

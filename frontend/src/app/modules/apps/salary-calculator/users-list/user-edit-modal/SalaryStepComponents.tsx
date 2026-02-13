@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { KTIcon } from '../../../../../../_metronic/helpers'
 // SalaryStepComponents.tsx
 import type React from 'react'
@@ -664,19 +664,199 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
     year,
     prefillData,
 }) => {
+    // State ສຳລັບເກັບຂໍ້ມູນ OT ແລະ Fuel
+    const [otFuelData, setOtFuelData] = useState<{
+        total_fuel_costs: number
+        total_ot_hours: number
+        weekday_ot_hours: number
+        weekend_ot_hours: number
+        requests: any[]
+    } | null>(null)
+    const [loading, setLoading] = useState(false)
+
+    // API Base URL
+    const API_BASE_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:8001'
+
+    useEffect(() => {
+        if (user?.id && month && year) {
+            fetchOTandFuelData()
+        }
+    }, [user?.id, month, year])
+
+  const fetchOTandFuelData = async () => {
+    setLoading(true)
+    try {
+        // Fetch ຂໍ້ມູນຈາກ API
+        const response = await fetch(
+            `${API_BASE_URL}/requestOTandFieldWorkRoutes/user/${user.id}`
+        )
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        
+        // Debug log ເພື່ອເບິ່ງຂໍ້ມູນທີ່ໄດ້ຮັບ
+        console.log('API Response data:', data)
+        
+        // ກວດສອບວ່າ data ແມ່ນ array ຫຼືບໍ່
+        let requests = []
+        if (Array.isArray(data)) {
+            requests = data
+        } else if (data && Array.isArray(data.data)) {
+            // ຖ້າ API ກັບຄືນມາໃນຮູບແບບ { data: [], success: true }
+            requests = data.data
+        } else if (data && data.requests && Array.isArray(data.requests)) {
+            // ຖ້າ API ກັບຄືນມາໃນຮູບແບບ { requests: [] }
+            requests = data.requests
+        } else {
+            console.warn('Unexpected API response format:', data)
+            requests = []
+        }
+        
+        console.log('Processed requests:', requests)
+        
+        // Filter ເອົາແຕ່ລາຍການທີ່ມີ status "Accepted" ແລະ ເປັນເດືອນທີ່ກຳນົດ
+        const acceptedRequests = requests.filter((req: any) => {
+            if (!req || !req.date || !req.status) {
+                console.warn('Invalid request item:', req)
+                return false
+            }
+            
+            try {
+                const requestDate = new Date(req.date)
+                if (isNaN(requestDate.getTime())) {
+                    console.warn('Invalid date format:', req.date)
+                    return false
+                }
+                
+                const requestMonth = requestDate.getMonth() + 1 // ເດືອນເລີມຈາກ 0-11
+                const requestYear = requestDate.getFullYear()
+                
+                return req.status === "Accepted" && 
+                       requestMonth === month && 
+                       requestYear === year
+            } catch (error) {
+                console.error('Error processing request item:', req, error)
+                return false
+            }
+        })
+        
+        console.log('Accepted requests for month:', acceptedRequests)
+        
+        // ຄິດໄລ່ຂໍ້ມູນ
+        let totalFuelCosts = 0
+        let totalOTHours = 0
+        let weekdayOtHours = 0
+        let weekendOtHours = 0
+        
+        acceptedRequests.forEach((request: any) => {
+            // ຄິດໄລ່ Fuel Costs
+            totalFuelCosts += Number(request.fuel) || 0
+            
+            // ຄິດໄລ່ OT hours ສຳລັບ OT ເທົ່ານັ້ນ
+            if (request.title === "OT") {
+                const calculateHours = (start: string, end: string): number => {
+                    if (!start || !end) {
+                        console.warn('Missing time for OT request:', request)
+                        return 0
+                    }
+                    
+                    try {
+                        const [startHour, startMinute] = start.split(':').map(Number)
+                        const [endHour, endMinute] = end.split(':').map(Number)
+                        
+                        // ກວດສອບວ່າ time format ຖືກຕ້ອງ
+                        if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+                            console.warn('Invalid time format:', { start, end })
+                            return 0
+                        }
+                        
+                        let hours = (endHour + endMinute / 60) - (startHour + startMinute / 60)
+                        
+                        // ຈັດການກັບ OT ຂ້າມກາງຄືນ
+                        if (hours < 0) {
+                            hours += 24
+                        }
+                        
+                        return hours
+                    } catch (error) {
+                        console.error('Error calculating hours:', error)
+                        return 0
+                    }
+                }
+                
+                const hours = calculateHours(request.start_hour, request.end_hour)
+                totalOTHours += hours
+                
+                // ຈຳແນກປະເພດວັນ
+                try {
+                    const requestDate = new Date(request.date)
+                    const dayOfWeek = requestDate.getDay() // 0 = ອາທິດ, 6 = ເສົາ
+                    
+                    if (dayOfWeek === 0 || dayOfWeek === 6) {
+                        weekendOtHours += hours
+                    } else {
+                        weekdayOtHours += hours
+                    }
+                } catch (error) {
+                    console.error('Error processing date:', request.date, error)
+                }
+            }
+        })
+        
+        console.log('Calculated totals:', {
+            totalFuelCosts,
+            totalOTHours,
+            weekdayOtHours,
+            weekendOtHours
+        })
+        
+        setOtFuelData({
+            total_fuel_costs: totalFuelCosts,
+            total_ot_hours: parseFloat(totalOTHours.toFixed(1)),
+            weekday_ot_hours: parseFloat(weekdayOtHours.toFixed(1)),
+            weekend_ot_hours: parseFloat(weekendOtHours.toFixed(1)),
+            requests: acceptedRequests
+        })
+    } catch (error) {
+        console.error("Error fetching OT and fuel data:", error)
+        setOtFuelData({
+            total_fuel_costs: 0,
+            total_ot_hours: 0,
+            weekday_ot_hours: 0,
+            weekend_ot_hours: 0,
+            requests: []
+        })
+    } finally {
+        setLoading(false)
+    }
+}
+
     if (!prefillData) return null
     const calculated = prefillData.calculated
 
-    calculated.day_off_days_this_month
-    calculated.used_vacation_days_this_year
-    calculated.total_vacation_days
-    calculated.remaining_vacation_days
-    calculated.exceed_days
+    const getUserEmail = () => {
+        const email = user?.email || 
+                     user?.user_email || 
+                     user?.Email || 
+                     prefillData?.user || 
+                     ''
+        return email
+    }
 
-    // const remainingVacation =
-    //     prefillData.calculated.remaining_vacation_days ?? 0
+    const userEmail = getUserEmail()
 
-    // const daysToDeduct = Math.max(0, remainingVacation)
+    if (loading) {
+        return (
+            <div className="d-flex justify-content-center py-10">
+                <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div>
@@ -689,9 +869,7 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                 </div>
                 <div className="row g-4">
                     <div className="col-md-6">
-                        <label className="form-label">
-                            ຊື່ພະນັກງານ
-                        </label>
+                        <label className="form-label">ຊື່ພະນັກງານ</label>
                         <input
                             type="text"
                             value={`${user.first_name_en} ${user.last_name_en}`}
@@ -700,20 +878,16 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                         />
                     </div>
                     <div className="col-md-6">
-                        <label className="form-label">
-                            Email
-                        </label>
+                        <label className="form-label">Email</label>
                         <input
                             type="text"
-                            value={user.email}
+                            value={userEmail}
                             disabled
                             className="form-control form-control-solid"
                         />
                     </div>
                     <div className="col-md-6">
-                        <label className="form-label">
-                            (ເດືອນ - ປີ)ທີ່ຈ່າຍເງິນ
-                        </label>
+                        <label className="form-label">(ເດືອນ - ປີ)ທີ່ຈ່າຍເງິນ</label>
                         <input
                             type="text"
                             value={`${getMonthName(month)} ${year}`}
@@ -722,9 +896,7 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                         />
                     </div>
                     <div className="col-md-6">
-                        <label className="form-label">
-                            ເງິນເດືອນພື້ນຖານ
-                        </label>
+                        <label className="form-label">ເງິນເດືອນພື້ນຖານ</label>
                         <div className="input-group">
                             <input
                                 type="text"
@@ -741,7 +913,7 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                     <div className="d-flex align-items-center gap-2 mb-4 pb-3 border-bottom border-primary">
                         <KTIcon iconName="calculator" className="fs-2 text-primary" />
                         <h3 className="fs-4 fw-semibold text-primary">
-                            OT ແລະ ຄ່ານ້ຳມັນ
+                            OT ແລະ ຄ່ານ້ຳມັນ (ຈາກຄຳຮ້ອງຂໍ)
                         </h3>
                     </div>
                     <div className="row g-4">
@@ -751,7 +923,7 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                                     <div className="d-flex align-items-center gap-2">
                                         <KTIcon iconName="dollar" className="fs-2 text-primary" />
                                         <h3 className="fs-6 fw-semibold text-gray-700 m-0">
-                                            OT Summary (System)
+                                            OT Summary (ຈາກຄຳຮ້ອງຂໍ)
                                         </h3>
                                     </div>
                                 </div>
@@ -759,9 +931,9 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                                     {/* Main OT Hours */}
                                     <div className="mb-4">
                                         <p className="fs-2x fw-bold text-primary mb-0">
-                                            {prefillData.calculated.ot_hours}
+                                            {otFuelData?.total_ot_hours || 0}
                                             <span className="fs-5 fw-medium text-muted ms-1">
-                                                hours
+                                                ຊົ່ວໂມງ
                                             </span>
                                         </p>
                                     </div>
@@ -770,58 +942,41 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                                     <div className="row g-3 mb-4">
                                         <div className="col-6">
                                             <div className="bg-light rounded p-3">
-                                                <p className="text-muted mb-1">
-                                                    ວັນຈັນ - ວັນສຸກ
-                                                </p>
+                                                <p className="text-muted mb-1">ວັນຈັນ - ວັນສຸກ</p>
                                                 <p className="fw-semibold text-gray-800 mb-0">
-                                                    {prefillData.calculated
-                                                        .weekday_ot_hours || 0}{' '}
-                                                    hrs
+                                                    {otFuelData?.weekday_ot_hours || 0} ຊມ
                                                 </p>
                                             </div>
                                         </div>
 
                                         <div className="col-6">
                                             <div className="bg-light rounded p-3">
-                                                <p className="text-muted mb-1">
-                                                    ວັນພັກ / ສຸກ - ອາທິດ
-                                                </p>
+                                                <p className="text-muted mb-1">ວັນພັກ / ສຸກ - ອາທິດ</p>
                                                 <p className="fw-semibold text-gray-800 mb-0">
-                                                    {prefillData.calculated
-                                                        .weekend_ot_hours || 0}{' '}
-                                                    hrs
+                                                    {otFuelData?.weekend_ot_hours || 0} ຊມ
                                                 </p>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Divider */}
-                                    <div className="border-top border-gray-200 my-4" />
-
                                     {/* Vacation Info */}
                                     <div className="space-y-2 fs-7">
                                         <div className="d-flex justify-content-between">
-                                            <span className="text-muted">
-                                                ມື້ທີ່ພັກໄປຂອງເດືອນນີ້:
-                                            </span>
+                                            <span className="text-muted">ມື້ທີ່ພັກໄປຂອງເດືອນນີ້:</span>
                                             <span className="fw-medium">
                                                 {calculated.day_off_days_this_month} ມື້
                                             </span>
                                         </div>
 
                                         <div className="d-flex justify-content-between">
-                                            <span className="text-muted">
-                                                ມື້ພັກທີ່ມີທັງໝົດ:
-                                            </span>
+                                            <span className="text-muted">ມື້ພັກທີ່ມີທັງໝົດ:</span>
                                             <span className="fw-medium">
-                                                {calculated.total_vacation_days} ມື້
+                                                {calculated.leave_days} ມື້
                                             </span>
                                         </div>
 
                                         <div className="d-flex justify-content-between align-items-center">
-                                            <span className="text-muted">
-                                                ມື້ພັກທີ່ເຫຼືອ:
-                                            </span>
+                                            <span className="text-muted">ມື້ພັກທີ່ເຫຼືອ:</span>
                                             <span className={`fw-bold text-${calculated.vacation_color}`}>
                                                 {calculated.remaining_vacation_days} ມື້
                                             </span>
@@ -843,13 +998,51 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                                     <div className="d-flex align-items-center mb-3">
                                         <KTIcon iconName="gas-pump" className="fs-2 text-success me-2" />
                                         <span className="fs-6 fw-medium text-gray-700">
-                                            ຄ່ານ້ຳມັນ Fuel Costs
+                                            ຄ່ານ້ຳມັນລວມ (ຈາກຄຳຮ້ອງຂໍ)
                                         </span>
                                     </div>
                                     <p className="fs-2x fw-bold text-success mb-0">
-                                        {prefillData.calculated.fuel_costs.toLocaleString()}{' '}
-                                        ກີບ
+                                        {(otFuelData?.total_fuel_costs || 0).toLocaleString()} ກີບ
                                     </p>
+                                    
+                                    {/* ລາຍລະອຽດຄຳຮ້ອງຂໍ */}
+                                    {otFuelData?.requests && otFuelData.requests.length > 0 ? (
+                                        <div className="mt-4">
+                                            <h6 className="text-muted mb-2">ລາຍການຄຳຮ້ອງຂໍ:</h6>
+                                            <div className="list-group">
+                                                {otFuelData.requests.slice(0, 3).map((req, index) => (
+                                                    <div key={index} className="list-group-item list-group-item-action">
+                                                        <div className="d-flex w-100 justify-content-between">
+                                                            <small className="text-muted">
+                                                                {new Date(req.date).toLocaleDateString('lo-LA')}
+                                                            </small>
+                                                            <small className="text-success">{req.title}</small>
+                                                        </div>
+                                                        <div className="mt-1">
+                                                            <small>
+                                                                {req.start_hour} - {req.end_hour} | 
+                                                                ຄ່ານ້ຳມັນ: {req.fuel?.toLocaleString()} ກີບ
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {otFuelData.requests.length > 3 && (
+                                                    <div className="list-group-item text-center text-primary">
+                                                        <small>+ ອີກ {otFuelData.requests.length - 3} ລາຍການ</small>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-4">
+                                            <h6 className="text-muted mb-2">ລາຍການຄຳຮ້ອງຂໍ:</h6>
+                                            <div className="alert alert-light">
+                                                <small className="text-muted">
+                                                    ບໍ່ມີຂໍ້ມູນຄຳຮ້ອງຂໍທີ່ຖືກອະນຸມັດ ສຳລັບເດືອນ {getMonthName(month)} {year}
+                                                </small>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -927,10 +1120,7 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                 setSuccessMessage('✓ OT details copied to clipboard!')
                 setTimeout(() => setSuccessMessage(null), 3000)
             })
-            .catch(err => {
-                setSuccessMessage('✗ Failed to copy')
-                setTimeout(() => setSuccessMessage(null), 3000)
-            })
+          
     }
 
     // Calculate manual OT summary for display
@@ -1314,6 +1504,7 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
         </div>
     )
 }
+
 
 export const Step3AdditionalIncome: React.FC<StepComponentsProps> = ({
     formData,
@@ -1706,7 +1897,7 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
         const email = user?.email || 
                      user?.user_email || 
                      user?.Email || 
-                     prefillData?.user?.email ||
+                     prefillData?.user 
                      '';
         
         console.log('User object:', user); // Debug log
@@ -1893,7 +2084,7 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
     return (
   <div>
             
-            <style jsx>{`
+            <style>{`
                 .export-mode,
                 .export-mode * {
                     color: rgb(17, 24, 39) !important;

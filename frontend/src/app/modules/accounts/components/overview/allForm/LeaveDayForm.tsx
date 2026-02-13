@@ -5,6 +5,12 @@ import { useAuth } from "../../../../auth";
 import { getUsers } from "../../../../apps/user-management/users-list/core/_requests";
 import type { User } from "../../../../apps/user-management/users-list/core/_models";
 import type { DayOffRequest } from "../../_core/_requests";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import Swal from "sweetalert2";
+import withReactContent from "sweetalert2-react-content";
+
+const MySwal = withReactContent(Swal);
 
 interface LeaveDayFormProps {
   onClose: () => void;
@@ -26,8 +32,8 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
 
   const [formData, setFormData] = useState({
     day_off_type: "FULL_DAY" as "FULL_DAY" | "HALF_DAY",
-    start_date: "",
-    end_date: "",
+    start_date: null as Date | null,
+    end_date: null as Date | null,
     half_day_period: "MORNING" as "MORNING" | "AFTERNOON",
     title: "",
   });
@@ -152,19 +158,24 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
     return dates;
   }, [existingRequests]);
 
-  // Check if a date string (YYYY-MM-DD) is blocked
-  const isDateBlocked = (dateStr: string): boolean => {
-    return blockedDatesSet.has(dateStr);
-  };
+  // Convert blocked dates to Date objects array for DatePicker
+  const excludedDatesArray = useMemo(() => {
+    const datesArray: Date[] = [];
+    blockedDatesSet.forEach(dateStr => {
+      datesArray.push(new Date(dateStr));
+    });
+    return datesArray;
+  }, [blockedDatesSet]);
 
-  // Check if a date has existing request
-  const hasExistingRequest = (date: Date): boolean => {
+  // Check if a date is blocked
+  const isDateBlocked = (date: Date): boolean => {
     const dateStr = date.toISOString().split('T')[0];
     return blockedDatesSet.has(dateStr);
   };
 
   // Find which request is blocking a specific date
-  const getBlockingRequest = (dateStr: string): DayOffRequest | null => {
+  const getBlockingRequest = (date: Date): DayOffRequest | null => {
+    const dateStr = date.toISOString().split('T')[0];
     const checkDate = new Date(dateStr);
     checkDate.setHours(0, 0, 0, 0);
 
@@ -183,14 +194,12 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
   };
 
   // Check if date range overlaps with existing requests
-  const hasOverlappingRequest = (startDate: string, endDate: string): { hasOverlap: boolean; conflictingDates: string[] } => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+  const hasOverlappingRequest = (startDate: Date, endDate: Date): { hasOverlap: boolean; conflictingDates: string[] } => {
     const conflictingDates: string[] = [];
     
     // Check each day in the range
-    const currentDate = new Date(start);
-    while (currentDate <= end) {
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
       const dateStr = currentDate.toISOString().split('T')[0];
       if (blockedDatesSet.has(dateStr)) {
         conflictingDates.push(currentDate.toLocaleDateString());
@@ -205,18 +214,13 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
   };
 
   // Get min date (today)
-  const minDate = useMemo(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  }, []);
+  const minDate = new Date();
   
   // Calculate total days
   const calculateTotalDays = () => {
     if (formData.day_off_type === "FULL_DAY") {
       if (!formData.start_date || !formData.end_date) return 0;
-      const start = new Date(formData.start_date);
-      const end = new Date(formData.end_date);
-      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffTime = Math.abs(formData.end_date.getTime() - formData.start_date.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       return diffDays + 1;
     } else {
@@ -227,7 +231,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
   const totalDays = calculateTotalDays();
 
   // Get datetime strings for Full Day
-  const getDateTimeForFullDay = (date: string, isStart: boolean) => {
+  const getDateTimeForFullDay = (date: Date, isStart: boolean) => {
     const d = new Date(date);
     if (isStart) {
       d.setHours(0, 0, 0, 0);
@@ -238,7 +242,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
   };
 
   // Get datetime strings for Half Day
-  const getDateTimeForHalfDay = (date: string, period: 'MORNING' | 'AFTERNOON') => {
+  const getDateTimeForHalfDay = (date: Date, period: 'MORNING' | 'AFTERNOON') => {
     const d = new Date(date);
     
     if (period === 'MORNING') {
@@ -270,46 +274,94 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
     e.preventDefault();
 
     if (!currentUser?._id) {
-      alert("User not found");
+      MySwal.fire({
+        icon: "error",
+        title: "User Not Found",
+        text: "Unable to identify the current user. Please try logging in again.",
+        confirmButtonColor: "#50cd89",
+      });
       return;
     }
 
     if (matchingSupervisors.length === 0) {
-      alert("No supervisor found in your department");
+      MySwal.fire({
+        icon: "warning",
+        title: "No Supervisor Found",
+        text: "No supervisor found in your department. Please contact HR.",
+        confirmButtonColor: "#ffc107",
+      });
       return;
     }
 
     if (!formData.start_date || !formData.title) {
-      alert("Please fill in all required fields");
+      MySwal.fire({
+        icon: "warning",
+        title: "Missing Information",
+        text: "Please fill in all required fields",
+        confirmButtonColor: "#ffc107",
+      });
       return;
     }
 
     if (formData.day_off_type === "FULL_DAY" && !formData.end_date) {
-      alert("Please select end date");
+      MySwal.fire({
+        icon: "warning",
+        title: "Missing End Date",
+        text: "Please select end date for full day leave",
+        confirmButtonColor: "#ffc107",
+      });
       return;
     }
 
     // Check for errors before submitting
     if (dateErrors.start_date || dateErrors.end_date) {
-      alert("Please fix date errors before submitting");
+      MySwal.fire({
+        icon: "error",
+        title: "Invalid Dates",
+        text: "Please fix date errors before submitting",
+        confirmButtonColor: "#f1416c",
+      });
       return;
     }
 
     // Final validation for overlapping requests
-    if (formData.day_off_type === "FULL_DAY") {
+    if (formData.day_off_type === "FULL_DAY" && formData.start_date && formData.end_date) {
       const overlap = hasOverlappingRequest(formData.start_date, formData.end_date);
       if (overlap.hasOverlap) {
-        alert(
-          `Cannot create request. You already have pending or approved leave on the following dates:\n\n${overlap.conflictingDates.join('\n')}\n\nPlease choose different dates.`
-        );
+        MySwal.fire({
+          icon: "error",
+          title: "Cannot Create Request",
+          html: `
+            <div class="text-start">
+              <p class="mb-2">You already have pending or approved leave on the following dates:</p>
+              <div class="bg-light-danger p-3 rounded mb-3">
+                <ul class="mb-0">
+                  ${overlap.conflictingDates.map(date => `<li>${date}</li>`).join('')}
+                </ul>
+              </div>
+              <p class="mb-0 text-muted">Please choose different dates.</p>
+            </div>
+          `,
+          confirmButtonColor: "#f1416c",
+          confirmButtonText: "Choose Different Dates",
+        });
         return;
       }
-    } else {
+    } else if (formData.day_off_type === "HALF_DAY" && formData.start_date) {
       // For half day, just check the single date
-      if (hasExistingRequest(new Date(formData.start_date))) {
-        alert(
-          `Cannot create request. You already have a pending or approved leave on ${new Date(formData.start_date).toLocaleDateString()}.\n\nPlease choose a different date.`
-        );
+      if (isDateBlocked(formData.start_date)) {
+        MySwal.fire({
+          icon: "error",
+          title: "Cannot Create Request",
+          html: `
+            <div class="text-start">
+              <p class="mb-2">You already have a pending or approved leave on <strong>${formData.start_date.toLocaleDateString()}</strong>.</p>
+              <p class="mb-0 text-muted">Please choose a different date.</p>
+            </div>
+          `,
+          confirmButtonColor: "#f1416c",
+          confirmButtonText: "Choose Different Date",
+        });
         return;
       }
     }
@@ -320,16 +372,18 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
       let startDateTime: string;
       let endDateTime: string;
 
-      if (formData.day_off_type === "FULL_DAY") {
+      if (formData.day_off_type === "FULL_DAY" && formData.start_date && formData.end_date) {
         startDateTime = getDateTimeForFullDay(formData.start_date, true);
         endDateTime = getDateTimeForFullDay(formData.end_date, false);
-      } else {
+      } else if (formData.day_off_type === "HALF_DAY" && formData.start_date) {
         const halfDayTimes = getDateTimeForHalfDay(
           formData.start_date,
           formData.half_day_period,
         );
         startDateTime = halfDayTimes.start;
         endDateTime = halfDayTimes.end;
+      } else {
+        throw new Error("Invalid date selection");
       }
 
       const supervisorIds = matchingSupervisors.map((s) => s.id || s.id);
@@ -354,47 +408,126 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
         title: formData.title,
       });
 
+      await MySwal.fire({
+        icon: "success",
+        title: "🎉 Leave Request Submitted!",
+        html: `
+          <div class="text-start">
+            <div class="d-flex align-items-center mb-3 p-3 bg-light rounded">
+              <div class="flex-grow-1">
+                <div class="fw-bold text-gray-800 mb-1">
+                  <i class="bi bi-calendar3 text-success me-2"></i>Leave Period
+                </div>
+                <div class="text-gray-600">
+                  ${formData.day_off_type === "FULL_DAY" && formData.start_date && formData.end_date
+                    ? `${formData.start_date.toLocaleDateString()} - ${formData.end_date.toLocaleDateString()}`
+                    : formData.start_date
+                      ? `${formData.start_date.toLocaleDateString()} (${formData.half_day_period})`
+                      : "N/A"
+                  }
+                </div>
+              </div>
+            </div>
+            
+            <div class="d-flex align-items-center mb-3 p-3 bg-light rounded">
+              <div class="flex-grow-1">
+                <div class="fw-bold text-gray-800 mb-1">
+                  <i class="bi bi-hourglass-split text-success me-2"></i>Total Days
+                </div>
+                <div class="text-gray-600">${totalDays.toFixed(1)} day${totalDays !== 1 ? 's' : ''}</div>
+              </div>
+            </div>
+            
+            <div class="alert alert-light-success mt-3">
+              <i class="bi bi-info-circle text-success me-2"></i>
+              <span class="text-success">Your request has been sent to supervisors for approval.</span>
+            </div>
+          </div>
+        `,
+        confirmButtonColor: "#50cd89",
+        confirmButtonText: "Great!",
+        allowOutsideClick: false,
+      });
+
       onSuccess?.();
       onClose();
     } catch (error: any) {
-      alert(error.message || "Failed to submit leave request");
+      console.error("❌ Error:", error);
+      MySwal.fire({
+        icon: "error",
+        title: "Submission Failed",
+        text: error.message || "Failed to submit leave request. Please try again.",
+        confirmButtonColor: "#f1416c",
+        footer: '<a href="#" class="text-muted">Need help? Contact HR</a>',
+      });
     } finally {
       setLoading(false);
     }
   };
 
   // Custom date input with inline error validation
-  const handleDateChange = (field: 'start_date' | 'end_date', value: string) => {
-    if (!value) {
-      setFormData({ ...formData, [field]: value });
-      setDateErrors({ ...dateErrors, [field]: "" });
+  const handleStartDateChange = (date: Date | null) => {
+    if (!date) {
+      setFormData({ ...formData, start_date: null });
+      setDateErrors({ ...dateErrors, start_date: "" });
       return;
     }
 
     // Check if date is blocked
-    if (isDateBlocked(value)) {
-      const blockingReq = getBlockingRequest(value);
+    if (isDateBlocked(date)) {
+      const blockingReq = getBlockingRequest(date);
       const errorMsg = `❌ This date is not available. You have a ${blockingReq?.status || 'pending/approved'} leave request on this date.`;
-      setDateErrors({ ...dateErrors, [field]: errorMsg });
-      // Still update the value to show it, but with error
-      setFormData({ ...formData, [field]: value });
+      setDateErrors({ ...dateErrors, start_date: errorMsg });
+      setFormData({ ...formData, start_date: null });
       return;
     }
 
-    // For end date, check if range has any blocked dates
-    if (field === 'end_date' && formData.start_date) {
-      const overlap = hasOverlappingRequest(formData.start_date, value);
-      if (overlap.hasOverlap) {
-        const errorMsg = `❌ Date range contains blocked dates: ${overlap.conflictingDates.slice(0, 3).join(', ')}${overlap.conflictingDates.length > 3 ? '...' : ''}`;
-        setDateErrors({ ...dateErrors, [field]: errorMsg });
-        setFormData({ ...formData, [field]: value });
-        return;
-      }
+    // Date is valid
+    setDateErrors({ ...dateErrors, start_date: "" });
+    setFormData({ ...formData, start_date: date });
+  };
+
+  const handleEndDateChange = (date: Date | null) => {
+    if (!date) {
+      setFormData({ ...formData, end_date: null });
+      setDateErrors({ ...dateErrors, end_date: "" });
+      return;
+    }
+
+    if (!formData.start_date) {
+      setDateErrors({ ...dateErrors, end_date: "Please select start date first" });
+      return;
+    }
+
+    // Check if date is blocked
+    if (isDateBlocked(date)) {
+      const blockingReq = getBlockingRequest(date);
+      const errorMsg = `❌ This date is not available. You have a ${blockingReq?.status || 'pending/approved'} leave request on this date.`;
+      setDateErrors({ ...dateErrors, end_date: errorMsg });
+      setFormData({ ...formData, end_date: null });
+      return;
+    }
+
+    // Check if range has any blocked dates
+    const overlap = hasOverlappingRequest(formData.start_date, date);
+    if (overlap.hasOverlap) {
+      const errorMsg = `❌ Date range contains blocked dates: ${overlap.conflictingDates.slice(0, 3).join(', ')}${overlap.conflictingDates.length > 3 ? '...' : ''}`;
+      setDateErrors({ ...dateErrors, end_date: errorMsg });
+      setFormData({ ...formData, end_date: null });
+      return;
     }
 
     // Date is valid
-    setDateErrors({ ...dateErrors, [field]: "" });
-    setFormData({ ...formData, [field]: value });
+    setDateErrors({ ...dateErrors, end_date: "" });
+    setFormData({ ...formData, end_date: date });
+  };
+
+  // Custom day class name for styling
+  const getDayClassName = (date: Date): string => {
+    if (isDateBlocked(date)) {
+      return "blocked-date";
+    }
+    return "";
   };
 
   return (
@@ -402,8 +535,8 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
       {/* Header */}
       <div className="card-header">
         <h3 className="card-title">
-          <KTIcon iconName="calendar" className="fs-2 text-primary me-2" />
-          Leave Day Request
+          <KTIcon iconName="calendar" className="fs-2 text-success me-2" />
+          📅 Leave Day Request
         </h3>
         <div className="card-toolbar">
           <button
@@ -421,6 +554,196 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
           className="card-body"
           style={{ maxHeight: "calc(100vh - 300px)", overflowY: "auto" }}
         >
+          {/* Enhanced custom styles for datepicker */}
+          <style>{`
+            /* DatePicker Container */
+            .react-datepicker-wrapper {
+              width: 100%;
+            }
+            
+            .react-datepicker {
+              font-family: inherit;
+              border: 2px solid #e4e6ef;
+              border-radius: 0.95rem;
+              box-shadow: 0 0 50px 0 rgba(82, 63, 105, 0.15);
+            }
+            
+            /* Header */
+            .react-datepicker__header {
+              background-color: #f1faff;
+              border-bottom: 2px solid #e4e6ef;
+              border-radius: 0.95rem 0.95rem 0 0;
+              padding: 1rem 0;
+            }
+            
+            .react-datepicker__current-month {
+              color: #50cd89;
+              font-weight: 600;
+              font-size: 1.1rem;
+              margin-bottom: 0.5rem;
+            }
+            
+            .react-datepicker__day-name {
+              color: #7e8299;
+              font-weight: 600;
+              width: 2.5rem;
+              line-height: 2.5rem;
+              margin: 0.2rem;
+            }
+            
+            /* Navigation */
+            .react-datepicker__navigation {
+              top: 1.2rem;
+              width: 2rem;
+              height: 2rem;
+              border: none;
+              background-color: #e8f5fc;
+              border-radius: 0.475rem;
+            }
+            
+            .react-datepicker__navigation:hover {
+              background-color: #50cd89;
+            }
+            
+            .react-datepicker__navigation-icon::before {
+              border-color: #50cd89;
+              top: 8px;
+            }
+            
+            .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+              border-color: #fff;
+            }
+            
+            /* Days */
+            .react-datepicker__month {
+              margin: 1rem;
+            }
+            
+            .react-datepicker__day {
+              width: 2.5rem;
+              line-height: 2.5rem;
+              margin: 0.2rem;
+              border-radius: 0.475rem;
+              color: #3f4254;
+              font-weight: 500;
+              transition: all 0.2s ease;
+            }
+            
+            .react-datepicker__day:hover {
+              background-color: #f5f8fa;
+              transform: scale(1.05);
+            }
+            
+            /* Blocked/Excluded Dates */
+            .react-datepicker__day--excluded {
+              background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%) !important;
+              color: #c62828 !important;
+              font-weight: 700 !important;
+              text-decoration: line-through !important;
+              cursor: not-allowed !important;
+              border: 2px solid #ef9a9a !important;
+              position: relative;
+              pointer-events: none !important;
+              opacity: 0.6;
+            }
+            
+            .react-datepicker__day--excluded::before {
+              content: '✕';
+              position: absolute;
+              top: -2px;
+              right: 2px;
+              font-size: 10px;
+              color: #c62828;
+            }
+            
+            .react-datepicker__day.blocked-date {
+              background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+              color: #c62828;
+              font-weight: 700;
+              text-decoration: line-through;
+              cursor: not-allowed !important;
+              border: 2px solid #ef9a9a;
+              position: relative;
+              pointer-events: none;
+              opacity: 0.6;
+            }
+            
+            .react-datepicker__day.blocked-date::before {
+              content: '✕';
+              position: absolute;
+              top: -2px;
+              right: 2px;
+              font-size: 10px;
+              color: #c62828;
+            }
+            
+            /* Selected Date */
+            .react-datepicker__day--selected,
+            .react-datepicker__day--keyboard-selected {
+              background: linear-gradient(135deg, #50cd89 0%, #47be7d 100%);
+              color: white;
+              border-color: #50cd89;
+              transform: scale(1.1);
+              box-shadow: 0 5px 20px rgba(80, 205, 137, 0.5);
+            }
+            
+            /* In Range */
+            .react-datepicker__day--in-range {
+              background-color: #e8fff3;
+              color: #50cd89;
+            }
+            
+            .react-datepicker__day--in-selecting-range {
+              background-color: #e8fff3;
+            }
+            
+            /* Today */
+            .react-datepicker__day--today {
+              font-weight: 700;
+              border: 2px solid #50cd89;
+            }
+            
+            /* Disabled/Outside Month Days */
+            .react-datepicker__day--disabled,
+            .react-datepicker__day--outside-month {
+              color: #b5b5c3;
+              cursor: default;
+            }
+            
+            .react-datepicker__day--disabled:hover,
+            .react-datepicker__day--outside-month:hover {
+              background-color: transparent;
+              transform: none;
+            }
+            
+            /* Dropdowns */
+            .react-datepicker__month-dropdown,
+            .react-datepicker__year-dropdown {
+              background-color: #fff;
+              border: 2px solid #e4e6ef;
+              border-radius: 0.475rem;
+              box-shadow: 0 0 30px 0 rgba(82, 63, 105, 0.15);
+            }
+            
+            .react-datepicker__month-option,
+            .react-datepicker__year-option {
+              padding: 0.5rem 1rem;
+              transition: all 0.2s ease;
+            }
+            
+            .react-datepicker__month-option:hover,
+            .react-datepicker__year-option:hover {
+              background-color: #e8fff3;
+              color: #50cd89;
+            }
+            
+            .react-datepicker__month-option--selected_month,
+            .react-datepicker__year-option--selected_year {
+              background-color: #50cd89;
+              color: white;
+            }
+          `}</style>
+
           {/* Loading existing requests indicator */}
           {loadingRequests && (
             <div className="alert alert-info d-flex align-items-center mb-7">
@@ -430,7 +753,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
           )}
 
           {/* Show existing requests info */}
-          {/* {!loadingRequests && existingRequests.length > 0 && (
+          {!loadingRequests && existingRequests.length > 0 && (
             <div className="alert alert-warning d-flex align-items-start mb-7">
               <KTIcon iconName="information-5" className="fs-2 me-3 mt-1" />
               <div className="flex-grow-1">
@@ -456,11 +779,11 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                 </div>
                 <small className="text-muted">
                   <KTIcon iconName="shield-cross" className="fs-7 me-1" />
-                  These dates will show an error message if selected
+                  Blocked dates cannot be selected
                 </small>
               </div>
             </div>
-          )} */}
+          )}
 
           {/* Auto-Selected Supervisors Info */}
           <div
@@ -477,7 +800,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                       className="d-flex align-items-center p-3 bg-light rounded"
                     >
                       <div className="flex-grow-1">
-                        <div className="fw-bold">
+                        <div className="fw-bold text-success">
                           {supervisor.first_name_en} {supervisor.last_name_en}
                         </div>
                       </div>
@@ -507,14 +830,14 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                 <div
                   className={`card cursor-pointer border-2 ${
                     formData.day_off_type === "FULL_DAY"
-                      ? "border-primary bg-light-primary"
+                      ? "border-success bg-light-success"
                       : "border-gray-300"
                   }`}
                   onClick={() =>
                     setFormData({
                       ...formData,
                       day_off_type: "FULL_DAY",
-                      end_date: "",
+                      end_date: null,
                     })
                   }
                   style={{ transition: "all 0.3s ease" }}
@@ -522,7 +845,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                   <div className="card-body text-center py-5">
                     <KTIcon
                       iconName="calendar"
-                      className={`fs-2x mb-3 ${formData.day_off_type === "FULL_DAY" ? "text-primary" : "text-gray-600"}`}
+                      className={`fs-2x mb-3 ${formData.day_off_type === "FULL_DAY" ? "text-success" : "text-gray-600"}`}
                     />
                     <h4 className="fw-bold mb-2">Full Day</h4>
                     <p className="text-muted mb-0 fs-7">Take entire day off</p>
@@ -533,14 +856,14 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                 <div
                   className={`card cursor-pointer border-2 ${
                     formData.day_off_type === "HALF_DAY"
-                      ? "border-primary bg-light-primary"
+                      ? "border-success bg-light-success"
                       : "border-gray-300"
                   }`}
                   onClick={() =>
                     setFormData({
                       ...formData,
                       day_off_type: "HALF_DAY",
-                      end_date: "",
+                      end_date: null,
                     })
                   }
                   style={{ transition: "all 0.3s ease" }}
@@ -548,7 +871,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                   <div className="card-body text-center py-5">
                     <KTIcon
                       iconName="time"
-                      className={`fs-2x mb-3 ${formData.day_off_type === "HALF_DAY" ? "text-primary" : "text-gray-600"}`}
+                      className={`fs-2x mb-3 ${formData.day_off_type === "HALF_DAY" ? "text-success" : "text-gray-600"}`}
                     />
                     <h4 className="fw-bold mb-2">Half Day</h4>
                     <p className="text-muted mb-0 fs-7">Take specific period</p>
@@ -558,7 +881,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
             </div>
           </div>
 
-          {/* Date Selection */}
+          {/* Date Selection with DatePicker */}
           {formData.day_off_type === "FULL_DAY" ? (
             <div className="row mb-7">
               {/* Start Date */}
@@ -566,26 +889,45 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                 <label className="form-label fw-bold required d-flex align-items-center">
                   <KTIcon
                     iconName="calendar"
-                    className="fs-3 text-primary me-2"
+                    className="fs-3 text-success me-2"
                   />
                   Start Date
                 </label>
-                <input
-                  type="date"
-                  className={`form-control form-control-lg ${dateErrors.start_date ? 'is-invalid' : ''}`}
-                  value={formData.start_date}
-                  onChange={(e) => handleDateChange('start_date', e.target.value)}
-                  min={minDate}
-                  required
-                  disabled={loadingRequests}
-                />
+                <div className="position-relative">
+                  <DatePicker
+                    selected={formData.start_date}
+                    onChange={handleStartDateChange}
+                    excludeDates={excludedDatesArray}
+                    dayClassName={getDayClassName}
+                    minDate={minDate}
+                    selectsStart
+                    startDate={formData.start_date}
+                    endDate={formData.end_date}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Select start date"
+                    className={`form-control form-control-lg ${dateErrors.start_date ? "is-invalid" : ""}`}
+                    disabled={loadingRequests}
+                    inline={false}
+                    showMonthDropdown
+                    showYearDropdown
+                    dropdownMode="select"
+                  />
+                  <div 
+                    className="position-absolute top-50 end-0 translate-middle-y pe-4" 
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    <KTIcon iconName="calendar" className="fs-2 text-success" />
+                  </div>
+                </div>
                 {dateErrors.start_date ? (
-                  <div className="invalid-feedback d-block">
-                    <KTIcon iconName="cross-circle" className="fs-7 me-1" />
-                    {dateErrors.start_date}
+                  <div className="alert alert-danger d-flex align-items-start mt-3 py-3 px-4 border-2">
+                    <KTIcon iconName="cross-circle" className="fs-2 me-3 text-danger" />
+                    <div className="flex-grow-1">
+                      <h6 className="mb-0 text-danger fw-bold">{dateErrors.start_date}</h6>
+                    </div>
                   </div>
                 ) : (
-                  <div className="form-text">
+                  <div className="form-text mt-2">
                     <KTIcon iconName="information-5" className="fs-7 me-1" />
                     Select start date for leave
                   </div>
@@ -597,26 +939,45 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                 <label className="form-label fw-bold required d-flex align-items-center">
                   <KTIcon
                     iconName="calendar"
-                    className="fs-3 text-primary me-2"
+                    className="fs-3 text-success me-2"
                   />
                   End Date
                 </label>
-                <input
-                  type="date"
-                  className={`form-control form-control-lg ${dateErrors.end_date ? 'is-invalid' : ''}`}
-                  value={formData.end_date}
-                  onChange={(e) => handleDateChange('end_date', e.target.value)}
-                  min={formData.start_date || minDate}
-                  required
-                  disabled={loadingRequests || !formData.start_date}
-                />
+                <div className="position-relative">
+                  <DatePicker
+                    selected={formData.end_date}
+                    onChange={handleEndDateChange}
+                    excludeDates={excludedDatesArray}
+                    dayClassName={getDayClassName}
+                    minDate={formData.start_date || minDate}
+                    selectsEnd
+                    startDate={formData.start_date}
+                    endDate={formData.end_date}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Select end date"
+                    className={`form-control form-control-lg ${dateErrors.end_date ? "is-invalid" : ""}`}
+                    disabled={loadingRequests || !formData.start_date}
+                    inline={false}
+                    showMonthDropdown
+                    showYearDropdown
+                    dropdownMode="select"
+                  />
+                  <div 
+                    className="position-absolute top-50 end-0 translate-middle-y pe-4" 
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    <KTIcon iconName="calendar" className="fs-2 text-success" />
+                  </div>
+                </div>
                 {dateErrors.end_date ? (
-                  <div className="invalid-feedback d-block">
-                    <KTIcon iconName="cross-circle" className="fs-7 me-1" />
-                    {dateErrors.end_date}
+                  <div className="alert alert-danger d-flex align-items-start mt-3 py-3 px-4 border-2">
+                    <KTIcon iconName="cross-circle" className="fs-2 me-3 text-danger" />
+                    <div className="flex-grow-1">
+                      <h6 className="mb-0 text-danger fw-bold">{dateErrors.end_date}</h6>
+                    </div>
                   </div>
                 ) : (
-                  <div className="form-text">
+                  <div className="form-text mt-2">
                     <KTIcon iconName="information-5" className="fs-7 me-1" />
                     End date must not be before start date
                   </div>
@@ -630,26 +991,42 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                 <label className="form-label fw-bold required d-flex align-items-center">
                   <KTIcon
                     iconName="calendar"
-                    className="fs-3 text-primary me-2"
+                    className="fs-3 text-success me-2"
                   />
                   Leave Date
                 </label>
-                <input
-                  type="date"
-                  className={`form-control form-control-lg ${dateErrors.start_date ? 'is-invalid' : ''}`}
-                  value={formData.start_date}
-                  onChange={(e) => handleDateChange('start_date', e.target.value)}
-                  min={minDate}
-                  required
-                  disabled={loadingRequests}
-                />
+                <div className="position-relative">
+                  <DatePicker
+                    selected={formData.start_date}
+                    onChange={handleStartDateChange}
+                    excludeDates={excludedDatesArray}
+                    dayClassName={getDayClassName}
+                    minDate={minDate}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Select leave date"
+                    className={`form-control form-control-lg ${dateErrors.start_date ? "is-invalid" : ""}`}
+                    disabled={loadingRequests}
+                    inline={false}
+                    showMonthDropdown
+                    showYearDropdown
+                    dropdownMode="select"
+                  />
+                  <div 
+                    className="position-absolute top-50 end-0 translate-middle-y pe-4" 
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    <KTIcon iconName="calendar" className="fs-2 text-success" />
+                  </div>
+                </div>
                 {dateErrors.start_date ? (
-                  <div className="invalid-feedback d-block">
-                    <KTIcon iconName="cross-circle" className="fs-7 me-1" />
-                    {dateErrors.start_date}
+                  <div className="alert alert-danger d-flex align-items-start mt-3 py-3 px-4 border-2">
+                    <KTIcon iconName="cross-circle" className="fs-2 me-3 text-danger" />
+                    <div className="flex-grow-1">
+                      <h6 className="mb-0 text-danger fw-bold">{dateErrors.start_date}</h6>
+                    </div>
                   </div>
                 ) : (
-                  <div className="form-text">
+                  <div className="form-text mt-2">
                     <KTIcon iconName="information-5" className="fs-7 me-1" />
                     Select date for half-day leave
                   </div>
@@ -742,21 +1119,21 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
           </div>
 
           {/* Total Days Display */}
-          <div className="alert alert-primary d-flex align-items-center p-5 mb-0">
+          <div className="alert alert-light-success d-flex align-items-center p-5 mb-0">
             <div className="d-flex flex-column flex-grow-1">
               <h4 className="mb-1 fw-bold">Total Leave Days</h4>
               <div className="text-gray-700">
                 {formData.day_off_type === "FULL_DAY" &&
                 formData.start_date &&
                 formData.end_date
-                  ? `${new Date(formData.start_date).toLocaleDateString()} to ${new Date(formData.end_date).toLocaleDateString()}`
+                  ? `${formData.start_date.toLocaleDateString()} to ${formData.end_date.toLocaleDateString()}`
                   : formData.day_off_type === "HALF_DAY" && formData.start_date
-                    ? `${new Date(formData.start_date).toLocaleDateString()} (${formData.half_day_period === "MORNING" ? "MORNING" : "AFTERNOON"})`
+                    ? `${formData.start_date.toLocaleDateString()} (${formData.half_day_period === "MORNING" ? "MORNING" : "AFTERNOON"})`
                     : "Please select date"}
               </div>
             </div>
             <div className="text-end">
-              <h1 className="fw-bold text-primary mb-0">
+              <h1 className="fw-bold text-success mb-0">
                 {totalDays > 0 ? totalDays.toFixed(1) : "0.0"}
               </h1>
               <div className="text-gray-700 fs-7">

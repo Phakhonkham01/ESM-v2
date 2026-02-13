@@ -1,343 +1,132 @@
 import { useEffect, useState } from 'react'
-import { initialQueryState } from '../../../../../../../_metronic/helpers'
+import { MenuComponent } from '../../../../../../../_metronic/assets/ts/components'
+import { initialQueryState, KTIcon } from '../../../../../../../_metronic/helpers'
 import { useQueryRequest } from '../../core/QueryRequestProvider'
 import { useQueryResponse } from '../../core/QueryResponseProvider'
-import { departmentService, Department } from '../../core/_requests'
-
-const STATUS_OPTIONS = [
-  { value: 'Pending', label: 'Pending' },
-  { value: 'Accepted', label: 'Accepted' },
-  { value: 'Rejected', label: 'Rejected' },
-]
-
-const MONTHS = [
-  { value: '1', label: 'January', days: 31 },
-  { value: '2', label: 'February', days: 28 },
-  { value: '3', label: 'March', days: 31 },
-  { value: '4', label: 'April', days: 30 },
-  { value: '5', label: 'May', days: 31 },
-  { value: '6', label: 'June', days: 30 },
-  { value: '7', label: 'July', days: 31 },
-  { value: '8', label: 'August', days: 31 },
-  { value: '9', label: 'September', days: 30 },
-  { value: '10', label: 'October', days: 31 },
-  { value: '11', label: 'November', days: 30 },
-  { value: '12', label: 'December', days: 31 },
-]
 
 const UsersListFilter = () => {
   const { updateState } = useQueryRequest()
   const { isLoading } = useQueryResponse()
+  const [role, setRole] = useState<string>('')
+  const [status, setStatus] = useState<string | undefined>(undefined)
 
-  const currentYear = new Date().getFullYear()
-  
-  // State for departments
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
-  
-  // Filter state
-  const [filters, setFilters] = useState({
-    department: '',
-    status: '',
-    year: String(currentYear),
-    month: '',
-    customStartDate: '',
-    customEndDate: ''
-  })
-
-  // Fetch departments on component mount
+  // เรียก reinitialization ตอน mount
   useEffect(() => {
-    const fetchDepartments = async () => {
-      setIsLoadingDepartments(true)
-      try {
-        const depts = await departmentService.getActiveDepartments()
-        setDepartments(depts)
-      } catch (error) {
-        console.error('Failed to fetch departments:', error)
-        setDepartments([])
-      } finally {
-        setIsLoadingDepartments(false)
-      }
-    }
-
-    fetchDepartments()
+    MenuComponent.reinitialization()
   }, [])
 
-  // Generate year options (5 years back to 2 years forward)
-  const years = Array.from({ length: 8 }, (_, i) => String(currentYear - 5 + i))
-
-  // Check if it's leap year for February
-  const isLeapYear = (year: number) => {
-    return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
+  // ฟังก์ชันรีเซ็ต
+  const resetData = () => {
+    setRole('')
+    setStatus(undefined)
+    updateState({ filter: undefined, ...initialQueryState })
+    MenuComponent.reinitialization() // รีเซ็ต UI dropdown
   }
 
-  // Get date range based on selected year/month
-  const getDateRangeFromMonthYear = (year: string, month: string) => {
-    if (!year || !month) return null
-    
-    const yearNum = parseInt(year)
-    const monthNum = parseInt(month)
-    
-    let daysInMonth = MONTHS.find(m => m.value === month)?.days || 30
-    
-    if (month === '2') {
-      daysInMonth = isLeapYear(yearNum) ? 29 : 28
-    }
-    
-    const startDate = new Date(yearNum, monthNum - 1, 1)
-    const endDate = new Date(yearNum, monthNum - 1, daysInMonth, 23, 59, 59)
-    
-    return {
-      start: startDate.toISOString(),
-      end: endDate.toISOString()
-    }
-  }
+  // ฟังก์ชันกรองข้อมูล
+  const filterData = () => {
+    const filter: Record<string, string> = {}
 
-  // Build filter object for API
-  const buildFilter = () => {
-    const filter: Record<string, any> = {}
-    
-    // Add department filter
-    if (filters.department) {
-      filter.department = filters.department
-    }
-    
-    // Add status filter
-    if (filters.status) {
-      filter.status = filters.status
-    }
-    
-    // Add year and month as separate fields for easier extraction
-    if (filters.year) {
-      filter.filter_year = filters.year
-    }
-    
-    if (filters.month) {
-      filter.filter_month = filters.month
-    }
-    
-    // Handle date filtering
-    if (filters.year && filters.month) {
-      const dateRange = getDateRangeFromMonthYear(filters.year, filters.month)
-      if (dateRange) {
-        filter.start_date_time = {
-          $gte: dateRange.start,
-          $lte: dateRange.end
-        }
-      }
-    } else if (filters.customStartDate && filters.customEndDate) {
-      filter.start_date_time = {
-        $gte: new Date(filters.customStartDate).toISOString(),
-        $lte: new Date(new Date(filters.customEndDate).setHours(23, 59, 59)).toISOString()
-      }
-    } else if (filters.year && !filters.month) {
-      const startDate = new Date(parseInt(filters.year), 0, 1)
-      const endDate = new Date(parseInt(filters.year), 11, 31, 23, 59, 59)
-      
-      filter.start_date_time = {
-        $gte: startDate.toISOString(),
-        $lte: endDate.toISOString()
-      }
-    }
-    
-    return Object.keys(filter).length > 0 ? filter : undefined
-  }
+    if (role) filter.role = role
+    if (status !== undefined) filter.status = status  // เฉพาะ status ที่มีค่า
 
-  // Apply filter whenever any filter value changes
-  useEffect(() => {
-    const filter = buildFilter()
-    
     updateState({
-      filter: filter,
-      ...initialQueryState, // initialQueryState already contains page: 1, search: '', etc.
-    })
-  }, [filters, updateState]) // Added updateState to dependencies
-
-  // Handle filter changes
-  const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => {
-      const newFilters = { ...prev, [key]: value }
-      
-      if (key === 'year' && !value) {
-        newFilters.month = ''
-      }
-      
-      if (key === 'customStartDate' || key === 'customEndDate') {
-        if (key === 'customStartDate' && !value) {
-          newFilters.customEndDate = ''
-        }
-      }
-      
-      return newFilters
+      filter: Object.keys(filter).length > 0 ? filter : undefined,
+      ...initialQueryState,
     })
   }
 
-  // Clear all filters
-  const handleReset = () => {
-    setFilters({
-      department: '',
-      status: '',
-      year: String(currentYear),
-      month: '',
-      customStartDate: '',
-      customEndDate: ''
-    })
-    
-    updateState({
-      filter: undefined,
-      ...initialQueryState, // initialQueryState already contains page: 1, search: '', etc.
-    })
-  }
-
-  // Check if any filter is active
-  const hasActiveFilters = () => {
-    return filters.department || 
-           filters.status || 
-           filters.month || 
-           filters.customStartDate || 
-           filters.customEndDate
-  }
 
   return (
-    <div className='d-flex align-items-end gap-4 flex-wrap'>
-      {/* DEPARTMENT FILTER - DYNAMIC */}
-      <div className='d-flex flex-column'>
-        <label className='form-label fs-7 fw-bold text-gray-600 text-uppercase mb-2'>
-          Departments
-        </label>
-        <select
-          className='form-select form-select-solid'
-          style={{ minWidth: '180px' }}
-          value={filters.department}
-          disabled={isLoading || isLoadingDepartments}
-          onChange={(e) => handleFilterChange('department', e.target.value)}
-        >
-          <option value=''>All Departments</option>
-          {isLoadingDepartments ? (
-            <option value='' disabled>Loading departments...</option>
-          ) : (
-            departments.map((dept) => (
-              <option key={dept.id} value={dept.id}>
-                {dept.department_name}
-              </option>
-            ))
-          )}
-        </select>
-        {!isLoadingDepartments && departments.length === 0 && (
-          <div className='text-danger fs-8 mt-1'>No departments found</div>
-        )}
-      </div>
+    <>
+      {/* ปุ่ม Filter */}
+      <button
+        disabled={isLoading}
+        type='button'
+        className='btn btn-light-primary me-3'
+        data-kt-menu-trigger='click'
+        data-kt-menu-placement='bottom-end'
+      >
+        <KTIcon iconName='filter' className='fs-2' />
+        Filter
+      </button>
 
-      {/* STATUS FILTER */}
-      <div className='d-flex flex-column'>
-        <label className='form-label fs-7 fw-bold text-gray-600 text-uppercase mb-2'>
-          Status
-        </label>
-        <select
-          className='form-select form-select-solid'
-          style={{ minWidth: '150px' }}
-          value={filters.status}
-          disabled={isLoading}
-          onChange={(e) => handleFilterChange('status', e.target.value)}
-        >
-          <option value=''>All Status</option>
-          {STATUS_OPTIONS.map((status) => (
-            <option key={status.value} value={status.value}>
-              {status.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* YEAR FILTER */}
-      <div className='d-flex flex-column'>
-        <label className='form-label fs-7 fw-bold text-gray-600 text-uppercase mb-2'>
-          Year
-        </label>
-        <select
-          className='form-select form-select-solid'
-          style={{ minWidth: '120px' }}
-          value={filters.year}
-          disabled={isLoading}
-          onChange={(e) => handleFilterChange('year', e.target.value)}
-        >
-          {years.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* MONTH FILTER */}
-      <div className='d-flex flex-column'>
-        <label className='form-label fs-7 fw-bold text-gray-600 text-uppercase mb-2'>
-          Month
-        </label>
-        <select
-          className='form-select form-select-solid'
-          style={{ minWidth: '150px' }}
-          value={filters.month}
-          disabled={isLoading || !filters.year}
-          onChange={(e) => handleFilterChange('month', e.target.value)}
-        >
-          <option value=''>All Months (Full Year)</option>
-          {MONTHS.map((m) => (
-            <option key={m.value} value={m.value}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* CUSTOM DATE RANGE FILTER */}
-      <div className='d-flex gap-2 align-items-end'>
-        <div className='d-flex flex-column'>
-          <label className='form-label fs-7 fw-bold text-gray-600 text-uppercase mb-2'>
-            From Date
-          </label>
-          <input
-            type='date'
-            className='form-control form-control-solid'
-            style={{ minWidth: '160px' }}
-            value={filters.customStartDate}
-            disabled={isLoading}
-            onChange={(e) => handleFilterChange('customStartDate', e.target.value)}
-          />
+      {/* เมนู dropdown */}
+      <div className='menu menu-sub menu-sub-dropdown w-300px w-md-325px' data-kt-menu='true'>
+        {/* Header */}
+        <div className='px-7 py-5'>
+          <div className='fs-5 text-gray-900 fw-bolder'>Filter Options</div>
         </div>
-        <div className='d-flex flex-column'>
-          <label className='form-label fs-7 fw-bold text-gray-600 text-uppercase mb-2'>
-            To Date
-          </label>
-          <input
-            type='date'
-            className='form-control form-control-solid'
-            style={{ minWidth: '160px' }}
-            value={filters.customEndDate}
-            disabled={isLoading || !filters.customStartDate}
-            min={filters.customStartDate}
-            onChange={(e) => handleFilterChange('customEndDate', e.target.value)}
-          />
+
+        <div className='separator border-gray-200'></div>
+
+        {/* Content */}
+        <div className='px-7 py-5' data-kt-user-table-filter='form'>
+          {/* Role */}
+          <div className='mb-10'>
+            <label className='form-label fs-6 fw-bold'>Role:</label>
+            <select
+              className='form-select form-select-solid fw-bolder'
+              data-kt-select2='true'
+              data-placeholder='Select option'
+              data-allow-clear='true'
+              data-kt-user-table-filter='role'
+              data-hide-search='true'
+              onChange={(e) => setRole(e.target.value)}
+              value={role}
+            >
+              <option value=''>Select Role</option>
+              <option value='admin'>Admin</option>
+              <option value='employee'>Employee</option>
+              <option value='supervisor'>Supervisor</option>
+            </select>
+          </div>
+
+          {/* Status */}
+          <div className='mb-10'>
+            <label className='form-label fs-6 fw-bold'>Status:</label>
+            <select
+              className='form-select form-select-solid fw-bolder'
+              data-kt-select2='true'
+              data-placeholder='Select status'
+              data-allow-clear='true'
+              data-hide-search='true'
+              onChange={(e) => setStatus(e.target.value || undefined)}
+              value={status || ''}
+            >
+              <option value=''>All Status</option>
+              <option value='Active'>Active</option>
+              <option value='Inactive'>Inactive</option>
+              <option value='On Leave'>On Leave</option>
+            </select>
+          </div>
+
+          {/* Action Buttons */}
+          <div className='d-flex justify-content-end'>
+            <button
+              type='button'
+              disabled={isLoading}
+              onClick={resetData}
+              className='btn btn-light btn-active-light-primary fw-bold me-2 px-6'
+              data-kt-menu-dismiss='true'
+              data-kt-user-table-filter='reset'
+            >
+              Reset
+            </button>
+            <button
+              disabled={isLoading}
+              type='button'
+              onClick={filterData}
+              className='btn btn-primary fw-bold px-6'
+              data-kt-menu-dismiss='true'
+              data-kt-user-table-filter='filter'
+            >
+              Apply
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* RESET BUTTON */}
-      {hasActiveFilters() && (
-        <div className='d-flex flex-column'>
-          <label className='form-label fs-7 fw-bold text-gray-600 text-uppercase mb-2'>
-            &nbsp;
-          </label>
-          <button
-            className='btn btn-light-danger btn-sm'
-            onClick={handleReset}
-            disabled={isLoading}
-          >
-            <i className='bi bi-x-circle me-2'></i>
-            Reset Filter
-          </button>
-        </div>
-      )}
-    </div>
+    </>
   )
 }
 

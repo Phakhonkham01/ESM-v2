@@ -23,7 +23,7 @@ const SalaryCalculatorModal = ({ userId, onClose }: Props) => {
         tabIndex={-1}
         aria-modal="true"
       >
-        <div className="modal-dialog modal-dialog-centered mw-800px">
+        <div className="modal-dialog modal-dialog-centered mw-1000px">
           <div className="modal-content">
             <SalaryCalculatorModalContent userId={userId} onClose={onClose} />
           </div>

@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../../../auth'
 import LeaveDayForm from './allForm/LeaveDayForm'
 import OtandFieldWork from './allForm/OtandField-work'
+import SaturdaySundayRequest from './allForm/satSunRequest' // ✅ Import
 
 export function Overview() {
   const [selectedForm, setSelectedForm] = useState<string | null>(null)
@@ -40,38 +41,56 @@ export function Overview() {
       color: 'warning',
       iconBg: 'light-warning'
     },
-    
+    // ✅ Weekend Leave Card
+    {
+      id: 'weekend-leave',
+      title: 'Weekend Leave',
+      description: 'Saturday or Sunday leave',
+      icon: 'calendar-8',
+      color: 'info',
+      iconBg: 'light-info'
+    },
   ]
 
   const handleCardClick = (formId: string) => {
-    console.log('Card clicked:', formId) // Debug log
+    console.log('Card clicked:', formId)
     setSelectedForm(formId)
     setShowModal(true)
-    // Add body class to prevent scroll
     document.body.classList.add('modal-open')
   }
 
   const handleCloseModal = () => {
     setShowModal(false)
     setSelectedForm(null)
-    // Remove body class
     document.body.classList.remove('modal-open')
   }
 
   const handleSuccess = () => {
-    // Refresh data or show success message
     console.log('Request submitted successfully')
+    // ✅ อาจจะ refresh data หรือแสดง toast notification
   }
 
- const renderFormContent = () => {
-  switch (selectedForm) {
-    case 'leave-request':
-      return <LeaveDayForm onClose={handleCloseModal} onSuccess={handleSuccess} />
-    case 'overtime-request':
-      return <OtandFieldWork type="OT" onClose={handleCloseModal} onSuccess={handleSuccess} />
-    case 'field-work':
-      return <OtandFieldWork type="FIELD_WORK" onClose={handleCloseModal} onSuccess={handleSuccess} />
-    case 'document-request':
+  const renderFormContent = () => {
+    switch (selectedForm) {
+      case 'leave-request':
+        return <LeaveDayForm onClose={handleCloseModal} onSuccess={handleSuccess} />
+      
+      case 'overtime-request':
+        return <OtandFieldWork type="OT" onClose={handleCloseModal} onSuccess={handleSuccess} />
+      
+      case 'field-work':
+        return <OtandFieldWork type="FIELD_WORK" onClose={handleCloseModal} onSuccess={handleSuccess} />
+      
+      // ✅ Weekend Leave - ไม่ต้องส่ง dayChoice เพราะให้เลือกใน form
+      case 'weekend-leave':
+        return (
+          <SaturdaySundayRequest 
+            onClose={handleCloseModal} 
+            onSuccess={handleSuccess} 
+          />
+        )
+      
+      case 'document-request':
         return (
           <div className='card'>
             <div className='card-header' style={{ background: 'linear-gradient(135deg, #7239ea 0%, #5e2fc1 100%)' }}>
@@ -96,6 +115,7 @@ export function Overview() {
             </div>
           </div>
         )
+      
       default:
         return null
     }
@@ -103,92 +123,11 @@ export function Overview() {
 
   return (
     <>
-      {/* Profile Details Card */}
-      {/* <div className='card mb-5 mb-xl-10' id='kt_profile_details_view'>
-        <div className='card-header cursor-pointer'>
-          <div className='card-title m-0'>
-            <h3 className='fw-bolder m-0'>Profile Details</h3>
-          </div>
-        </div>
-
-        <div className='card-body p-9'>
-          <div className='row mb-7'>
-            <label className='col-lg-4 fw-bold text-muted'>Full Name</label>
-            <div className='col-lg-8'>
-              <span className='fw-bolder fs-6 text-gray-900'>Max Smith</span>
-            </div>
-          </div>
-
-          <div className='row mb-7'>
-            <label className='col-lg-4 fw-bold text-muted'>Company</label>
-            <div className='col-lg-8 fv-row'>
-              <span className='fw-bold fs-6'>Keenthemes</span>
-            </div>
-          </div>
-
-          <div className='row mb-7'>
-            <label className='col-lg-4 fw-bold text-muted'>
-              Contact Phone
-              <i
-                className='fas fa-exclamation-circle ms-1 fs-7'
-                data-bs-toggle='tooltip'
-                title='Phone number must be active'
-              ></i>
-            </label>
-            <div className='col-lg-8 d-flex align-items-center'>
-              <span className='fw-bolder fs-6 me-2'>044 3276 454 935</span>
-              <span className='badge badge-success'>Verified</span>
-            </div>
-          </div>
-
-          <div className='row mb-7'>
-            <label className='col-lg-4 fw-bold text-muted'>Company Site</label>
-            <div className='col-lg-8'>
-              <a href='#' className='fw-bold fs-6 text-gray-900 text-hover-primary'>
-                keenthemes.com
-              </a>
-            </div>
-          </div>
-
-          <div className='row mb-7'>
-            <label className='col-lg-4 fw-bold text-muted'>
-              Country
-              <i
-                className='fas fa-exclamation-circle ms-1 fs-7'
-                data-bs-toggle='tooltip'
-                title='Country of origination'
-              ></i>
-            </label>
-            <div className='col-lg-8'>
-              <span className='fw-bolder fs-6 text-gray-900'>Germany</span>
-            </div>
-          </div>
-
-          <div className='row mb-7'>
-            <label className='col-lg-4 fw-bold text-muted'>Communication</label>
-            <div className='col-lg-8'>
-              <span className='fw-bolder fs-6 text-gray-900'>Email, Phone</span>
-            </div>
-          </div>
-
-          <div className='row mb-10'>
-            <label className='col-lg-4 fw-bold text-muted'>Allow Changes</label>
-            <div className='col-lg-8'>
-              <span className='fw-bold fs-6'>Yes</span>
-            </div>
-          </div>
-        </div>
-      </div> */}
-
       {/* Quick Actions Section */}
       <div className='mb-5 mb-xl-10'>
-        {/* <div className='d-flex align-items-center mb-5'>
-          <h3 className='fw-bolder m-0'>Quick Actions</h3>
-        </div> */}
-        
         <div className='row g-6 g-xl-9'>
           {formCards.map((card) => (
-            <div key={card.id} className='col-md-6 col-xl-3'>
+            <div key={card.id} className='col-md-6 col-xl-4'>
               <div
                 className='card h-100 cursor-pointer'
                 onClick={() => handleCardClick(card.id)}
@@ -264,7 +203,7 @@ export function Overview() {
               }
             }}
           >
-            <div className='modal-dialog modal-dialog-centered modal-lg'>
+            <div className='modal-dialog modal-dialog-centered modal-xl'> {/* ✅ modal-xl สำหรับ form ที่ใหญ่ขึ้น */}
               <div className='modal-content border-0 shadow-lg'>
                 {renderFormContent()}
               </div>

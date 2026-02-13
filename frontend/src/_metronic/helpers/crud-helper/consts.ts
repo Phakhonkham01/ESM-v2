@@ -5,6 +5,8 @@ const QUERIES = {
   OVERTIME_LIST: 'overtime-list',
    DAY_OFF_REQUESTS_LIST: 'DAY_OFF_REQUESTS_LIST',
     DAY_OFF_LIST: 'day-off-list', 
+    SALARIES_LIST:"salarylist",
+    REQUEST_OT_FIELD_WORK_LIST:"request-ot-field-work-list",
 }
 
 export {QUERIES}
