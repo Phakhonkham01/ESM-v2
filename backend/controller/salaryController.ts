@@ -743,9 +743,11 @@ export const getPrefillData = async (req: Request, res: Response): Promise<void>
     const currentMonth = month ? parseInt(month as string) : getCurrentMonthYear().month;
     const currentYear = year ? parseInt(year as string) : getCurrentMonthYear().year;
 
-    // Get user data
+    // ✅ Get user with correct leave fields
     const user = await User.findById(userId)
-      .select("first_name_en last_name_en base_salary vacation_days role department_id position_id")
+      .select(
+        "first_name_en last_name_en base_salary leave_days actual_leave_days role department_id position_id"
+      )
       .populate("department_id", "department_name")
       .populate("position_id", "position_name");
 
@@ -757,38 +759,50 @@ export const getPrefillData = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Calculate OT
+    // --- OT and fuel calculations (unchanged) ---
     const otCalculation = await calculateOTWithoutMultiplier(userId, currentMonth, currentYear);
     const fuel_costs = await calculateFuelCosts(userId, currentMonth, currentYear);
-   const day_off_days_this_month =
-  await calculateDayOffDays(userId, currentMonth, currentYear);
 
-const used_vacation_days_this_year =
-  await calculateUsedVacationDaysInYear(userId, currentYear);
+    // --- ✅ NEW: Day off calculations using actual_leave_days and paid_holidays ---
+    const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
+    const endOfMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59);
 
-const total_vacation_days = user.vacation_days || 0;
+    // 1. Approved day‑off requests for this month
+    const dayOffRequestsThisMonth = await DayOffRequestModel.find({
+      employee_id: userId,
+      status: "Accepted",
+      start_date_time: { $lte: endOfMonth },
+      end_date_time: { $gte: startOfMonth }
+    }).select("date_off_number paid_holidays");
 
-// วันลาคงเหลือหลังหักเดือนนี้
-const remaining_vacation_days =
-  total_vacation_days - day_off_days_this_month;
+    // Total days taken (including paid holidays)
+    const day_off_days_this_month = dayOffRequestsThisMonth.reduce(
+      (sum, req) => sum + (req.date_off_number || 0),
+      0
+    );
 
-// วันเกินสิทธิ์ (ถ้ามี)
-const exceed_days = Math.max(
-  0,
-  day_off_days_this_month - total_vacation_days
-);
+    // Paid holidays this month (exceed days)
+    const exceed_days = dayOffRequestsThisMonth.reduce(
+      (sum, req) => sum + (req.paid_holidays || 0),
+      0
+    );
 
+    // 2. Used vacation days this year (actual deduction, excluding paid holidays)
+    const used_vacation_days_this_year = await calculateUsedVacationDaysInYear(userId, currentYear);
 
+    // 3. Current leave balance = actual_leave_days
+    const remaining_vacation_days = user.actual_leave_days ?? 0;
+    const total_vacation_days = user.leave_days ?? 0;
 
-    // Determine color for vacation days
+    // 4. Vacation colour based on remaining balance
     let vacationColor = 'green';
-    if (remaining_vacation_days < 0) {
+    if (remaining_vacation_days <= 0) {
       vacationColor = 'red';
     } else if (remaining_vacation_days <= 5) {
       vacationColor = 'yellow';
     }
 
-    // Get department and position info
+    // --- Department & position info (unchanged) ---
     const userObj = user.toObject() as any;
     const departmentInfo = userObj.department_id ? {
       _id: userObj.department_id._id,
@@ -807,7 +821,8 @@ const exceed_days = Math.max(
           _id: user._id,
           name: `${user.first_name_en} ${user.last_name_en}`,
           base_salary: user.base_salary || 0,
-          vacation_days: user.vacation_days || 0,
+          vacation_days: user.leave_days || 0,        // ✅ original allocation
+          actual_leave_days: user.actual_leave_days,  // ✅ current balance
           role: user.role || 'Employee',
           department_id: departmentInfo,
           position_id: positionInfo
@@ -817,13 +832,11 @@ const exceed_days = Math.max(
           ot_hours: otCalculation.total_hours,
           ot_details: otCalculation.details,
           fuel_costs,
-        day_off_days_this_month,
-  used_vacation_days_this_year,
-  total_vacation_days,
-  remaining_vacation_days,
-  exceed_days,
-  
-        
+          day_off_days_this_month,
+          used_vacation_days_this_year,
+          total_vacation_days,
+          remaining_vacation_days,
+          exceed_days,
           vacation_color: vacationColor,
           weekday_ot_hours: otCalculation.weekday_ot_hours,
           weekend_ot_hours: otCalculation.weekend_ot_hours,
@@ -843,7 +856,6 @@ const exceed_days = Math.max(
     });
   }
 };
-
 /**
  * UPDATE - Update salary status
  * PUT /api/salaries/:id/status
