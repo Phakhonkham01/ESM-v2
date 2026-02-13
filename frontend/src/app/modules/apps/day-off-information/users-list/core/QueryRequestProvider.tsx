@@ -10,7 +10,12 @@ import {
 const QueryRequestContext = createContext<QueryRequestContextProps>(initialQueryRequest)
 
 const QueryRequestProvider: FC<WithChildren> = ({children}) => {
-  const [state, setState] = useState<QueryState>(initialQueryRequest.state)
+  const [state, setState] = useState<QueryState>({
+    ...initialQueryRequest.state,
+    filter: undefined,
+    page: 1,
+    items_per_page: 10
+  })
 
   const updateState = (updates: Partial<QueryState>) => {
     const updatedState = {...state, ...updates} as QueryState

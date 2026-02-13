@@ -18,7 +18,6 @@ export interface DayOffRequest {
   updated_at?: Date | string
 }
 
-// ✅ Formatted Request สำหรับตาราง
 export interface FormattedDayOffRequest {
   _id: string
   id?: string
@@ -27,13 +26,12 @@ export interface FormattedDayOffRequest {
   employee_id: string
   employee_name: string
   employee_email: string
+  employee_department?: string
+  employee_department_id?: string
+  employee_position?: string
   supervisor_id: string | string[]
   supervisor_name: string | string[]
   supervisor_email: string | string[]
-  department_name: string
-  position_name: string
-  employee_department?: string
-  employee_position?: string
   supervisor_department?: string | string[]
   supervisor_position?: string | string[]
   day_off_type: 'FULL_DAY' | 'HALF_DAY'
@@ -45,6 +43,9 @@ export interface FormattedDayOffRequest {
   created_at: Date | string
   statusColor: 'warning' | 'success' | 'danger'
   day_off_type_label: string
+  // For backward compatibility
+  department_name?: string
+  position_name?: string
 }
 
 // ✅ Request DTO สำหรับการสร้าง
@@ -92,8 +93,8 @@ export const initialDayOffRequest: DayOffRequestDTO = {
   title: '',
 }
 
-export interface RequestData{
-  
+export interface RequestData {
+
 }
 
 // ✅ Status Options สำหรับ Dropdown
@@ -109,35 +110,37 @@ export const dayOffTypeOptions = [
   { value: 'HALF_DAY', label: 'Half Day' },
 ]
 
-// ✅ Helper Functions
 export const extractUserInfo = (userField: any) => {
   if (!userField) {
-    return { 
-      id: '', 
-      name: 'Unknown', 
+    return {
+      id: '',
+      name: 'Unknown',
       email: '',
       department: 'N/A',
+      department_id: '', // ✅ Add this
       position: 'N/A'
     }
   }
 
   if (typeof userField === 'string') {
-    return { 
-      id: userField, 
-      name: 'N/A', 
+    return {
+      id: userField,
+      name: 'N/A',
       email: '',
       department: 'N/A',
+      department_id: '', // ✅ Add this
       position: 'N/A'
     }
   }
 
   // ถ้าเป็น ObjectId object
   if (userField && typeof userField === 'object' && userField._bsontype === 'ObjectId') {
-    return { 
-      id: userField.toString(), 
-      name: 'N/A', 
+    return {
+      id: userField.toString(),
+      name: 'N/A',
       email: '',
       department: 'N/A',
+      department_id: '', // ✅ Add this
       position: 'N/A'
     }
   }
@@ -146,13 +149,18 @@ export const extractUserInfo = (userField: any) => {
   if (userField && typeof userField === 'object') {
     // ดึงข้อมูล department
     let departmentName = 'N/A'
+    let departmentId = ''
+
     if (userField.department_id) {
       if (Array.isArray(userField.department_id)) {
         departmentName = userField.department_id[0]?.department_name || 'N/A'
+        departmentId = userField.department_id[0]?._id || userField.department_id[0]?.id || ''
       } else if (userField.department_id?.department_name) {
         departmentName = userField.department_id.department_name
+        departmentId = userField.department_id._id || userField.department_id.id || ''
       } else if (typeof userField.department_id === 'string') {
         departmentName = userField.department_id
+        departmentId = userField.department_id
       }
     }
 
@@ -174,15 +182,17 @@ export const extractUserInfo = (userField: any) => {
         'Unknown',
       email: userField.user_email || userField.email || '',
       department: departmentName,
+      department_id: departmentId, // ✅ Add this
       position: positionName
     }
   }
 
-  return { 
-    id: '', 
-    name: 'Unknown', 
+  return {
+    id: '',
+    name: 'Unknown',
     email: '',
     department: 'N/A',
+    department_id: '', // ✅ Add this
     position: 'N/A'
   }
 }
@@ -212,6 +222,19 @@ export const formatDayOffRequest = (request: DayOffRequest): FormattedDayOffRequ
     }
   }
 
+  // Extract department ID
+  let employeeDepartmentId = ''
+  if (request.employee_id && typeof request.employee_id === 'object' && !Array.isArray(request.employee_id)) {
+    const employee = request.employee_id as any
+    if (employee.department_id) {
+      if (typeof employee.department_id === 'object') {
+        employeeDepartmentId = employee.department_id._id || employee.department_id.id || ''
+      } else {
+        employeeDepartmentId = employee.department_id
+      }
+    }
+  }
+
   return {
     _id: request._id || request.id || '',
     id: request._id || request.id || '',
@@ -221,6 +244,7 @@ export const formatDayOffRequest = (request: DayOffRequest): FormattedDayOffRequ
     employee_name: employeeInfo.name,
     employee_email: employeeInfo.email,
     employee_department: employeeInfo.department,
+    employee_department_id: employeeDepartmentId, // ✅ Add this
     employee_position: employeeInfo.position,
     supervisor_id: Array.isArray(supervisorInfo)
       ? supervisorInfo.map(s => s.id)

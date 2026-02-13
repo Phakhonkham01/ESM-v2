@@ -9,43 +9,62 @@ const DayOffRequestActionsCell = ({ id, status }: { id: string; status: string }
   const isEditable = status === 'Pending'
 
   return (
-    <div className="d-flex justify-content-end gap-2">
-      {/* View - Always enabled */}
-      <button
-        className="btn btn-sm btn-light-primary btn-icon"
-        title="View"
-        onClick={() => setItemIdForDetail(id)}
-      >
-        <i className="bi bi-eye fs-6"></i>
-      </button>
+    <div>
+      <div className="d-flex justify-content-end gap-2">
+        {/* Actions Dropdown */}
+        <div className="dropdown">
+          <button
+            className="btn btn-light btn-active-light-primary btn-sm dropdown-toggle"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+          >
+            Actions
+          </button>
+          <ul className="dropdown-menu dropdown-menu-end">
+            {/* View - Always enabled */}
+            <li>
+              <button
+                className="dropdown-item"
+                onClick={() => setItemIdForDetail(id)}
+              >
+                <i className="bi bi-eye me-2"></i>
+                View
+              </button>
+            </li>
 
-      {/* Edit - Only enabled for Pending */}
-      <button
-        className={`btn btn-sm btn-icon ${isEditable
-          ? 'btn-light-success'
-          : 'btn-light-secondary opacity-50'
-          }`}
-        title={isEditable ? 'Edit' : 'Cannot edit - Status is not Pending'}
-        onClick={() => isEditable && setItemIdForUpdate(id)}
-        disabled={!isEditable}
-        style={{ cursor: isEditable ? 'pointer' : 'not-allowed' }}
-      >
-        <i className="bi bi-pencil fs-6"></i>
-      </button>
+            {/* Edit - Only enabled for Pending */}
+            <li>
+              <button
+                className={`dropdown-item ${!isEditable ? 'disabled' : ''}`}
+                onClick={() => isEditable && setItemIdForUpdate(id)}
+                disabled={!isEditable}
+              >
+                <i className="bi bi-pencil me-2"></i>
+                Edit
+                {!isEditable && (
+                  <span className="ms-2 text-muted small">(Status not Pending)</span>
+                )}
+              </button>
+            </li>
 
-      {/* Delete - Only enabled for Pending */}
-      <button
-        className={`btn btn-sm btn-icon ${isEditable
-          ? 'btn-light-danger'
-          : 'btn-light-secondary opacity-50'
-          }`}
-        title={isEditable ? 'Delete' : 'Cannot delete - Status is not Pending'}
-        onClick={() => isEditable && setItemIdForDelete(id)}
-        disabled={!isEditable}
-        style={{ cursor: isEditable ? 'pointer' : 'not-allowed' }}
-      >
-        <i className="bi bi-trash fs-6"></i>
-      </button>
+            {/* Delete - Only enabled for Pending */}
+            <li>
+              <button
+                className={`dropdown-item ${!isEditable ? 'disabled' : ''}`}
+                onClick={() => isEditable && setItemIdForDelete(id)}
+                disabled={!isEditable}
+              >
+                <i className="bi bi-trash me-2"></i>
+                Delete
+                {!isEditable && (
+                  <span className="ms-2 text-muted small">(Status not Pending)</span>
+                )}
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
     </div>
   )
 }
@@ -81,7 +100,7 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
     Cell: ({ value, row }) => {
       const request = row.original
       const departmentName = value
-      
+
       // Check if department is missing or not populated
       if (!departmentName || departmentName === 'N/A' || departmentName.includes('Not populated')) {
         return (
