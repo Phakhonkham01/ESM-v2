@@ -13,7 +13,7 @@ const DayOffViewModalContent: FC = () => {
   const queryClient = useQueryClient()
   const [isLoading, setIsLoading] = useState(false)
 
-  // ✅ Fetch data by ID
+  // ✅ Fetch single request using the new endpoint
   const {
     data: dayOff,
     isLoading: isFetching,
@@ -37,7 +37,7 @@ const DayOffViewModalContent: FC = () => {
         showConfirmButton: false,
       })
       queryClient.invalidateQueries(`${QUERIES.USERS_LIST}-dayoff-${query}`)
-      setItemIdForUpdate(undefined) // ✅ ปิด Modal
+      setItemIdForUpdate(undefined)
     },
     onError: () => {
       Swal.fire('Error!', 'Failed to approve request', 'error')
@@ -55,14 +55,13 @@ const DayOffViewModalContent: FC = () => {
         showConfirmButton: false,
       })
       queryClient.invalidateQueries(`${QUERIES.USERS_LIST}-dayoff-${query}`)
-      setItemIdForUpdate(undefined) // ✅ ปิด Modal
+      setItemIdForUpdate(undefined)
     },
     onError: () => {
       Swal.fire('Error!', 'Failed to reject request', 'error')
     },
   })
 
-  // ✅ Handle Approve
   const handleApprove = async () => {
     const result = await Swal.fire({
       title: 'Approve Leave Request?',
@@ -73,7 +72,6 @@ const DayOffViewModalContent: FC = () => {
       confirmButtonText: 'Yes, Approve',
       cancelButtonText: 'Cancel',
     })
-
     if (result.isConfirmed) {
       setIsLoading(true)
       approveMutation.mutate()
@@ -81,7 +79,6 @@ const DayOffViewModalContent: FC = () => {
     }
   }
 
-  // ✅ Handle Reject
   const handleReject = async () => {
     const result = await Swal.fire({
       title: 'Reject Leave Request?',
@@ -92,7 +89,6 @@ const DayOffViewModalContent: FC = () => {
       confirmButtonText: 'Yes, Reject',
       cancelButtonText: 'Cancel',
     })
-
     if (result.isConfirmed) {
       setIsLoading(true)
       rejectMutation.mutate()
@@ -100,7 +96,6 @@ const DayOffViewModalContent: FC = () => {
     }
   }
 
-  // ✅ Loading State
   if (isFetching) {
     return (
       <div className="text-center py-10">
@@ -110,7 +105,6 @@ const DayOffViewModalContent: FC = () => {
     )
   }
 
-  // ✅ Error State
   if (error || !dayOff) {
     return (
       <div className="text-center py-10">
@@ -123,6 +117,14 @@ const DayOffViewModalContent: FC = () => {
   const isPending = dayOff.status === 'Pending'
   const employeeName = getEmployeeDisplayName(dayOff)
   const supervisorName = getSupervisorName(dayOff.supervisor_id)
+
+  // 👇 LEAVE BALANCE & DEDUCTION COMPUTATIONS
+  const employee = typeof dayOff.employee_id === 'object' ? dayOff.employee_id : null
+  const currentLeaveBalance = employee?.actual_leave_days ?? 0
+  const deduction = dayOff.date_off_number
+  const remaining = currentLeaveBalance - deduction
+  const willBeNegative = remaining < 0
+  const paidHolidaysAmount = willBeNegative ? Math.abs(remaining) : 0
 
   return (
     <div>
@@ -232,8 +234,48 @@ const DayOffViewModalContent: FC = () => {
           </div>
         </div>
       </div>
+ <div className="mb-7">
+        <h4 className="fw-bold mb-5">Leave Balance & Deduction</h4>
+        <div className="row g-5 bg-light-info rounded p-4">
+          <div className="col-md-4">
+            <label className="fw-bold text-muted d-block mb-2">Current Balance</label>
+            <div className="d-flex align-items-center">
+              <KTIcon iconName="profile-user" className="fs-3 text-info me-2" />
+              <span className="fw-bold fs-4">{currentLeaveBalance.toFixed(1)} days</span>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <label className="fw-bold text-muted d-block mb-2">Requested Days</label>
+            <div className="d-flex align-items-center">
+              <KTIcon iconName="arrow-down" className="fs-3 text-danger me-2" />
+              <span className="fw-bold fs-4">- {deduction.toFixed(1)} days</span>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <label className="fw-bold text-muted d-block mb-2">New Balance (if approved)</label>
+            <div className="d-flex align-items-center">
+              <KTIcon iconName="profile-user" className="fs-3 text-primary me-2" />
+              <span className={`fw-bold fs-4 ${willBeNegative ? 'text-danger' : 'text-success'}`}>
+                {remaining >= 0 ? remaining.toFixed(1) : '0.0'} days
+              </span>
+            </div>
+          </div>
+          {willBeNegative && (
+            <div className="col-12 mt-3">
+              <div className="alert alert-warning d-flex align-items-center p-3 mb-0">
+                <KTIcon iconName="information-5" className="fs-2x me-3 text-warning" />
+                <div>
+                  <strong>Insufficient leave days.</strong><br />
+                  {paidHolidaysAmount.toFixed(1)} day(s) will be recorded as{' '}
+                  <strong>Paid Holidays</strong>.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
-      {/* Reason */}
+      {/* ========== REASON ========== */}
       <div className="mb-7">
         <label className="fw-bold text-muted d-block mb-3">Reason</label>
         <div className="bg-light rounded p-4">
@@ -241,11 +283,10 @@ const DayOffViewModalContent: FC = () => {
         </div>
       </div>
 
-      {/* Action Buttons */}
       <div className="separator separator-dashed my-7"></div>
-      
+
+      {/* ========== ACTION BUTTONS ========== */}
       <div className="d-flex justify-content-end gap-3">
-        {/* Close Button */}
         <button
           type="button"
           className="btn btn-light"
@@ -254,49 +295,45 @@ const DayOffViewModalContent: FC = () => {
         >
           Close
         </button>
-
-        {/* Approve Button - แสดงเฉพาะ Pending */}
         {isPending && (
-          <button
-            type="button"
-            className="btn btn-success"
-            onClick={handleApprove}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <span className="spinner-border spinner-border-sm me-2"></span>
-                Processing...
-              </>
-            ) : (
-              <>
-                <KTIcon iconName="check" className="fs-3" />
-                Approve
-              </>
-            )}
-          </button>
-        )}
-
-        {/* Reject Button - แสดงเฉพาะ Pending */}
-        {isPending && (
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={handleReject}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <span className="spinner-border spinner-border-sm me-2"></span>
-                Processing...
-              </>
-            ) : (
-              <>
-                <KTIcon iconName="cross" className="fs-3" />
-                Reject
-              </>
-            )}
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn btn-success"
+              onClick={handleApprove}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2"></span>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <KTIcon iconName="check" className="fs-3" />
+                  Approve
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={handleReject}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2"></span>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <KTIcon iconName="cross" className="fs-3" />
+                  Reject
+                </>
+              )}
+            </button>
+          </>
         )}
       </div>
     </div>

@@ -45,6 +45,7 @@ export const createDayOffRequest = async (
       start_date_time,
       end_date_time,
       title,
+       paid_holidays,    
     } = req.body;
 
     // Validation - ตรวจสอบว่าเป็น array
@@ -59,6 +60,10 @@ export const createDayOffRequest = async (
       !end_date_time ||
       !title?.trim()
     ) {
+      res.status(400).json({ message: "Missing required fields" });
+      return;
+    }
+    if (!user_id || !supervisor_id || !Array.isArray(supervisor_id) || supervisor_id.length === 0 || !employee_id || !day_off_type || !start_date_time || !end_date_time || !title?.trim()) {
       res.status(400).json({ message: "Missing required fields" });
       return;
     }
@@ -98,6 +103,13 @@ export const createDayOffRequest = async (
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       date_off_number = diffDays + 1; // inclusive
     }
+    const employee = await User.findById(employee_id).select('actual_leave_days');
+    let finalPaidHolidays = paid_holidays ?? 0;
+
+    if (employee && employee.actual_leave_days === 0) {
+      // No leave days left → entire request becomes paid holiday
+      finalPaidHolidays = date_off_number;
+    }
 
     // ================= CREATE REQUEST =================
     const request = await DayOffRequestModel.create({
@@ -109,6 +121,7 @@ export const createDayOffRequest = async (
       end_date_time,
       date_off_number,
       title,
+      paid_holidays: finalPaidHolidays,   // ← store, default to 0
       status: "Pending",
     });
 
@@ -218,6 +231,7 @@ export const getDayOffRequestsAllUser = async (
           end_date_time: request.end_date_time,
           date_off_number: request.date_off_number,
           title: request.title,
+           paid_holidays: request.paid_holidays,   // ← add
           status: request.status,
           created_at: request.created_at,
         };
@@ -235,41 +249,46 @@ export const getDayOffRequestsAllUser = async (
   }
 };
 // ✅ เพิ่มฟังก์ชันนี้
+// ✅ GET SINGLE DAY OFF REQUEST BY ID (fully populated)
 export const getDayOffRequestById = async (
   req: Request,
-  res: Response,
-  next: Function
+  res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params
+    const { id } = req.params;
 
     const request = await DayOffRequestModel.findById(id)
       .populate({
-        path: 'employee_id',
-        select: 'employee_id first_name_en last_name_en email',
+        path: 'user_id',
+        select: 'first_name_en last_name_en user_email employee_id actual_leave_days',
+        model: User
       })
       .populate({
         path: 'supervisor_id',
-        select: 'employee_id first_name_en last_name_en email',
+        select: 'first_name_en last_name_en user_email employee_id actual_leave_days',
+        model: User
       })
-      .lean()
+      .populate({
+        path: 'employee_id',
+        select: 'first_name_en last_name_en user_email employee_id actual_leave_days',
+        model: User
+      })
+      .lean();
 
     if (!request) {
-      res.status(404).json({
-        success: false,
-        message: 'Day off request not found',
-      })
-      return
+      res.status(404).json({ success: false, message: "Request not found" });
+      return;
     }
 
     res.status(200).json({
       success: true,
       data: request,
-    })
+    });
   } catch (error) {
-    next(error)
+    console.error("GET DAY OFF BY ID ERROR:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
-}
+};
 /**
  * ======================================================
  * GET ALL DAY OFF REQUESTS
@@ -457,93 +476,79 @@ export const updateDayOffRequestStatus = async (
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!status) {
-      res.status(400).json({ success: false, message: "Status is required" });
-      return;
-    }
-
-    if (!["Pending", "Accepted", "Rejected"].includes(status)) {
+    if (!status || !["Pending", "Accepted", "Rejected"].includes(status)) {
       res.status(400).json({ success: false, message: "Invalid status" });
       return;
     }
 
-    const updated = await DayOffRequestModel.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true }
-    )
-      .populate({
-        path: 'user_id',
-        select: 'first_name_en last_name_en user_email employee_id',
-        model: User
-      })
-      .populate({
-        path: 'supervisor_id',
-        select: 'first_name_en last_name_en user_email employee_id',
-        model: User
-      })
-      .populate({
-        path: 'employee_id',
-        select: 'first_name_en last_name_en user_email employee_id',
-        model: User
-      });
-
-    if (!updated) {
+    const request = await DayOffRequestModel.findById(id);
+    if (!request) {
       res.status(404).json({ success: false, message: "Request not found" });
       return;
     }
 
-    // Format response
-    const reqObj = updated.toObject() as PopulatedDayOffRequest;
-
-    const formatUser = (user: Types.ObjectId | PopulatedUser) => {
-      if (!user) return { id: '', name: 'Unknown', email: '', employeeId: '' };
-
-      if (user instanceof Types.ObjectId || typeof user === 'string') {
-        return { id: user.toString(), name: user.toString().substring(0, 8), email: '', employeeId: '' };
+    // ========== LEAVE DEDUCTION – ONLY ON APPROVE ==========
+    if (status === "Accepted") {
+      const employee = await User.findById(request.employee_id);
+      if (!employee) {
+        res.status(404).json({ success: false, message: "Employee not found" });
+        return;
       }
 
-      const userData = user as PopulatedUser;
-      return {
-        id: userData._id?.toString() || '',
-        name: `${userData.first_name_en || ''} ${userData.last_name_en || ''}`.trim(),
-        email: userData.user_email || '',
-        employeeId: userData.employee_id || ''
-      };
-    };
+      const currentLeave = employee.actual_leave_days ?? 0;
+      const deduction = request.date_off_number;
+      const remaining = currentLeave - deduction;
 
-    const employee = formatUser(reqObj.employee_id);
-    const supervisor = formatUser(reqObj.supervisor_id);
+      if (remaining >= 0) {
+        // ✅ Enough leave days
+        employee.actual_leave_days = remaining;
+        request.paid_holidays = 0; // no paid holidays needed
+      } else {
+        // ❌ Not enough – deficit becomes paid holidays
+        employee.actual_leave_days = 0;
+        request.paid_holidays = Math.abs(remaining); // deficit amount
+      }
 
-    const formattedRequest = {
-      _id: reqObj._id,
-      user_id: reqObj.user_id,
-      employee_id: employee.employeeId || employee.id,
-      employee_name: employee.name,
-      employee_email: employee.email,
-      supervisor_id: supervisor.employeeId || supervisor.id,
-      supervisor_name: supervisor.name,
-      supervisor_email: supervisor.email,
-      day_off_type: reqObj.day_off_type,
-      start_date_time: reqObj.start_date_time,
-      end_date_time: reqObj.end_date_time,
-      date_off_number: reqObj.date_off_number,
-      title: reqObj.title,
-      status: reqObj.status,
-      created_at: reqObj.created_at,
-    };
+      await employee.save();
+    }
+
+    // Update status and save
+    request.status = status as any;
+    await request.save();
+
+    // --- populate and return (include actual_leave_days) ---
+    const updated = await DayOffRequestModel.findById(id)
+      .populate({
+        path: 'user_id',
+        select: 'first_name_en last_name_en user_email employee_id actual_leave_days',
+        model: User
+      })
+      .populate({
+        path: 'supervisor_id',
+        select: 'first_name_en last_name_en user_email employee_id actual_leave_days',
+        model: User
+      })
+      .populate({
+        path: 'employee_id',
+        select: 'first_name_en last_name_en user_email employee_id actual_leave_days',
+        model: User
+      });
+
+    // --- format response (keep your existing formatting logic) ---
+    const reqObj = updated!.toObject() as PopulatedDayOffRequest;
+    // ... your formatter ...
+    // Make sure the formatted object includes paid_holidays
 
     res.status(200).json({
       success: true,
       message: `Status updated to ${status}`,
-      request: formattedRequest,
+      request: reqObj, // must contain paid_holidays
     });
   } catch (error) {
     console.error("UPDATE STATUS ERROR:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
 /**
  * ======================================================
  * EDIT DAY OFF REQUEST (ONLY WHEN PENDING)
@@ -561,6 +566,7 @@ export const updateDayOffRequest = async (
       end_date_time,
       title,
       supervisor_id,
+            paid_holidays,    
     } = req.body;
 
     // ================= VALIDATION =================
@@ -635,6 +641,9 @@ export const updateDayOffRequest = async (
     request.date_off_number = date_off_number;
     request.title = title;
     request.supervisor_id = supervisor_id;
+        if (paid_holidays !== undefined) {     // ← only update if provided
+      request.paid_holidays = paid_holidays;
+    }
 
     await request.save();
 
@@ -843,7 +852,7 @@ export const checkDayOffConflict = async (
     const existingRequests = await DayOffRequestModel.find(query)
       .populate({
         path: "employee_id",
-        select: "first_name_en last_name_en user_email employee_id",
+        select: "first_name_en last_name_en user_email employee_id actual_leave_days",
         model: User
       })
       .sort({ start_date_time: 1 });

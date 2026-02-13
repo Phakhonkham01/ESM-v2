@@ -20,6 +20,7 @@ export interface IUser extends Document {
   role: 'CEO' | 'admin' | 'employee' | 'supervisor';
   department_id: Types.ObjectId[] | null;
   leave_days: number;
+  actual_leave_days: number;
   status: 'Active' | 'On Leave' | 'Inactive';
   
   // Personal Information (English)
@@ -97,6 +98,10 @@ const UserSchema = new Schema<IUser, IUserModel>(
     leave_days: {
       type: Number,
       default: 15,
+    },
+     actual_leave_days: {        // ← new field
+      type: Number,
+      default: 15,             // same default as leave_days
     },
     status: {
       type: String,

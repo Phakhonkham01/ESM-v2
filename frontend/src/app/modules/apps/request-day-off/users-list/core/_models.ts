@@ -10,6 +10,7 @@ export type DayOffRequest = {
     _id: string
     first_name_en?: string
     last_name_en?: string
+    actual_leave_days?: number   // ✅ ADD THIS
     email?: string
   }
   employee_id: string | {

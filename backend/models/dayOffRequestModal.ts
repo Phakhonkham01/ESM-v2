@@ -9,6 +9,7 @@ export interface IDayOffRequest extends Document {
   end_date_time: Date;
   date_off_number: number;
   title: string;
+    paid_holidays: number;      // ← new field
   status: "Pending" | "Accepted" | "Rejected"; // ✅ เปลี่ยนเป็น Accepted, Rejected
   created_at: Date;
 }
@@ -60,7 +61,11 @@ const dayOffRequestSchema = new Schema<IDayOffRequest>({
     minlength: 3,
     maxlength: 255,
   },
-
+  paid_holidays: {            // ← new field definition
+    type: Number,
+    default: 0,
+    min: 0,
+  },
   status: {
     type: String,
     enum: ["Pending", "Accepted", "Rejected"], // ✅ เปลี่ยนตรงนี้

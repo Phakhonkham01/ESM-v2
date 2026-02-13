@@ -12,6 +12,7 @@ interface CreateUserBody {
   role?: 'CEO' | 'admin' | 'employee' | 'supervisor';
   department_id?: mongoose.Types.ObjectId[] | null;
   leave_days?: number;
+   actual_leave_days?: number;   // ← new optional field
   status?: 'Active' | 'On Leave' | 'Inactive';
   first_name_en: string;
   last_name_en: string;
@@ -28,6 +29,7 @@ interface CreateUserBody {
 
 interface UpdateUserBody extends Partial<CreateUserBody> {
   new_password?: string;
+    actual_leave_days?: number;   // ← explicitly allowed
 }
 
 interface GetUsersQuery {
@@ -58,6 +60,7 @@ export const createUser = async (
       role,
       department_id,
       leave_days,
+      actual_leave_days,    // ← get from body
       status,
       first_name_en,
       last_name_en,
@@ -104,6 +107,7 @@ export const createUser = async (
       role,
       department_id: department_id || null,
       leave_days: leave_days || 15,
+           actual_leave_days: actual_leave_days ?? (leave_days || 15), // ← priority logic
       status: status || "Active",
       first_name_en,
       last_name_en,
@@ -244,6 +248,7 @@ export const updateUser = async (
       role, 
       department_id, 
       leave_days, 
+            actual_leave_days,   // ← may be provided
       status, 
       password, 
       new_password,
@@ -274,6 +279,7 @@ export const updateUser = async (
     if (role) user.role = role;
     if (department_id !== undefined) user.department_id = department_id;
     if (leave_days !== undefined) user.leave_days = leave_days;
+     if (actual_leave_days !== undefined) user.actual_leave_days = actual_leave_days; // ← explicit update
     if (status) user.status = status;
     if (new_password) user.password = new_password;
 
