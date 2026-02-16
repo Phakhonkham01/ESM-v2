@@ -3,32 +3,92 @@ import { MenuComponent } from '../../../../../../../_metronic/assets/ts/componen
 import { initialQueryState, KTIcon } from '../../../../../../../_metronic/helpers'
 import { useQueryRequest } from '../../core/QueryRequestProvider'
 import { useQueryResponse } from '../../core/QueryResponseProvider'
+import { getDepartments } from '../../core/_requests'
 
 const UsersListFilter = () => {
   const { updateState } = useQueryRequest()
   const { isLoading } = useQueryResponse()
-  const [role, setRole] = useState<string>('')
+  const [year, setYear] = useState<string>('')
+  const [month, setMonth] = useState<string>('')
+  const [department, setDepartment] = useState<string>('')
   const [status, setStatus] = useState<string | undefined>(undefined)
+  const [departments, setDepartments] = useState<string[]>([])
+  const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
 
-  // เรียก reinitialization ตอน mount
+  // Get current year for year options
+  const currentYear = new Date().getFullYear()
+  const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4]
+
+  // Month options
+  const months = [
+    { value: '1', label: 'January' },
+    { value: '2', label: 'February' },
+    { value: '3', label: 'March' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'May' },
+    { value: '6', label: 'June' },
+    { value: '7', label: 'July' },
+    { value: '8', label: 'August' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' },
+  ]
+
+  // Fetch departments from API
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      setIsLoadingDepartments(true)
+      try {
+        if (typeof getDepartments === 'function') {
+          const response = await getDepartments()
+          const departmentNames: string[] = []
+
+          if (response && response.data) {
+            response.data.forEach((dept: any) => {
+              if (dept.department_name) departmentNames.push(dept.department_name)
+              else if (dept.name) departmentNames.push(dept.name)
+            })
+          }
+
+          setDepartments(departmentNames)
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error)
+        setDepartments([])
+      } finally {
+        setIsLoadingDepartments(false)
+      }
+    }
+
+    fetchDepartments()
+  }, [])
+
+  // Call reinitialization on mount
   useEffect(() => {
     MenuComponent.reinitialization()
   }, [])
 
-  // ฟังก์ชันรีเซ็ต
+  // ✅ Reset — clears local state AND query state
   const resetData = () => {
-    setRole('')
+    setYear('')
+    setMonth('')
+    setDepartment('')
     setStatus(undefined)
     updateState({ filter: undefined, ...initialQueryState })
-    MenuComponent.reinitialization() // รีเซ็ต UI dropdown
+    MenuComponent.reinitialization()
   }
 
-  // ฟังก์ชันกรองข้อมูล
+  // ✅ Apply — builds filter object and pushes to query state
   const filterData = () => {
     const filter: Record<string, string> = {}
 
-    if (role) filter.role = role
-    if (status !== undefined) filter.status = status  // เฉพาะ status ที่มีค่า
+    if (year)       filter.year       = year
+    if (month)      filter.month      = month
+    if (department && department !== 'All Departments') {
+      filter.department = department
+    }
+    if (status)     filter.status     = status
 
     updateState({
       filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -36,10 +96,9 @@ const UsersListFilter = () => {
     })
   }
 
-
   return (
     <>
-      {/* ปุ่ม Filter */}
+      {/* Filter Button */}
       <button
         disabled={isLoading}
         type='button'
@@ -51,34 +110,72 @@ const UsersListFilter = () => {
         Filter
       </button>
 
-      {/* เมนู dropdown */}
-      <div className='menu menu-sub menu-sub-dropdown w-300px w-md-325px' data-kt-menu='true'>
+      {/* Dropdown Menu */}
+      <div className='menu menu-sub menu-sub-dropdown w-350px w-md-400px' data-kt-menu='true'>
         {/* Header */}
         <div className='px-7 py-5'>
-          <div className='fs-5 text-gray-900 fw-bolder'>Filter Options</div>
+          <div className='fs-5 text-gray-900 fw-bolder'>Filter Day Off Requests</div>
         </div>
 
         <div className='separator border-gray-200'></div>
 
         {/* Content */}
         <div className='px-7 py-5' data-kt-user-table-filter='form'>
-          {/* Role */}
+
+          {/* Year */}
           <div className='mb-10'>
-            <label className='form-label fs-6 fw-bold'>Role:</label>
+            <label className='form-label fs-6 fw-bold'>Year:</label>
             <select
               className='form-select form-select-solid fw-bolder'
-              data-kt-select2='true'
-              data-placeholder='Select option'
-              data-allow-clear='true'
-              data-kt-user-table-filter='role'
-              data-hide-search='true'
-              onChange={(e) => setRole(e.target.value)}
-              value={role}
+              aria-label='Select year'
+              onChange={(e) => setYear(e.target.value)}
+              value={year}
             >
-              <option value=''>Select Role</option>
-              <option value='admin'>Admin</option>
-              <option value='employee'>Employee</option>
-              <option value='supervisor'>Supervisor</option>
+              <option value=''>All Years</option>
+              {years.map((yearOption) => (
+                <option key={yearOption} value={yearOption}>
+                  {yearOption}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Month */}
+          <div className='mb-10'>
+            <label className='form-label fs-6 fw-bold'>Month:</label>
+            <select
+              className='form-select form-select-solid fw-bolder'
+              aria-label='Select month'
+              onChange={(e) => setMonth(e.target.value)}
+              value={month}
+            >
+              <option value=''>All Months</option>
+              {months.map((monthOption) => (
+                <option key={monthOption.value} value={monthOption.value}>
+                  {monthOption.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Department */}
+          <div className='mb-10'>
+            <label className='form-label fs-6 fw-bold'>Department:</label>
+            <select
+              className='form-select form-select-solid fw-bolder'
+              aria-label='Select department'
+              onChange={(e) => setDepartment(e.target.value)}
+              value={department}
+              disabled={isLoadingDepartments}
+            >
+              <option value=''>
+                {isLoadingDepartments ? 'Loading departments...' : 'All Departments'}
+              </option>
+              {departments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -87,17 +184,14 @@ const UsersListFilter = () => {
             <label className='form-label fs-6 fw-bold'>Status:</label>
             <select
               className='form-select form-select-solid fw-bolder'
-              data-kt-select2='true'
-              data-placeholder='Select status'
-              data-allow-clear='true'
-              data-hide-search='true'
+              aria-label='Select status'
               onChange={(e) => setStatus(e.target.value || undefined)}
               value={status || ''}
             >
               <option value=''>All Status</option>
-              <option value='Active'>Active</option>
-              <option value='Inactive'>Inactive</option>
-              <option value='On Leave'>On Leave</option>
+              <option value='Accepted'>Accepted</option>
+              <option value='Pending'>Pending</option>
+              <option value='Rejected'>Rejected</option>
             </select>
           </div>
 
@@ -109,7 +203,6 @@ const UsersListFilter = () => {
               onClick={resetData}
               className='btn btn-light btn-active-light-primary fw-bold me-2 px-6'
               data-kt-menu-dismiss='true'
-              data-kt-user-table-filter='reset'
             >
               Reset
             </button>
@@ -119,7 +212,6 @@ const UsersListFilter = () => {
               onClick={filterData}
               className='btn btn-primary fw-bold px-6'
               data-kt-menu-dismiss='true'
-              data-kt-user-table-filter='filter'
             >
               Apply
             </button>

@@ -11,14 +11,14 @@ import {
   stringifyRequestQuery,
   WithChildren,
 } from '../../../../../../_metronic/helpers'
-import {getAllDayOffRequests} from './_requests'
+import {getFilteredDayOffRequests} from './_requests'
 import {DayOffRequest} from './_models'
 import {useQueryRequest} from './QueryRequestProvider'
 
-// ตรวจสอบว่ามี DAY_OFF_REQUESTS_LIST ใน QUERIES หรือไม่
 const DAY_OFF_QUERY_KEY = QUERIES.DAY_OFF_REQUESTS_LIST || 'DAY_OFF_REQUESTS_LIST'
 
 const QueryResponseContext = createResponseContext<DayOffRequest>(initialQueryResponse)
+
 const QueryResponseProvider: FC<WithChildren> = ({children}) => {
   const {state} = useQueryRequest()
   const [query, setQuery] = useState<string>(stringifyRequestQuery(state))
@@ -37,7 +37,28 @@ const QueryResponseProvider: FC<WithChildren> = ({children}) => {
   } = useQuery(
     `${DAY_OFF_QUERY_KEY}-${query}`,
     () => {
-      return getAllDayOffRequests(state)
+      // Extract filter values from state
+      const filter = state.filter as Record<string, string> | undefined
+
+      console.log('🔍 Fetching with filters:', {
+        search: state.search,
+        year: filter?.year,
+        month: filter?.month,
+        department: filter?.department,
+        status: filter?.status,
+        page: state.page,
+        items_per_page: state.items_per_page,
+      })
+
+      return getFilteredDayOffRequests({
+        search: state.search,
+        year: filter?.year,
+        month: filter?.month,
+        department: filter?.department,
+        status: filter?.status,
+        page: state.page,
+        limit: state.items_per_page,
+      })
     },
     {cacheTime: 0, keepPreviousData: true, refetchOnWindowFocus: false}
   )
@@ -56,7 +77,6 @@ const useQueryResponseData = () => {
   if (!response) {
     return []
   }
-
   return response?.data || []
 }
 

@@ -1,4 +1,4 @@
-import axios, { AxiosResponse } from 'axios'
+import axios from 'axios'
 import { ID, Response } from '../../../../../../_metronic/helpers'
 import {
   DayOffRequest,
@@ -15,11 +15,21 @@ const axiosInstance = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
+    Accept: 'application/json',
   },
 })
 
-// Interface สำหรับ API response
+export interface Department {
+  id?: ID
+  _id?: string
+  department_name: string
+  department_code?: string
+  description?: string
+  status?: 'active' | 'inactive'
+  created_at?: Date | string
+  updated_at?: Date | string
+}
+
 interface DayOffRequestsAllUserResponse {
   success: boolean
   count: number
@@ -40,7 +50,6 @@ interface DayOffRequestsQueryResponseData {
   requests?: DayOffRequest[]
 }
 
-// Helper function to normalize user data
 const normalizeUserData = (userData: any): any => {
   if (!userData) return null
   if (typeof userData === 'object' && userData !== null && !userData._bsontype) {
@@ -52,39 +61,88 @@ const normalizeUserData = (userData: any): any => {
       last_name_en: userData.last_name_en,
       user_email: userData.user_email || userData.email,
       employee_id: userData.employee_id,
+      // ✅ preserve department_id ตามที่เป็น (อาจเป็น array หรือ object)
+      //    extractUserInfo ใน _models.ts รองรับทั้งสองแบบอยู่แล้ว
       department_id: userData.department_id,
       position_id: userData.position_id,
     }
   }
-
   return userData
 }
 
-// Helper function to map day off request
+// ✅ KEY FIX: spread formatted LAST so employee_department ไม่ถูกทับด้วย raw object
 const mapDayOffRequest = (request: any): DayOffRequest => {
-  if (!request) {
-    throw new Error('Cannot map null or undefined request')
-  }
+  if (!request) throw new Error('Cannot map null or undefined request')
+
+  // formatDayOffRequest แปลง nested objects → string fields
+  // เช่น employee_id.department_id.department_name → employee_department: "Engineering"
   const formatted = formatDayOffRequest(request)
 
-  return {
-    ...request,
-    ...formatted,
-    id: request._id || request.id,
-    _id: request._id || request.id,
-    employee_id: normalizeUserData(request.employee_id),
-    supervisor_id: Array.isArray(request.supervisor_id)
-      ? request.supervisor_id.map(normalizeUserData)
-      : [normalizeUserData(request.supervisor_id)],
-    user_id: normalizeUserData(request.user_id),
+  // ใช้ type assertion เพื่อให้ TypeScript ยอมรับ normalized objects
+  const mapped: DayOffRequest = {
+    // ✅ spread formatted ก่อน เพื่อให้ employee_department, employee_name ฯลฯ
+    //    ที่ถูก extract จาก populated objects ไม่ถูกทับ
+    ...(formatted as unknown as DayOffRequest),
+    // override ด้วย raw/normalized values ที่ต้องการ
+    id:          request._id || request.id,
+    _id:         request._id || request.id,
+    created_at:  request.created_at,
+    updated_at:  request.updated_at,
+    employee_id: normalizeUserData(request.employee_id) as any,
+    supervisor_id: (
+      Array.isArray(request.supervisor_id)
+        ? request.supervisor_id.map(normalizeUserData)
+        : [normalizeUserData(request.supervisor_id)]
+    ) as any,
+    user_id: normalizeUserData(request.user_id) as any,
   }
+
+  return mapped
 }
+
+// ✅ สร้าง links array ที่ UsersListPagination ต้องการ
+const buildPaginationLinks = (
+  page: number,
+  totalPages: number
+): Array<{ label: string; active: boolean; url: string | null; page: number | null }> => {
+  const links = []
+
+  // Previous
+  links.push({
+    label: '&laquo; Previous',
+    active: false,
+    url: page > 1 ? `?page=${page - 1}` : null,
+    page: page > 1 ? page - 1 : null,
+  })
+
+  // Page numbers
+  for (let i = 1; i <= totalPages; i++) {
+    links.push({
+      label: String(i),
+      active: i === page,
+      url: `?page=${i}`,
+      page: i,
+    })
+  }
+
+  // Next
+  links.push({
+    label: 'Next &raquo;',
+    active: false,
+    url: page < totalPages ? `?page=${page + 1}` : null,
+    page: page < totalPages ? page + 1 : null,
+  })
+
+  return links
+}
+
+export type DepartmentsQueryResponse = Response<Department[]>
 
 /* =========================
    DAY OFF REQUEST REQUESTS
 ========================= */
 
-// GET FILTERED DAY OFF REQUESTS
+// ✅ GET FILTERED DAY OFF REQUESTS — returns Response<DayOffRequest[]> for QueryResponseProvider
 export const getFilteredDayOffRequests = async (params?: {
   search?: string
   year?: string
@@ -94,146 +152,214 @@ export const getFilteredDayOffRequests = async (params?: {
   userId?: string
   page?: number
   limit?: number
-}): Promise<{ data: DayOffRequest[]; pagination: any }> => {
+}): Promise<Response<DayOffRequest[]>> => {
   try {
     const queryParams = new URLSearchParams()
 
-    if (params?.search) queryParams.append('search', params.search)
-    if (params?.year) queryParams.append('year', params.year)
-    if (params?.month) queryParams.append('month', params.month)
-    if (params?.department && params.department !== 'All Departments') {
+    if (params?.search)   queryParams.append('search', params.search)
+    if (params?.year)     queryParams.append('year', params.year)
+    if (params?.month)    queryParams.append('month', params.month)
+    if (params?.department && params.department !== 'All Departments')
       queryParams.append('department', params.department)
-    }
-    if (params?.status && params.status !== 'All Status') {
+    if (params?.status && params.status !== 'All Status')
       queryParams.append('status', params.status)
-    }
-    if (params?.userId) queryParams.append('userId', params.userId)
-    if (params?.page) queryParams.append('page', params.page.toString())
-    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.userId)   queryParams.append('userId', params.userId)
+    if (params?.page)     queryParams.append('page', params.page.toString())
+    if (params?.limit)    queryParams.append('limit', params.limit.toString())
 
     const queryString = queryParams.toString()
-    const url = `${DAY_OFF_REQUEST_URL}/filtered${queryString ? `?${queryString}` : ''}`
+    const url = `${DAY_OFF_REQUEST_URL}/allusers${queryString ? `?${queryString}` : ''}`
+
+    console.log('📡 Requesting:', url)
 
     const response = await axiosInstance.get(url)
 
-    let requests: DayOffRequest[] = []
-    let pagination = {
-      page: params?.page || 1,
-      limit: params?.limit || 10,
-      total: 0,
-      totalPages: 1
+    const rawRequests = response.data.requests || response.data.data || []
+
+    // Debug: ตรวจสอบว่า department populate ถูกต้องหรือไม่
+    if (rawRequests.length > 0) {
+      const sample = rawRequests[0]
+      console.log('🔍 Sample raw request employee_id:', JSON.stringify(sample.employee_id, null, 2))
     }
 
-    if (response.data) {
-      // Handle different response structures
-      const rawRequests = response.data.requests || response.data.data || []
-      requests = rawRequests.map((request: any) => mapDayOffRequest(request))
+    const requests: DayOffRequest[] = rawRequests.map((r: any) => mapDayOffRequest(r))
 
-      pagination = {
-        page: response.data.page || params?.page || 1,
-        limit: response.data.limit || params?.limit || 10,
-        total: response.data.total || response.data.count || rawRequests.length || 0,
-        totalPages: response.data.totalPages || Math.ceil((response.data.total || rawRequests.length) / (params?.limit || 10)) || 1
-      }
+    // Debug: ตรวจสอบ employee_department หลัง map
+    if (requests.length > 0) {
+      const sample = requests[0] as any
+      console.log('✅ Sample mapped employee_department:', sample.employee_department)
     }
+
+    const total      = response.data.total     || response.data.count || rawRequests.length || 0
+    const page       = response.data.page       || params?.page       || 1
+    const limit      = response.data.limit      || params?.limit      || 10
+    const totalPages = response.data.totalPages || Math.ceil(total / limit) || 1
 
     return {
       data: requests,
-      pagination
+      payload: {
+        pagination: {
+          page,
+          items_per_page: limit,
+          links: buildPaginationLinks(page, totalPages),
+          total,
+          totalPages,
+        } as any,
+      },
     }
   } catch (error: any) {
     console.error('Error fetching filtered requests:', error)
     return {
       data: [],
-      pagination: {
-        page: params?.page || 1,
-        limit: params?.limit || 10,
-        total: 0,
-        totalPages: 0
-      }
+      payload: {
+        pagination: {
+          page: params?.page || 1,
+          items_per_page: params?.limit || 10,
+          links: buildPaginationLinks(1, 1),
+          total: 0,
+          totalPages: 1,
+        } as any,
+      },
     }
   }
 }
 
-// GET ALL DAY OFF REQUESTS (FORMATTED) - สำหรับตาราง
+// Get all departments
+export const getDepartments = async (): Promise<DepartmentsQueryResponse> => {
+  try {
+    const response = await axios.get(`${API_URL}/departments`)
+    let departments: Department[] = []
+
+    if (response.data) {
+      if (Array.isArray(response.data)) {
+        departments = response.data
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        departments = response.data.data
+      } else if (response.data.departments && Array.isArray(response.data.departments)) {
+        departments = response.data.departments
+      }
+    }
+
+    return { data: departments }
+  } catch (error) {
+    console.error('Error fetching departments:', error)
+    return { data: [] }
+  }
+}
+
+export const getDepartmentNames = async (): Promise<string[]> => {
+  try {
+    const response = await axios.get(`${API_URL}/departments`)
+    const departmentNames: string[] = []
+
+    if (response.data) {
+      const list = Array.isArray(response.data)
+        ? response.data
+        : response.data.data || response.data.departments || []
+
+      list.forEach((dept: any) => {
+        if (dept.department_name) departmentNames.push(dept.department_name)
+        else if (dept.name)       departmentNames.push(dept.name)
+      })
+    }
+
+    return departmentNames
+  } catch (error) {
+    console.error('Error fetching department names:', error)
+    return []
+  }
+}
+
+export const getDepartmentById = async (id: string): Promise<Department | null> => {
+  try {
+    const response = await axios.get(`${API_URL}/departments/${id}`)
+    return response.data.data || response.data
+  } catch (error) {
+    console.error('Error fetching department:', error)
+    return null
+  }
+}
+
+export const departmentService = {
+  getDepartments,
+  getDepartmentNames,
+  getDepartmentById,
+}
+
+// GET ALL DAY OFF REQUESTS (FORMATTED)
 export const getDayOffRequestsAllUser = async (): Promise<DayOffRequestsAllUserResponse> => {
   try {
-    const response = await axiosInstance.get<DayOffRequestsAllUserResponse>(`${DAY_OFF_REQUEST_URL}/allusers`)
-    const formattedRequests: DayOffRequest[] = response.data.requests.map(request => {
-      return mapDayOffRequest(request)
-    })
-
-    return {
-      success: true,
-      count: formattedRequests.length,
-      requests: formattedRequests
-    }
+    const response = await axiosInstance.get<DayOffRequestsAllUserResponse>(
+      `${DAY_OFF_REQUEST_URL}/allusers`
+    )
+    const formattedRequests = response.data.requests.map((r) => mapDayOffRequest(r))
+    return { success: true, count: formattedRequests.length, requests: formattedRequests }
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to fetch day off requests')
   }
 }
 
-// GET ALL DAY OFF REQUESTS (RAW) - แก้ไขให้รองรับทั้งกรณีมี params และไม่มี
+// GET ALL DAY OFF REQUESTS (backward compat)
 export const getAllDayOffRequests = async (params?: any): Promise<Response<DayOffRequest[]>> => {
   try {
-    try {
-      const response = await axiosInstance.get<DayOffRequestsAllUserResponse>(`${DAY_OFF_REQUEST_URL}/allusers`)
-      const formattedData: DayOffRequest[] = response.data.requests.map(request => mapDayOffRequest(request))
-
-      return {
-        data: formattedData
-      }
-    } catch (allUsersError) {
-      throw allUsersError
-    }
-
+    const response = await axiosInstance.get<DayOffRequestsAllUserResponse>(
+      `${DAY_OFF_REQUEST_URL}/allusers`
+    )
+    const formattedData = response.data.requests.map((r) => mapDayOffRequest(r))
+    return { data: formattedData }
   } catch (error: any) {
     return { data: [] }
   }
 }
 
 // GET DAY OFF REQUESTS BY USER
-export const getDayOffRequestsByUser = async (userId: string): Promise<Response<DayOffRequest[]>> => {
+export const getDayOffRequestsByUser = async (
+  userId: string
+): Promise<Response<DayOffRequest[]>> => {
   try {
-    const response = await axiosInstance.get<DayOffRequestsQueryResponseData>(`${DAY_OFF_REQUEST_URL}/user/${userId}`)
+    const response = await axiosInstance.get<DayOffRequestsQueryResponseData>(
+      `${DAY_OFF_REQUEST_URL}/user/${userId}`
+    )
     const requests = response.data.data || response.data.requests || []
-    const formattedData: DayOffRequest[] = requests.map(request => mapDayOffRequest(request))
-    return { data: formattedData }
+    return { data: requests.map((r) => mapDayOffRequest(r)) }
   } catch (error: any) {
     return { data: [] }
   }
 }
 
 // GET DAY OFF REQUESTS FOR SUPERVISOR DASHBOARD
-export const getDayOffRequestsForSupervisorDashboard = async (supervisorId: string): Promise<Response<DayOffRequest[]>> => {
+export const getDayOffRequestsForSupervisorDashboard = async (
+  supervisorId: string
+): Promise<Response<DayOffRequest[]>> => {
   try {
-    const response = await axiosInstance.get<DayOffRequestsQueryResponseData>(`${DAY_OFF_REQUEST_URL}/supervisor-dashboard/${supervisorId}`)
-
+    const response = await axiosInstance.get<DayOffRequestsQueryResponseData>(
+      `${DAY_OFF_REQUEST_URL}/supervisor-dashboard/${supervisorId}`
+    )
     const requests = response.data.data || response.data.requests || []
-    const formattedData: DayOffRequest[] = requests.map(request => mapDayOffRequest(request))
-
-    return { data: formattedData }
+    return { data: requests.map((r) => mapDayOffRequest(r)) }
   } catch (error: any) {
     return { data: [] }
   }
 }
 
 // CREATE DAY OFF REQUEST
-export const createDayOffRequest = async (requestData: DayOffRequestDTO & { date_off_number?: number }): Promise<DayOffRequest> => {
+export const createDayOffRequest = async (
+  requestData: DayOffRequestDTO & { date_off_number?: number }
+): Promise<DayOffRequest> => {
   try {
     const supervisorIdArray = Array.isArray(requestData.supervisor_id)
       ? requestData.supervisor_id
       : [requestData.supervisor_id]
 
     const payload: any = {
-      user_id: requestData.user_id,
-      employee_id: requestData.employee_id,
-      supervisor_id: supervisorIdArray,
-      day_off_type: requestData.day_off_type,
-      start_date_time: requestData.start_date_time,
-      end_date_time: requestData.end_date_time,
-      title: requestData.title,
-      status: 'Pending'
+      user_id:          requestData.user_id,
+      employee_id:      requestData.employee_id,
+      supervisor_id:    supervisorIdArray,
+      day_off_type:     requestData.day_off_type,
+      start_date_time:  requestData.start_date_time,
+      end_date_time:    requestData.end_date_time,
+      title:            requestData.title,
+      status:           'Pending',
     }
 
     if (requestData.date_off_number !== undefined) {
@@ -248,67 +374,62 @@ export const createDayOffRequest = async (requestData: DayOffRequestDTO & { date
       throw new Error('No data received from server')
     }
 
-    const responseData = response.data.data || response.data.request
-    return mapDayOffRequest(responseData)
-
+    return mapDayOffRequest(response.data.data || response.data.request)
   } catch (error: any) {
-
     if (error.response) {
-      let errorMessage = 'Failed to create day off request'
-      if (error.response.data?.message) {
-        errorMessage = error.response.data.message
-      } else if (error.response.data?.error) {
-        errorMessage = error.response.data.error
-      } else if (error.response.data?.errors) {
-        const errors = error.response.data.errors
-        errorMessage = errors.map((err: any) => `${err.field}: ${err.message}`).join(', ')
-      }
-
-      throw new Error(errorMessage)
+      let msg = 'Failed to create day off request'
+      if (error.response.data?.message)    msg = error.response.data.message
+      else if (error.response.data?.error) msg = error.response.data.error
+      else if (error.response.data?.errors)
+        msg = error.response.data.errors.map((e: any) => `${e.field}: ${e.message}`).join(', ')
+      throw new Error(msg)
     } else if (error.request) {
       throw new Error('No response from server. Please check your connection.')
-    } else {
-      throw new Error(error.message || 'Failed to create day off request')
     }
+    throw new Error(error.message || 'Failed to create day off request')
   }
 }
 
 // UPDATE DAY OFF REQUEST STATUS
-export const updateDayOffRequestStatus = async (id: string, statusData: UpdateStatusDTO): Promise<DayOffRequest> => {
+export const updateDayOffRequestStatus = async (
+  id: string,
+  statusData: UpdateStatusDTO
+): Promise<DayOffRequest> => {
   try {
     const response = await axiosInstance.patch<DayOffRequestResponse>(
       `${DAY_OFF_REQUEST_URL}/${id}/status`,
       statusData
     )
-
-    const responseData = response.data.data || response.data.request
-    return mapDayOffRequest(responseData)
+    return mapDayOffRequest(response.data.data || response.data.request)
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Failed to update status')
   }
 }
 
 // UPDATE DAY OFF REQUEST
-export const updateDayOffRequest = async (id: string, requestData: Partial<DayOffRequestDTO>): Promise<DayOffRequest> => {
+export const updateDayOffRequest = async (
+  id: string,
+  requestData: Partial<DayOffRequestDTO>
+): Promise<DayOffRequest> => {
   try {
     const response = await axiosInstance.put<DayOffRequestResponse>(
       `${DAY_OFF_REQUEST_URL}/${id}`,
       requestData
     )
     const responseData = response.data.data || response.data.request
-    if (!responseData) {
-      throw new Error('Invalid response structure: missing data')
-    }
-
+    if (!responseData) throw new Error('Invalid response structure: missing data')
     return mapDayOffRequest(responseData)
-
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || error.message || 'Failed to update day off request')
+    throw new Error(
+      error.response?.data?.message || error.message || 'Failed to update day off request'
+    )
   }
 }
 
 // DELETE DAY OFF REQUEST
-export const deleteDayOffRequest = async (id: string): Promise<{ success: boolean; message: string }> => {
+export const deleteDayOffRequest = async (
+  id: string
+): Promise<{ success: boolean; message: string }> => {
   try {
     const response = await axiosInstance.delete<{ success: boolean; message: string }>(
       `${DAY_OFF_REQUEST_URL}/${id}`
@@ -319,24 +440,23 @@ export const deleteDayOffRequest = async (id: string): Promise<{ success: boolea
   }
 }
 
-// DELETE MULTIPLE DAY OFF REQUESTS
-export const deleteSelectedDayOffRequests = async (ids: string[]): Promise<{ success: boolean }> => {
+// DELETE MULTIPLE
+export const deleteSelectedDayOffRequests = async (
+  ids: string[]
+): Promise<{ success: boolean }> => {
   try {
-    // Delete each request individually
-    const deletePromises = ids.map(id => deleteDayOffRequest(id))
-    await Promise.all(deletePromises)
+    await Promise.all(ids.map((id) => deleteDayOffRequest(id)))
     return { success: true }
-  } catch (error: any) {
+  } catch {
     return { success: false }
   }
 }
 
-// GET DAY OFF REQUEST BY ID
+// GET BY ID
 export const getDayOffRequestById = async (id: string): Promise<FormattedDayOffRequest> => {
   try {
     const response = await axios.get(`${API_URL}/day-off-requests/${id}`)
-    const data = response.data.data || response.data
-    return formatDayOffRequest(data)
+    return formatDayOffRequest(response.data.data || response.data)
   } catch (error) {
     throw error
   }
@@ -346,7 +466,6 @@ export const getDayOffRequestById = async (id: string): Promise<FormattedDayOffR
    HELPER FUNCTIONS
 ========================= */
 
-// Check if dates overlap with existing requests
 export const checkDateOverlap = async (
   employeeId: string,
   startDate: string,
@@ -357,75 +476,50 @@ export const checkDateOverlap = async (
     const response = await getDayOffRequestsByUser(employeeId)
     const requests = response.data || []
     const start = new Date(startDate)
-    const end = new Date(endDate)
+    const end   = new Date(endDate)
+
     const overlappingRequests = requests.filter((request) => {
-      if (excludeRequestId && (request.id === excludeRequestId || request._id === excludeRequestId)) {
+      if (excludeRequestId && (request.id === excludeRequestId || request._id === excludeRequestId))
         return false
-      }
-      if (request.status !== 'Accepted' && request.status !== 'Pending') {
-        return false
-      }
-
-      const requestStart = new Date(request.start_date_time)
-      const requestEnd = new Date(request.end_date_time)
-
-      return (
-        (start <= requestEnd && end >= requestStart) ||
-        (requestStart <= end && requestEnd >= start)
-      )
+      if (request.status !== 'Accepted' && request.status !== 'Pending') return false
+      const rStart = new Date(request.start_date_time)
+      const rEnd   = new Date(request.end_date_time)
+      return (start <= rEnd && end >= rStart) || (rStart <= end && rEnd >= start)
     })
 
-    return {
-      hasOverlap: overlappingRequests.length > 0,
-      overlappingRequests
-    }
-  } catch (error) {
-    return {
-      hasOverlap: false,
-      overlappingRequests: []
-    }
+    return { hasOverlap: overlappingRequests.length > 0, overlappingRequests }
+  } catch {
+    return { hasOverlap: false, overlappingRequests: [] }
   }
 }
 
-// Validate day off request data
-export const validateDayOffRequestData = (data: DayOffRequestDTO): { isValid: boolean; errors: string[] } => {
+export const validateDayOffRequestData = (
+  data: DayOffRequestDTO
+): { isValid: boolean; errors: string[] } => {
   const errors: string[] = []
 
-  if (!data.user_id) errors.push('User ID is required')
+  if (!data.user_id)     errors.push('User ID is required')
   if (!data.employee_id) errors.push('Employee ID is required')
-  if (!data.supervisor_id || (Array.isArray(data.supervisor_id) && data.supervisor_id.length === 0)) {
+  if (!data.supervisor_id || (Array.isArray(data.supervisor_id) && data.supervisor_id.length === 0))
     errors.push('At least one supervisor is required')
-  }
-  if (!data.day_off_type) errors.push('Day off type is required')
+  if (!data.day_off_type)    errors.push('Day off type is required')
   if (!data.start_date_time) errors.push('Start date is required')
-  if (!data.end_date_time) errors.push('End date is required')
-  if (!data.title?.trim()) errors.push('Title is required')
+  if (!data.end_date_time)   errors.push('End date is required')
+  if (!data.title?.trim())   errors.push('Title is required')
 
-  // Date validation
   if (data.start_date_time && data.end_date_time) {
-    const startDate = new Date(data.start_date_time)
-    const endDate = new Date(data.end_date_time)
-
-    if (isNaN(startDate.getTime())) errors.push('Invalid start date format')
-    if (isNaN(endDate.getTime())) errors.push('Invalid end date format')
-
-    if (endDate < startDate) {
-      errors.push('End date must be later than start date')
-    }
-
-    if (data.day_off_type === 'HALF_DAY' &&
-      startDate.toDateString() !== endDate.toDateString()) {
+    const s = new Date(data.start_date_time)
+    const e = new Date(data.end_date_time)
+    if (isNaN(s.getTime())) errors.push('Invalid start date format')
+    if (isNaN(e.getTime())) errors.push('Invalid end date format')
+    if (e < s)              errors.push('End date must be later than start date')
+    if (data.day_off_type === 'HALF_DAY' && s.toDateString() !== e.toDateString())
       errors.push('Half day leave must be within the same day')
-    }
   }
 
-  return {
-    isValid: errors.length === 0,
-    errors
-  }
+  return { isValid: errors.length === 0, errors }
 }
 
-// Export all functions as service object
 export const dayOffRequestService = {
   getAllDayOffRequests,
   getDayOffRequestsAllUser,
@@ -438,13 +532,8 @@ export const dayOffRequestService = {
   deleteSelectedDayOffRequests,
   getDayOffRequestById,
   checkDateOverlap,
-  validateDayOffRequestData
+  validateDayOffRequestData,
 }
 
-// Export สำหรับ backward compatibility
 export const getDayOffRequests = dayOffRequestService.getAllDayOffRequests
-
-// Export individual functions for easier imports
-export {
-  getAllDayOffRequests as getDayOffRequestsQuery
-}
+export { getAllDayOffRequests as getDayOffRequestsQuery }

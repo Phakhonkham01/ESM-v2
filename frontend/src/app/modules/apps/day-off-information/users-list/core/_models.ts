@@ -48,6 +48,30 @@ export interface FormattedDayOffRequest {
   position_name?: string
 }
 
+
+// Add this to your _models.ts
+export interface DayOffRequestQueryParams {
+  page?: number
+  itemsPerPage?: number
+  search?: string
+  year?: string
+  month?: string
+  department?: string
+  status?: string
+  userId?: string
+  supervisorId?: string
+  sort?: string
+  order?: 'asc' | 'desc'
+}
+
+export interface FilterState {
+  year: string
+  month: string
+  department: string
+  status: string
+  search: string
+}
+
 // ✅ Request DTO สำหรับการสร้าง
 export interface DayOffRequestDTO {
   user_id: string
@@ -91,10 +115,6 @@ export const initialDayOffRequest: DayOffRequestDTO = {
   end_date_time: new Date().toISOString(),
   date_off_number: 0,
   title: '',
-}
-
-export interface RequestData {
-
 }
 
 // ✅ Status Options สำหรับ Dropdown

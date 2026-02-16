@@ -42,9 +42,6 @@ const DayOffRequestActionsCell = ({ id, status }: { id: string; status: string }
               >
                 <i className="bi bi-pencil me-2"></i>
                 Edit
-                {!isEditable && (
-                  <span className="ms-2 text-muted small">(Status not Pending)</span>
-                )}
               </button>
             </li>
 
@@ -57,9 +54,6 @@ const DayOffRequestActionsCell = ({ id, status }: { id: string; status: string }
               >
                 <i className="bi bi-trash me-2"></i>
                 Delete
-                {!isEditable && (
-                  <span className="ms-2 text-muted small">(Status not Pending)</span>
-                )}
               </button>
             </li>
           </ul>
@@ -82,7 +76,7 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
     ),
     accessor: 'title',
     Cell: ({ row }) => {
-      const request = row.original;
+      const request = row.original
       return (
         <div className="d-flex flex-column">
           <span className="fw-semibold text-gray-800">{request.employee_name || 'N/A'}</span>
@@ -90,19 +84,16 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
       )
     },
   },
-  // Department
+
+  // ✅ แก้ accessor จาก 'department_name' → 'employee_department'
   {
     Header: (props) => (
       <UserCustomHeader tableProps={props} title="Department" className="min-w-150px" />
     ),
     id: 'department',
-    accessor: 'department_name',
-    Cell: ({ value, row }) => {
-      const request = row.original
-      const departmentName = value
-
-      // Check if department is missing or not populated
-      if (!departmentName || departmentName === 'N/A' || departmentName.includes('Not populated')) {
+    accessor: 'employee_department',
+    Cell: ({ value }) => {
+      if (!value || value === 'N/A') {
         return (
           <div className="d-flex align-items-center p-2 bg-light-warning rounded">
             <i className="bi bi-building-x fs-5 text-warning me-2"></i>
@@ -114,7 +105,7 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
       return (
         <div className="d-flex align-items-center p-2 bg-light-primary rounded">
           <i className="bi bi-building fs-5 text-primary me-2"></i>
-          <span className="fw-bold text-gray-900">{departmentName}</span>
+          <span className="fw-bold text-gray-900">{value}</span>
         </div>
       )
     },
@@ -216,7 +207,6 @@ const dayOffRequestsColumns: ReadonlyArray<Column<FormattedDayOffRequest>> = [
       const requestId = request._id || request.id
       const status = request.status
 
-      // Add a safety check
       if (!requestId) {
         console.warn('Day off request missing ID:', request)
         return <div className="text-muted">No ID</div>
