@@ -23,6 +23,9 @@ import type {
   ExistingSalary
 } from './interfaces'
 
+// ✅ เพີ່ມ import SystemOTData
+import type { SystemOTData } from './SalaryStepComponents'
+
 // Add API URL configuration
 const API_URL = import.meta.env.VITE_APP_API_URL
 const USERS_URL = `${API_URL}/users`
@@ -52,6 +55,13 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
   const currentDate = new Date()
   const [selectedMonth, setSelectedMonth] = useState<number>(currentDate.getMonth() + 1) // 1-12
   const [selectedYear, setSelectedYear] = useState<number>(currentDate.getFullYear())
+  
+  // ✅ เพີ່ມ systemOTData state - ສຳຄັນທີ່ສຸດ!
+  const [systemOTData, setSystemOTData] = useState<SystemOTData>({
+    systemOTDetails: [],
+    totalFuelCosts: 0,
+    totalOTAmount: 0,
+  })
   
   const queryClient = useQueryClient()
 
@@ -120,6 +130,11 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     }
   }, [userId, selectedMonth, selectedYear])
 
+  // ✅ เພີ່ມ Debug Effect ເພື່ອກວດສອບ systemOTData
+  useEffect(() => {
+    console.log('🔍 [Parent] systemOTData updated:', systemOTData)
+  }, [systemOTData])
+
   const fetchUserData = async () => {
     try {
       setLoading(true)
@@ -172,6 +187,33 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     } finally {
       setLoading(false)
     }
+  }
+
+  // ✅ เພີ່ມ Callback Function ສຳລັບຮັບຂໍ້ມູນຈາກ Step 1
+  const handleSystemOTDetailsUpdate = (data: { 
+    systemOTDetails: any[]
+    totalFuelCosts: number 
+  }) => {
+    console.log('🔥 [Parent] Callback triggered with data:', data)
+    
+    // ຄຳນວນຍອດລວມ OT
+    const totalOTAmount = data.systemOTDetails.reduce(
+      (sum, detail) => sum + detail.amount, 
+      0
+    )
+
+    // ອັບເດທ state
+    setSystemOTData({
+      systemOTDetails: data.systemOTDetails,
+      totalFuelCosts: data.totalFuelCosts,
+      totalOTAmount: totalOTAmount,
+    })
+
+    console.log('✅ [Parent] systemOTData updated:', {
+      totalFuelCosts: data.totalFuelCosts,
+      totalOTAmount: totalOTAmount,
+      detailsCount: data.systemOTDetails.length,
+    })
   }
 
   const handleInputChange = (
@@ -336,43 +378,59 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     return { totalHours, totalWeekendDays, totalAmount }
   }
 
-  const calculateTotalIncome = () => {
-    if (!prefillData) return 0
+  // ✅ ແກ້ໄຂ calculateTotalIncome ໃຫ້ໃຊ້ systemOTData
+const calculateTotalIncome = () => {
+  if (!prefillData) return 0
 
-    const { base_salary } = prefillData.user
-    const { fuel_costs } = prefillData.calculated
-    const { bonus, commission, money_not_spent_on_holidays, other_income } =
-      formData
+  const { base_salary } = prefillData.user
+  const fuel_costs = systemOTData.totalFuelCosts
+  const { bonus, commission, money_not_spent_on_holidays, office_expenses, other_income } = formData
 
-    const manualOTAmount = manualOTDetails.reduce(
-      (sum, detail) => sum + detail.amount,
-      0,
-    )
+  const manualOTAmount = manualOTDetails.reduce(
+    (sum, detail) => sum + detail.amount,
+    0
+  )
+  const otAmount = systemOTData.totalOTAmount + manualOTAmount
 
-    const otAmount =
-      (prefillData.calculated.ot_amount || 0) + manualOTAmount
+  return (
+    base_salary +
+    otAmount +
+    bonus +
+    commission +
+    fuel_costs +
+    money_not_spent_on_holidays +
+    office_expenses +   // ✅ added
+    other_income
+  )
+}
 
-    return (
-      base_salary +
-      otAmount +
-      bonus +
-      commission +
-      fuel_costs +
-      money_not_spent_on_holidays +
-      other_income
-    )
+const calculateTotalDeductions = () => {
+  if (!prefillData) return 0
+
+  // Determine absence deduction (auto if exceed_days exists, else manual)
+  const exceedDays = prefillData.calculated.exceed_days ?? 0
+  let absenceDeduction = 0
+
+  if (exceedDays > 0) {
+    const workingDaysInMonth = formData.working_days || 26
+    const dailySalary = prefillData.user.base_salary / workingDaysInMonth
+    absenceDeduction = Math.round(dailySalary * exceedDays)
+  } else {
+    absenceDeduction = formData.cut_off_pay_days * formData.cut_off_pay_amount
   }
 
-  const calculateTotalDeductions = () => {
-    const cutOffTotal =
-      formData.cut_off_pay_days * formData.cut_off_pay_amount
-
-    return formData.office_expenses + formData.social_security + cutOffTotal
-  }
-
+  return absenceDeduction + formData.social_security   // ❗ office_expenses removed
+}
   const calculateNetSalary = () => {
-    return calculateTotalIncome() - calculateTotalDeductions()
-  }
+    const totalIncome = calculateTotalIncome()
+    const totalDeductions = calculateTotalDeductions()
+    console.log('🎯 [Calculate] Net Salary:', {
+      totalIncome,
+      totalDeductions,
+      netSalary: totalIncome - totalDeductions,
+    })
+    return totalIncome - totalDeductions
+  }                               
 
   const handleNext = () => {
     setActiveStep((prevStep) => prevStep + 1)
@@ -441,8 +499,9 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
       const currentUser = authData ? JSON.parse(authData) : {}
       const created_by = currentUser._id || currentUser.id || userId
 
+      // ✅ ລວມ OT ຈາກລະບົບ ແລະ Manual
       const allOTDetails = [
-        ...(prefillData?.calculated.ot_details || []),
+        ...systemOTData.systemOTDetails,
         ...manualOTDetails,
       ]
 
@@ -467,7 +526,7 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
         ot_amount: totalOTAmount,
         ot_hours: totalOTHours,
         ot_details: allOTDetails,
-        fuel_costs: prefillData?.calculated.fuel_costs || 0,
+        fuel_costs: systemOTData.totalFuelCosts, // ✅ ໃຊ້ຈາກ systemOTData
         day_off_days: prefillData?.calculated.day_off_days || 0,
         remaining_vacation_days:
           prefillData?.calculated.remaining_vacation_days || 0,
@@ -478,35 +537,11 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
           `Manual OT: ${manualOTDetails.length > 0 ? 'Yes' : 'No'}`,
       }
 
+      console.log('📤 [Submit] Payload:', payload)
+
       const response = await axios.post(SALARIES_URL, payload)
 
       if (response.status === 201 || response.status === 200) {
-        // Update vacation days
-        try {
-          const remainingVacationDays =
-            prefillData?.calculated.remaining_vacation_days || 0
-
-          let updateReason = ''
-          if (remainingVacationDays < 0) {
-            updateReason = `Salary calculation ${getMonthName(selectedMonth)} ${selectedYear} - Exceeded vacation days by ${Math.abs(remainingVacationDays)} days`
-          } else if (remainingVacationDays === 0) {
-            updateReason = `Salary calculation ${getMonthName(selectedMonth)} ${selectedYear} - Vacation days exhausted`
-          } else {
-            updateReason = `Salary calculation ${getMonthName(selectedMonth)} ${selectedYear} - Remaining ${remainingVacationDays} vacation days`
-          }
-
-          await axios.put(
-            `${USERS_URL}/${userId}/update-vacation-days`,
-            {
-              vacation_days: remainingVacationDays,
-              updated_by: created_by,
-              update_reason: updateReason,
-            },
-          )
-        } catch (updateError: any) {
-          console.warn('Salary calculated but could not update vacation days:', updateError)
-        }
-
         setSuccess(true)
 
         // Show success message
@@ -559,6 +594,7 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
       month: selectedMonth,
       year: selectedYear,
       prefillData,
+      systemOTData, // ✅ ເພີ່ມ prop ນີ້
       formData,
       onInputChange: handleInputChange,
       calculateTotalIncome,
@@ -573,6 +609,7 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
       handleCutOffDaysChange,
       onMonthChange: (month: number) => setSelectedMonth(month),
       onYearChange: (year: number) => setSelectedYear(year),
+      onSystemOTDetailsUpdate: handleSystemOTDetailsUpdate, // ✅ ເພີ່ມ callback
     }
 
     switch (step) {

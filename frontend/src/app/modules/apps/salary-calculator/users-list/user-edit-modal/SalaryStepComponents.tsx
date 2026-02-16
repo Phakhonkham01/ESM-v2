@@ -38,6 +38,7 @@ interface Step5Summary {
     manualOTDetails: any[]
     calculateNetSalary: () => number
 }
+
 export interface SalaryEmailRequest {
     to: string
     subject?: string
@@ -64,12 +65,24 @@ export interface EmailResponse {
         timestamp?: string
     }
 }
+
+// ✅ เพิ่ม interface สำหรับข้อมูล OT จากระบบ
+export interface SystemOTData {
+    systemOTDetails: any[]
+    totalFuelCosts: number
+    totalOTAmount: number
+}
+
 interface StepComponentsProps {
     // Step 0
     user: any
     month: number
     year: number
     prefillData: PrefillData | null
+    onSystemOTDetailsUpdate?: (data: { systemOTDetails: any[]; totalFuelCosts: number }) => void;
+    
+    // ✅ เพิ่ม prop สำหรับข้อมูล OT จากระบบ
+    systemOTData?: SystemOTData
 
     // Step 2 & 3
     formData: SalaryFormData
@@ -81,7 +94,7 @@ interface StepComponentsProps {
     calculateTotalIncome: () => number
     calculateTotalDeductions: () => number
     calculateNetSalary: () => number
-    handleCutOffDaysChange?: (days: number) => void  // ✅ Add this line
+    handleCutOffDaysChange?: (days: number) => void
 
     // Manual OT Props
     manualOT: ManualOTState
@@ -99,17 +112,6 @@ interface StepComponentsProps {
         totalAmount: number
     }
 }
-
-// const getOtTypeEnglish = (type: string): string => {
-//     switch (type) {
-//         case 'weekday':
-//             return 'Weekday'
-//         case 'weekend':
-//             return 'Weekend'
-//         default:
-//             return type
-//     }
-// }
 
 const getOtTypeColor = (type: string): string => {
     switch (type) {
@@ -663,18 +665,20 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
     month,
     year,
     prefillData,
+    onSystemOTDetailsUpdate,
 }) => {
-    // State ສຳລັບເກັບຂໍ້ມູນ OT ແລະ Fuel
+    const BASE_HOURLY_RATE = 25000;
+
     const [otFuelData, setOtFuelData] = useState<{
         total_fuel_costs: number
         total_ot_hours: number
         weekday_ot_hours: number
         weekend_ot_hours: number
         requests: any[]
+        system_ot_details: any[]
     } | null>(null)
     const [loading, setLoading] = useState(false)
 
-    // API Base URL
     const API_BASE_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:8001'
 
     useEffect(() => {
@@ -683,166 +687,144 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
         }
     }, [user?.id, month, year])
 
-  const fetchOTandFuelData = async () => {
-    setLoading(true)
-    try {
-        // Fetch ຂໍ້ມູນຈາກ API
-        const response = await fetch(
-            `${API_BASE_URL}/requestOTandFieldWorkRoutes/user/${user.id}`
-        )
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        
-        const data = await response.json()
-        
-        // Debug log ເພື່ອເບິ່ງຂໍ້ມູນທີ່ໄດ້ຮັບ
-        console.log('API Response data:', data)
-        
-        // ກວດສອບວ່າ data ແມ່ນ array ຫຼືບໍ່
-        let requests = []
-        if (Array.isArray(data)) {
-            requests = data
-        } else if (data && Array.isArray(data.data)) {
-            // ຖ້າ API ກັບຄືນມາໃນຮູບແບບ { data: [], success: true }
-            requests = data.data
-        } else if (data && data.requests && Array.isArray(data.requests)) {
-            // ຖ້າ API ກັບຄືນມາໃນຮູບແບບ { requests: [] }
-            requests = data.requests
-        } else {
-            console.warn('Unexpected API response format:', data)
-            requests = []
-        }
-        
-        console.log('Processed requests:', requests)
-        
-        // Filter ເອົາແຕ່ລາຍການທີ່ມີ status "Accepted" ແລະ ເປັນເດືອນທີ່ກຳນົດ
-        const acceptedRequests = requests.filter((req: any) => {
-            if (!req || !req.date || !req.status) {
-                console.warn('Invalid request item:', req)
-                return false
-            }
-            
-            try {
+    const fetchOTandFuelData = async () => {
+        setLoading(true)
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/requestOTandFieldWorkRoutes/user/${user.id}`
+            )
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+            const data = await response.json()
+
+            let requests = []
+            if (Array.isArray(data)) requests = data
+            else if (data?.data && Array.isArray(data.data)) requests = data.data
+            else if (data?.requests && Array.isArray(data.requests)) requests = data.requests
+            else requests = []
+
+            const acceptedRequests = requests.filter((req: any) => {
+                if (!req?.date || !req?.status) return false
                 const requestDate = new Date(req.date)
-                if (isNaN(requestDate.getTime())) {
-                    console.warn('Invalid date format:', req.date)
-                    return false
-                }
-                
-                const requestMonth = requestDate.getMonth() + 1 // ເດືອນເລີມຈາກ 0-11
+                if (isNaN(requestDate.getTime())) return false
+                const requestMonth = requestDate.getMonth() + 1
                 const requestYear = requestDate.getFullYear()
-                
-                return req.status === "Accepted" && 
-                       requestMonth === month && 
+                return req.status === "Accepted" &&
+                       requestMonth === month &&
                        requestYear === year
-            } catch (error) {
-                console.error('Error processing request item:', req, error)
-                return false
-            }
-        })
-        
-        console.log('Accepted requests for month:', acceptedRequests)
-        
-        // ຄິດໄລ່ຂໍ້ມູນ
-        let totalFuelCosts = 0
-        let totalOTHours = 0
-        let weekdayOtHours = 0
-        let weekendOtHours = 0
-        
-        acceptedRequests.forEach((request: any) => {
-            // ຄິດໄລ່ Fuel Costs
-            totalFuelCosts += Number(request.fuel) || 0
-            
-            // ຄິດໄລ່ OT hours ສຳລັບ OT ເທົ່ານັ້ນ
-            if (request.title === "OT") {
-                const calculateHours = (start: string, end: string): number => {
-                    if (!start || !end) {
-                        console.warn('Missing time for OT request:', request)
-                        return 0
+            })
+
+            let totalFuelCosts = 0
+            const systemOTDetails: any[] = []
+
+            acceptedRequests.forEach((request: any) => {
+                totalFuelCosts += Number(request.fuel) || 0
+
+                if (request.title === "OT" && request.start_hour && request.end_hour) {
+                    const startStr = request.start_hour
+                    const endStr = request.end_hour
+
+                    const [startHour, startMinute] = startStr.split(':').map(Number)
+                    const [endHour, endMinute] = endStr.split(':').map(Number)
+
+                    const startMinutes = startHour * 60 + startMinute
+                    let endMinutes = endHour * 60 + endMinute
+
+                    if (endMinutes < startMinutes) {
+                        endMinutes += 24 * 60
                     }
-                    
-                    try {
-                        const [startHour, startMinute] = start.split(':').map(Number)
-                        const [endHour, endMinute] = end.split(':').map(Number)
-                        
-                        // ກວດສອບວ່າ time format ຖືກຕ້ອງ
-                        if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
-                            console.warn('Invalid time format:', { start, end })
-                            return 0
-                        }
-                        
-                        let hours = (endHour + endMinute / 60) - (startHour + startMinute / 60)
-                        
-                        // ຈັດການກັບ OT ຂ້າມກາງຄືນ
-                        if (hours < 0) {
-                            hours += 24
-                        }
-                        
-                        return hours
-                    } catch (error) {
-                        console.error('Error calculating hours:', error)
-                        return 0
-                    }
-                }
-                
-                const hours = calculateHours(request.start_hour, request.end_hour)
-                totalOTHours += hours
-                
-                // ຈຳແນກປະເພດວັນ
-                try {
+
+                    const totalMinutes = endMinutes - startMinutes
+                    const totalHours = totalMinutes / 60
+
                     const requestDate = new Date(request.date)
-                    const dayOfWeek = requestDate.getDay() // 0 = ອາທິດ, 6 = ເສົາ
-                    
-                    if (dayOfWeek === 0 || dayOfWeek === 6) {
-                        weekendOtHours += hours
-                    } else {
-                        weekdayOtHours += hours
+                    const dayOfWeek = requestDate.getDay()
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+
+                    const multipliers = {
+                        weekday: { before22: 1.5, after22: 2.0 },
+                        weekend: { before22: 2.5, after22: 3.0 }
                     }
-                } catch (error) {
-                    console.error('Error processing date:', request.date, error)
+
+                    const multiplier = isWeekend ? multipliers.weekend : multipliers.weekday
+                    const THRESHOLD = 22 * 60
+
+                    let amount = 0
+                    let hoursBefore22 = 0
+                    let hoursAfter22 = 0
+
+                    if (startMinutes < THRESHOLD && endMinutes > THRESHOLD) {
+                        hoursBefore22 = (THRESHOLD - startMinutes) / 60
+                        hoursAfter22 = (endMinutes - THRESHOLD) / 60
+                        amount = (hoursBefore22 * BASE_HOURLY_RATE * multiplier.before22) +
+                                 (hoursAfter22 * BASE_HOURLY_RATE * multiplier.after22)
+                    } else if (endMinutes <= THRESHOLD) {
+                        hoursBefore22 = totalHours
+                        amount = totalHours * BASE_HOURLY_RATE * multiplier.before22
+                    } else {
+                        hoursAfter22 = totalHours
+                        amount = totalHours * BASE_HOURLY_RATE * multiplier.after22
+                    }
+
+                    systemOTDetails.push({
+                        date: request.date,
+                        ot_type: isWeekend ? 'weekend' : 'weekday',
+                        start_hour: request.start_hour,
+                        end_hour: request.end_hour,
+                        total_hours: totalHours,
+                        amount: Math.round(amount),
+                        hourly_rate: BASE_HOURLY_RATE,
+                        multiplier_used: (startMinutes < THRESHOLD && endMinutes > THRESHOLD) ? 'split' :
+                                         (endMinutes <= THRESHOLD ? multiplier.before22 : multiplier.after22),
+                        hours_before_22: hoursBefore22,
+                        hours_after_22: hoursAfter22,
+                    })
                 }
+            })
+
+            const totalOTHours = systemOTDetails.reduce((sum, d) => sum + d.total_hours, 0)
+            const weekdayOtHours = systemOTDetails
+                .filter(d => d.ot_type === 'weekday')
+                .reduce((sum, d) => sum + d.total_hours, 0)
+            const weekendOtHours = systemOTDetails
+                .filter(d => d.ot_type === 'weekend')
+                .reduce((sum, d) => sum + d.total_hours, 0)
+
+            setOtFuelData({
+                total_fuel_costs: totalFuelCosts,
+                total_ot_hours: parseFloat(totalOTHours.toFixed(1)),
+                weekday_ot_hours: parseFloat(weekdayOtHours.toFixed(1)),
+                weekend_ot_hours: parseFloat(weekendOtHours.toFixed(1)),
+                requests: acceptedRequests,
+                system_ot_details: systemOTDetails,
+            })
+
+            if (onSystemOTDetailsUpdate) {
+                onSystemOTDetailsUpdate({
+                    systemOTDetails: systemOTDetails,
+                    totalFuelCosts: totalFuelCosts,
+                });
             }
-        })
-        
-        console.log('Calculated totals:', {
-            totalFuelCosts,
-            totalOTHours,
-            weekdayOtHours,
-            weekendOtHours
-        })
-        
-        setOtFuelData({
-            total_fuel_costs: totalFuelCosts,
-            total_ot_hours: parseFloat(totalOTHours.toFixed(1)),
-            weekday_ot_hours: parseFloat(weekdayOtHours.toFixed(1)),
-            weekend_ot_hours: parseFloat(weekendOtHours.toFixed(1)),
-            requests: acceptedRequests
-        })
-    } catch (error) {
-        console.error("Error fetching OT and fuel data:", error)
-        setOtFuelData({
-            total_fuel_costs: 0,
-            total_ot_hours: 0,
-            weekday_ot_hours: 0,
-            weekend_ot_hours: 0,
-            requests: []
-        })
-    } finally {
-        setLoading(false)
+
+        } catch (error) {
+            console.error("Error fetching OT and fuel data:", error)
+            setOtFuelData({
+                total_fuel_costs: 0,
+                total_ot_hours: 0,
+                weekday_ot_hours: 0,
+                weekend_ot_hours: 0,
+                requests: [],
+                system_ot_details: [],
+            })
+        } finally {
+            setLoading(false)
+        }
     }
-}
 
     if (!prefillData) return null
     const calculated = prefillData.calculated
 
     const getUserEmail = () => {
-        const email = user?.email || 
-                     user?.user_email || 
-                     user?.Email || 
-                     prefillData?.user || 
-                     ''
+        const email = user?.email || user?.user_email || user?.Email || ''
         return email
     }
 
@@ -928,7 +910,6 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                                     </div>
                                 </div>
                                 <div className="card-body">
-                                    {/* Main OT Hours */}
                                     <div className="mb-4">
                                         <p className="fs-2x fw-bold text-primary mb-0">
                                             {otFuelData?.total_ot_hours || 0}
@@ -938,7 +919,6 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                                         </p>
                                     </div>
 
-                                    {/* OT Breakdown */}
                                     <div className="row g-3 mb-4">
                                         <div className="col-6">
                                             <div className="bg-light rounded p-3">
@@ -948,7 +928,6 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                                                 </p>
                                             </div>
                                         </div>
-
                                         <div className="col-6">
                                             <div className="bg-light rounded p-3">
                                                 <p className="text-muted mb-1">ວັນພັກ / ສຸກ - ອາທິດ</p>
@@ -959,29 +938,51 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* Vacation Info */}
-                                    <div className="space-y-2 fs-7">
+                                    {otFuelData?.system_ot_details && otFuelData.system_ot_details.length > 0 && (
+                                        <div className="mt-4">
+                                            <h6 className="text-muted mb-2">ລາຍການ OT ທີ່ຄຳນວນ:</h6>
+                                            <div className="border rounded" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                                <div className="list-group list-group-flush">
+                                                    {otFuelData.system_ot_details.map((ot, idx) => (
+                                                        <div key={idx} className="list-group-item">
+                                                            <div className="d-flex justify-content-between">
+                                                                <span>{new Date(ot.date).toLocaleDateString('lo-LA')}</span>
+                                                                <span className="badge badge-light-primary">
+                                                                    {ot.ot_type === 'weekday' ? 'ຈັນ-ສຸກ' : 'ເສົາ-ອາທິດ'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-1 small">
+                                                                {ot.start_hour} - {ot.end_hour} | {ot.total_hours.toFixed(1)} ຊມ
+                                                            </div>
+                                                            <div className="text-primary fw-bold mt-1">
+                                                                ຈຳນວນເງິນ: {ot.amount.toLocaleString()} ກີບ
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-2 fs-7 mt-4">
                                         <div className="d-flex justify-content-between">
                                             <span className="text-muted">ມື້ທີ່ພັກໄປຂອງເດືອນນີ້:</span>
                                             <span className="fw-medium">
                                                 {calculated.day_off_days_this_month} ມື້
                                             </span>
                                         </div>
-
                                         <div className="d-flex justify-content-between">
                                             <span className="text-muted">ມື້ພັກທີ່ມີທັງໝົດ:</span>
                                             <span className="fw-medium">
-                                                {calculated.leave_days} ມື້
+                                                {calculated.total_vacation_days} ມື້
                                             </span>
                                         </div>
-
                                         <div className="d-flex justify-content-between align-items-center">
                                             <span className="text-muted">ມື້ພັກທີ່ເຫຼືອ:</span>
                                             <span className={`fw-bold text-${calculated.vacation_color}`}>
                                                 {calculated.remaining_vacation_days} ມື້
                                             </span>
                                         </div>
-
                                         {(calculated.exceed_days ?? 0) > 0 && (
                                             <div className="mt-3 rounded bg-light-danger border border-danger p-3 text-danger fw-semibold">
                                                 ⚠ ພັກເກີນ {calculated.exceed_days} ມື້
@@ -1004,33 +1005,29 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
                                     <p className="fs-2x fw-bold text-success mb-0">
                                         {(otFuelData?.total_fuel_costs || 0).toLocaleString()} ກີບ
                                     </p>
-                                    
-                                    {/* ລາຍລະອຽດຄຳຮ້ອງຂໍ */}
+
                                     {otFuelData?.requests && otFuelData.requests.length > 0 ? (
                                         <div className="mt-4">
                                             <h6 className="text-muted mb-2">ລາຍການຄຳຮ້ອງຂໍ:</h6>
-                                            <div className="list-group">
-                                                {otFuelData.requests.slice(0, 3).map((req, index) => (
-                                                    <div key={index} className="list-group-item list-group-item-action">
-                                                        <div className="d-flex w-100 justify-content-between">
-                                                            <small className="text-muted">
-                                                                {new Date(req.date).toLocaleDateString('lo-LA')}
-                                                            </small>
-                                                            <small className="text-success">{req.title}</small>
+                                            <div className="border rounded" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                                <div className="list-group list-group-flush">
+                                                    {otFuelData.requests.map((req, index) => (
+                                                        <div key={index} className="list-group-item list-group-item-action">
+                                                            <div className="d-flex w-100 justify-content-between">
+                                                                <small className="text-muted">
+                                                                    {new Date(req.date).toLocaleDateString('lo-LA')}
+                                                                </small>
+                                                                <small className="text-success">{req.title}</small>
+                                                            </div>
+                                                            <div className="mt-1">
+                                                                <small>
+                                                                    {req.start_hour} - {req.end_hour} | 
+                                                                    ຄ່ານ້ຳມັນ: {req.fuel?.toLocaleString()} ກີບ
+                                                                </small>
+                                                            </div>
                                                         </div>
-                                                        <div className="mt-1">
-                                                            <small>
-                                                                {req.start_hour} - {req.end_hour} | 
-                                                                ຄ່ານ້ຳມັນ: {req.fuel?.toLocaleString()} ກີບ
-                                                            </small>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                {otFuelData.requests.length > 3 && (
-                                                    <div className="list-group-item text-center text-primary">
-                                                        <small>+ ອີກ {otFuelData.requests.length - 3} ລາຍການ</small>
-                                                    </div>
-                                                )}
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     ) : (
@@ -1053,6 +1050,9 @@ export const Step1BasicInfo: React.FC<StepComponentsProps> = ({
     )
 }
 
+// Step2, Step3, Step4 remain the same...
+// (Including them for completeness but they don't change)
+
 export const Step2OtRates: React.FC<StepComponentsProps> = ({
     prefillData,
     manualOT,
@@ -1066,7 +1066,6 @@ export const Step2OtRates: React.FC<StepComponentsProps> = ({
 
     if (!prefillData) return null
 
-    // Calculate total amount locally
     const calculateTotalAmount = () => {
         const weekdayAmount = manualOT.weekday.hours * manualOT.weekday.rate_per_hour
         const weekendHoursAmount = manualOT.weekend.hours * manualOT.weekend.rate_per_hour
@@ -1076,7 +1075,6 @@ export const Step2OtRates: React.FC<StepComponentsProps> = ({
 
     const totalAmount = calculateTotalAmount()
 
-    // Function to copy summary to clipboard
     const copySummaryToClipboard = () => {
         const summaryText = `
 OT Summary
@@ -1097,7 +1095,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
             })
     }
 
-    // Function to copy detailed OT table
     const copyOTDetailsToClipboard = () => {
         let detailsText = "OT Details\n-----------\n"
         
@@ -1120,10 +1117,8 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                 setSuccessMessage('✓ OT details copied to clipboard!')
                 setTimeout(() => setSuccessMessage(null), 3000)
             })
-          
     }
 
-    // Calculate manual OT summary for display
     const calculateManualOTSummary = () => {
         return {
             totalHours: manualOT.weekday.hours + manualOT.weekend.hours,
@@ -1136,7 +1131,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
 
     return (
         <div>
-            {/* Success Message */}
             {successMessage && (
                 <div className="alert alert-success d-flex align-items-center mb-4">
                     <KTIcon iconName="check-circle" className="fs-2 me-2" />
@@ -1161,7 +1155,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                     </button>
                 </div>
 
-                {/* System OT Summary */}
                 <div className="mb-6 card">
                     <div className="card-body">
                         <div className="d-flex align-items-center justify-content-between mb-4">
@@ -1228,7 +1221,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                     </div>
                 </div>
                 
-                {/* Manual OT Entry Section */}
                 <div className="mb-8">
                     <div className="d-flex align-items-center justify-content-between mb-4">
                         <div className="d-flex align-items-center gap-2">
@@ -1290,7 +1282,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                         </div>
                     </div>
 
-                    {/* Summary Card with Copy Button */}
                     <div className="card border border-primary">
                         <div className="card-header bg-primary">
                             <div className="d-flex align-items-center justify-content-between">
@@ -1317,7 +1308,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                             <div className="row">
                                 <div className="col-md-8">
                                     <div className="space-y-3">
-                                        {/* Weekday Row */}
                                         {manualOT.weekday.hours > 0 && (
                                             <div className="d-flex align-items-center justify-content-between p-3 bg-light-primary rounded">
                                                 <div className="d-flex align-items-center gap-2">
@@ -1342,7 +1332,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                                             </div>
                                         )}
 
-                                        {/* Weekend Hours Row */}
                                         {manualOT.weekend.hours > 0 && (
                                             <div className="d-flex align-items-center justify-content-between p-3 bg-light-warning rounded">
                                                 <div className="d-flex align-items-center gap-2">
@@ -1367,7 +1356,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                                             </div>
                                         )}
 
-                                        {/* Weekend Days Row */}
                                         {manualOT.weekend.days > 0 && (
                                             <div className="d-flex align-items-center justify-content-between p-3 bg-light-success rounded">
                                                 <div className="d-flex align-items-center gap-2">
@@ -1426,7 +1414,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                                 </div>
                             </div>
 
-                            {/* Action Buttons */}
                             <div className="d-flex justify-content-between align-items-center mt-4 pt-4 border-top">
                                 <div className="fs-7 text-muted">
                                     <KTIcon iconName="shield-tick" className="me-2 text-success" />
@@ -1464,7 +1451,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                     </div>
                 </div>
 
-                {/* Display Manual OT Details */}
                 {manualOTDetails.length > 0 && (
                     <div className="mt-8">
                         <div className="d-flex align-items-center justify-content-between mb-4">
@@ -1483,7 +1469,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
                     </div>
                 )}
 
-                {/* Success Status Banner */}
                 {successMessage && (
                     <div className="mt-4 p-4 bg-light-success border border-success rounded">
                         <div className="d-flex align-items-center gap-3">
@@ -1504,7 +1489,6 @@ Total Amount: ${totalAmount.toLocaleString()} Kip
         </div>
     )
 }
-
 
 export const Step3AdditionalIncome: React.FC<StepComponentsProps> = ({
     formData,
@@ -1596,14 +1580,12 @@ export const Step3AdditionalIncome: React.FC<StepComponentsProps> = ({
     )
 }
 
-
 export const Step4Deductions: React.FC<StepComponentsProps> = ({
     formData,
     onInputChange,
     calculateTotalDeductions,
-    handleCutOffDaysChange,  // ✅ Add this line to destructure the prop
+    handleCutOffDaysChange,
 }) => {
-    // ✅ Calculate cut-off total
     const calculateCutOffTotal = () => {
         return formData.cut_off_pay_days * formData.cut_off_pay_amount
     }
@@ -1618,7 +1600,6 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                     </h3>
                 </div>
                 <div className="row g-4">
-                    {/* Cut off pay for days off work */}
                     <div className="col-12">
                         <div className="card card-bordered border-danger">
                             <div className="card-header bg-light-danger">
@@ -1631,7 +1612,6 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                             </div>
                             <div className="card-body">
                                 <div className="row g-4">
-                                    {/* ✅ Input 1: Number of days absent */}
                                     <div className="col-md-6">
                                         <label className="form-label">
                                             ຈຳນວນວັນທີ່ຂາດງານ (Days Off Work)
@@ -1645,7 +1625,6 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                                                 if (handleCutOffDaysChange) {
                                                     handleCutOffDaysChange(days)
                                                 } else {
-                                                    // Fallback to regular input change
                                                     onInputChange(e)
                                                 }
                                             }}
@@ -1659,7 +1638,6 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* ✅ Input 2: Rate per day (manual input) */}
                                     <div className="col-md-6">
                                         <label className="form-label">
                                             ອັດຕາການຫັກຕໍ່ວັນ (Cut Off Rate per Day)
@@ -1682,7 +1660,6 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                                     </div>
                                 </div>
 
-                                {/* ✅ Summary Box - Show total deduction */}
                                 {formData.cut_off_pay_days > 0 &&
                                     formData.cut_off_pay_amount > 0 && (
                                         <div className="mt-4 p-3 bg-white border border-danger rounded">
@@ -1704,7 +1681,6 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                         </div>
                     </div>
 
-                    {/* Office Expenses */}
                     <div className="col-md-6">
                         <label className="form-label">
                             Office Expenses (ຄ່າໃຊ້ຈ່າຍສຳນັກງານ)
@@ -1721,7 +1697,6 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                         </div>
                     </div>
 
-                    {/* Social Security */}
                     <div className="col-md-6">
                         <label className="form-label">
                             Social Security (ປະກັນສັງຄົມ)
@@ -1738,7 +1713,6 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                         </div>
                     </div>
 
-                    {/* Working Days */}
                     <div className="col-md-6">
                         <label className="form-label">
                             Working Days (ຈຳນວນວັນເຮັດວຽກ)
@@ -1757,7 +1731,6 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                         </div>
                     </div>
 
-                    {/* Notes */}
                     <div className="col-md-6">
                         <label className="form-label">
                             Notes (ໝາຍເຫດ)
@@ -1773,7 +1746,6 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
                     </div>
                 </div>
 
-                {/* Total Deductions Summary */}
                 <div className="mt-4 p-4 bg-light-danger border border-danger rounded">
                     <div className="space-y-2">
                         <div className="d-flex justify-content-between fs-7">
@@ -1814,13 +1786,14 @@ export const Step4Deductions: React.FC<StepComponentsProps> = ({
         </div>
     )
 }
-// In SalaryStepComponents.tsx - Update Step5Summary
 
+// ✅ Updated Step5Summary with proper data flow
 export const Step5Summary: React.FC<StepComponentsProps> = ({
     user,
     prefillData,
     formData,
     manualOTDetails,
+    systemOTData, // ✅ รับข้อมูล OT จากระบบ
 }) => {
     const [svgRef, setSvgRef] = useState<HTMLDivElement | null>(null)
     const [isExporting, setIsExporting] = useState(false)
@@ -1833,8 +1806,9 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
 
     if (!prefillData) return null
 
+    // ✅ รวม OT จากระบบและ manual
     const allOTDetails = [
-        ...(prefillData.calculated.ot_details || []),
+        ...(systemOTData?.systemOTDetails || []),
         ...(manualOTDetails || []),
     ]
 
@@ -1843,7 +1817,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
         0,
     )
 
-    // Format date for payment
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('en-GB', {
             day: '2-digit',
@@ -1854,11 +1827,11 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
 
     const currentDate = new Date()
 
-    // Calculate additional income - using formData
+    // ✅ ใช้ข้อมูลจาก systemOTData แทน prefillData
     const additionalIncome = {
-        fuel: prefillData.calculated.fuel_costs || 0,
+        fuel: systemOTData?.totalFuelCosts || 0, // ✅ ใช้ค่าน้ำมันจากระบบ
         computer: 0,
-        ot: totalOTAmount,
+        ot: totalOTAmount, // ✅ ใช้ OT ที่รวมจากระบบและ manual
         bonus: formData.bonus,
         holidayAllowance: formData.money_not_spent_on_holidays,
         officeExpenses: formData.office_expenses,
@@ -1866,15 +1839,31 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
         commission: formData.commission,
     }
 
-    // Calculate deductions
-    const cutOffTotal = formData.cut_off_pay_days * formData.cut_off_pay_amount
+    // ✅ คำนวณการหักเงินจากการขาดงาน
+    // ถ้ามีวันพักเกิน (exceed_days) ให้คำนวณอัตโนมัติ
+    const calculateAbsenceDeduction = () => {
+        const exceedDays = prefillData.calculated.exceed_days ?? 0
+        
+        if (exceedDays > 0) {
+            // คำนวณเงินเดือนต่อวัน (ใช้วันทำงานในเดือนจาก formData)
+            const workingDaysInMonth = formData.working_days || 26 // ค่า default 26 วัน
+            const dailySalary = prefillData.user.base_salary / workingDaysInMonth
+            
+            // จำนวนเงินที่ต้องหัก = เงินต่อวัน × วันที่พักเกิน
+            return Math.round(dailySalary * exceedDays)
+        }
+        
+        // ถ้าไม่มีวันพักเกิน ใช้ค่าที่กรอกใน formData
+        return formData.cut_off_pay_days * formData.cut_off_pay_amount
+    }
+
+    const absenceDeduction = calculateAbsenceDeduction()
 
     const deductions = {
-        absence: cutOffTotal,
+        absence: absenceDeduction,
         socialSecurity: formData.social_security,
     }
 
-    // Calculate totals
     const totalAdditionalIncome = Object.values(additionalIncome).reduce(
         (a, b) => a + b,
         0,
@@ -1883,7 +1872,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
     const totalIncome = prefillData.user.base_salary + totalAdditionalIncome
     const netSalary = totalIncome - totalDeductions
 
-    // Function to format currency
     const formatCurrency = (amount: number) => {
         return amount.toLocaleString('en-US', {
             minimumFractionDigits: 2,
@@ -1891,43 +1879,30 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
         })
     }
 
-    // ✅ Better email extraction with multiple fallbacks
     const getUserEmail = () => {
-        // Try different possible email field names
         const email = user?.email || 
                      user?.user_email || 
                      user?.Email || 
-                     prefillData?.user 
-                     '';
-        
-        console.log('User object:', user); // Debug log
-        console.log('Extracted email:', email); // Debug log
-        
+                     ''
         return email;
     }
 
     const userEmail = getUserEmail()
 
-    // ✅ Better name extraction
     const getUserName = () => {
         const firstName = user?.first_name_en || user?.firstName || user?.first_name || '';
         const lastName = user?.last_name_en || user?.lastName || user?.last_name || '';
         const fullName = `${firstName} ${lastName}`.trim();
-        
-        console.log('Extracted name:', fullName); // Debug log
-        
         return fullName || 'Employee';
     }
 
     const userName = getUserName()
 
-    // ✅ Validate email before allowing send
     const isValidEmail = (email: string) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         return emailRegex.test(email)
     }
 
-    // Function to export as PNG
     const exportToPNG = async () => {
         if (!svgRef) return
 
@@ -1935,7 +1910,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
             setIsExporting(true)
             setIsCapturing(true)
 
-            // รอให้ DOM update
             await new Promise((resolve) => setTimeout(resolve, 100))
 
             const html2canvas = (await import('html2canvas')).default
@@ -1964,9 +1938,7 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
         }
     }
 
-    // Function to send email with PNG
     const sendEmailWithPNG = async () => {
-        // ✅ Validate email before proceeding
         if (!userEmail) {
             setEmailStatus({
                 success: false,
@@ -1996,10 +1968,8 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
             setEmailStatus(null)
             setIsCapturing(true)
 
-            // รอให้ DOM update
             await new Promise((resolve) => setTimeout(resolve, 100))
 
-            // Convert to image
             const html2canvas = (await import('html2canvas')).default
             const canvas = await html2canvas(svgRef, {
                 scale: 0.8,
@@ -2007,18 +1977,15 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                 useCORS: true,
                 logging: false,
                 ignoreElements: (element) => {
-                    // Ignore elements that might cause issues
                     return element.classList?.contains('no-export')
                 },
             })
 
             setIsCapturing(false)
 
-            // Convert to JPEG
             const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
             const base64String = dataUrl.split(',')[1]
 
-            // Prepare data
             const emailData: SalaryEmailRequest = {
                 to: userEmail,
                 subject: `Salary Summary - ${getMonthName(formData.month)} ${formData.year}`,
@@ -2031,12 +1998,8 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                 fileName: `salary-summary-${userName.replace(/\s+/g, '-')}.jpg`,
             }
 
-            console.log('Sending email to:', userEmail); // Debug log
-
-            // API base URL
             const API_BASE_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:8001'
 
-            // ส่งไปยัง backend API
             const response = await fetch(
                 `${API_BASE_URL}/salary/send-email`,
                 {
@@ -2081,9 +2044,33 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
         }
     }
 
+    // ✅ คำนวณข้อมูลสำหรับแสดงใน absence row
+    const getAbsenceDisplayInfo = () => {
+        const exceedDays = prefillData.calculated.exceed_days ?? 0
+        
+        if (exceedDays > 0) {
+            const workingDaysInMonth = formData.working_days || 26
+            const dailySalary = Math.round(prefillData.user.base_salary / workingDaysInMonth)
+            return {
+                days: exceedDays,
+                dailyRate: dailySalary,
+                amount: absenceDeduction,
+                isAutoCalculated: true
+            }
+        }
+        
+        return {
+            days: formData.cut_off_pay_days,
+            dailyRate: formData.cut_off_pay_amount,
+            amount: absenceDeduction,
+            isAutoCalculated: false
+        }
+    }
+
+    const absenceInfo = getAbsenceDisplayInfo()
+
     return (
-  <div>
-            
+        <div>
             <style>{`
                 .export-mode,
                 .export-mode * {
@@ -2139,10 +2126,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                 }
 
                 .export-mode [class*='bg-primary'] {
-                    background-color: rgb(69, 204, 103) !important;
-                }
-
-                .export-mode [class*='bg-primary'] {
                     background-color: rgb(31, 58, 95) !important;
                 }
 
@@ -2160,7 +2143,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
             `}</style>
 
             <div>
-                {/* Header with buttons */}
                 <div className="d-flex align-items-center justify-content-between mb-4 pb-3 border-bottom border-primary">
                     <div className="d-flex align-items-center gap-2">
                         <KTIcon iconName="calculator" className="fs-2 text-primary" />
@@ -2201,7 +2183,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                     </div>
                 </div>
 
-                {/* Email Status Message */}
                 {emailStatus && (
                     <div
                         className={`mb-4 p-3 rounded ${emailStatus.success ? 'alert alert-success' : 'alert alert-danger'}`}
@@ -2215,7 +2196,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                     </div>
                 )}
 
-                {/* Email Info */}
                 <div className="mb-4 p-3 bg-light-primary border border-primary rounded">
                     <div className="fs-7 text-primary">
                         <div className="fw-medium mb-1">
@@ -2228,12 +2208,10 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                     </div>
                 </div>
 
-                {/* ✅ Salary Summary Content - เพิ่ม export-mode class */}
                 <div
                     ref={setSvgRef}
                     className={`border border-gray-300 rounded-lg p-6 bg-white ${isCapturing ? 'export-mode' : ''}`}
                 >
-                    {/* Header */}
                     <div className="text-center mb-8 border-bottom pb-4">
                         <h1 className="fs-2x fw-bold text-primary">
                             Salary Summary
@@ -2243,7 +2221,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                         </p>
                     </div>
 
-                    {/* Employee Information */}
                     <div className="mb-6 p-4 bg-light rounded border">
                         <h3 className="fw-bold text-primary mb-3">
                             ຂໍ້ມູນພື້ນພະນັກງານ
@@ -2282,9 +2259,8 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                         </div>
                     </div>
 
-                    {/* Salary Table */}
                     <div className="table-responsive mb-8">
-                        <table className="table table-bordered fs-7 text-gray-900">
+                        <table className="table table-bordered fs-7 text-white">
                             <thead>
                                 <tr className="bg-primary text-white">
                                     <th className="p-3 border text-start fw-bold">
@@ -2308,7 +2284,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                                 </tr>
                             </thead>
                             <tbody>
-                                {/* Base Salary Row */}
                                 <tr className="bg-white text-gray-800">
                                     <td className="p-3 border fw-medium">
                                         ເງິນເດືອນພື້ນຖານ
@@ -2323,17 +2298,22 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                                     </td>
                                     <td className="p-3 border">
                                         ມື້ຂາດວຽກ{' '}
-                                        {formData.cut_off_pay_days > 0 && (
+                                        {absenceInfo.days > 0 && (
                                             <>
-                                                ({formData.cut_off_pay_days} ມື້
+                                                ({absenceInfo.days} ມື້
                                                 {' × '}
-                                                {formData.cut_off_pay_amount.toLocaleString()}
+                                                {absenceInfo.dailyRate.toLocaleString()}
                                                 /ມື້)
+                                                {absenceInfo.isAutoCalculated && (
+                                                    <span className="badge badge-light-warning ms-2">
+                                                        Auto
+                                                    </span>
+                                                )}
                                             </>
                                         )}
                                     </td>
                                     <td className="p-3 border text-danger">
-                                        {formatCurrency(cutOffTotal)}
+                                        {formatCurrency(absenceDeduction)}
                                     </td>
                                     <td
                                         className="p-3 border fw-bold text-center"
@@ -2343,7 +2323,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                                     </td>
                                 </tr>
 
-                                {/* Additional Income Rows */}
                                 <tr>
                                     <td
                                         className="p-3 border bg-light fw-medium"
@@ -2421,7 +2400,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                                     <td className="p-3 border" colSpan={2}></td>
                                 </tr>
 
-                                {/* Totals Row */}
                                 <tr className="bg-light fw-bold text-primary">
                                     <td
                                         className="p-3 border text-end"
@@ -2441,7 +2419,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                                     <td className="p-3 border"></td>
                                 </tr>
 
-                                {/* Net Salary Row */}
                                 <tr className="bg-primary text-white fw-bold">
                                     <td
                                         className="p-4 border text-center fs-5"
@@ -2460,7 +2437,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                         </table>
                     </div>
 
-                    {/* Additional Information */}
                     <div className="p-4 bg-light rounded border">
                         <h3 className="fw-bold text-primary mb-3">
                             ຂໍ້ມູນເພີ່ມເຕີມ
@@ -2487,7 +2463,9 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                             <div className="col-6">
                                 <span className="text-muted">OT Hours:</span>
                                 <span className="ms-2 fw-medium">
-                                    {prefillData.calculated.ot_hours || 0}{' '}
+                                    {(systemOTData?.systemOTDetails || [])
+                                        .reduce((sum, d) => sum + d.total_hours, 0)
+                                        .toFixed(1)}{' '}
                                     ຊົ່ວໂມງ
                                 </span>
                             </div>
@@ -2512,7 +2490,6 @@ export const Step5Summary: React.FC<StepComponentsProps> = ({
                         )}
                     </div>
 
-                    {/* Footer */}
                     <div className="mt-8 pt-4 border-top text-center text-muted fs-7">
                         <p>
                             Generated on {new Date().toLocaleDateString()} •
