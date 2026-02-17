@@ -35,6 +35,39 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
   const [existingRequests, setExistingRequests] = useState<SatSunRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
 
+  // Detect dark mode
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Check for dark mode on mount
+    const checkDarkMode = () => {
+      const htmlElement = document.documentElement;
+      const bodyElement = document.body;
+      const isDark = 
+        htmlElement.getAttribute('data-bs-theme') === 'dark' ||
+        htmlElement.getAttribute('data-theme') === 'dark' ||
+        bodyElement.getAttribute('data-bs-theme') === 'dark' ||
+        bodyElement.classList.contains('dark') ||
+        htmlElement.classList.contains('dark');
+      setIsDarkMode(isDark);
+    };
+
+    checkDarkMode();
+
+    // Watch for theme changes
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-bs-theme', 'data-theme', 'class'],
+    });
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['data-bs-theme', 'class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   // Error states for validation
   const [dateError, setDateError] = useState("");
 
@@ -128,6 +161,35 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
 
     return matched;
   }, [supervisors, currentUser?.department_id]);
+
+  // ✅ Get min date (first day of current month)
+  const minDate = useMemo(() => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    firstDay.setHours(0, 0, 0, 0);
+    return firstDay;
+  }, []);
+
+  // ✅ Get max date (last day of current month)
+  const maxDate = useMemo(() => {
+    const today = new Date();
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    lastDay.setHours(23, 59, 59, 999);
+    return lastDay;
+  }, []);
+
+  // ✅ Get current month info
+  const currentMonthName = useMemo(() => {
+    const today = new Date();
+    return today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }, []);
+
+  // ✅ Get date range text
+  const dateRangeText = useMemo(() => {
+    const firstDay = new Date(minDate);
+    const lastDay = new Date(maxDate);
+    return `${firstDay.getDate()}-${lastDay.getDate()} ${firstDay.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
+  }, [minDate, maxDate]);
 
   // Get blocked dates for the currently selected day_choice
   const blockedDatesSet = useMemo(() => {
@@ -235,7 +297,7 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
     const dayChoiceError = validateDateChoice(date);
     if (dayChoiceError) {
       setDateError(dayChoiceError);
-      setFormData({ ...formData, date: null }); // Don't allow invalid date
+      setFormData({ ...formData, date: null });
       return;
     }
 
@@ -244,7 +306,7 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
       const blockingReq = getBlockingRequest(date);
       const errorMsg = `❌ This date is not available. You already have a ${blockingReq?.status || "pending/approved"} ${formData.day_choice} request on ${date.toLocaleDateString()}.`;
       setDateError(errorMsg);
-      setFormData({ ...formData, date: null }); // Don't allow blocked date
+      setFormData({ ...formData, date: null });
       return;
     }
 
@@ -444,13 +506,295 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
     }
   };
 
+  // ✅ Add CSS with dark mode support
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      /* ========== DATEPICKER CONTAINER ========== */
+      .react-datepicker-wrapper {
+        width: 100%;
+      }
+      
+      .react-datepicker-popper {
+        z-index: 9999 !important;
+      }
+      
+      .react-datepicker {
+        font-family: inherit;
+        background-color: ${isDarkMode ? '#1e1e2d' : '#ffffff'};
+        border: 1px solid ${isDarkMode ? '#323248' : '#e4e6ef'};
+        border-radius: 12px;
+        box-shadow: 0 10px 40px ${isDarkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)'};
+        padding: 8px;
+      }
+      
+      /* ========== HEADER ========== */
+      .react-datepicker__header {
+        background-color: transparent;
+        border-bottom: none;
+        padding: 16px 8px 8px;
+      }
+      
+      .react-datepicker__current-month {
+        color: ${isDarkMode ? '#ffffff' : '#181c32'};
+        font-weight: 600;
+        font-size: 16px;
+        margin-bottom: 16px;
+        text-align: center;
+      }
+      
+      .react-datepicker__day-names {
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 8px;
+      }
+      
+      .react-datepicker__day-name {
+        color: ${isDarkMode ? '#7e8299' : '#a1a5b7'};
+        font-weight: 600;
+        font-size: 13px;
+        width: 40px;
+        line-height: 40px;
+        margin: 0;
+        text-transform: uppercase;
+      }
+      
+      /* ========== NAVIGATION ARROWS ========== */
+      .react-datepicker__navigation {
+        top: 20px;
+        width: 32px;
+        height: 32px;
+        border: none;
+        background-color: ${isDarkMode ? '#2b2b40' : '#f5f8fa'};
+        border-radius: 8px;
+        transition: all 0.2s ease;
+      }
+      
+      .react-datepicker__navigation:hover {
+        background-color: ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
+      }
+      
+      .react-datepicker__navigation--previous {
+        left: 16px;
+      }
+      
+      .react-datepicker__navigation--next {
+        right: 16px;
+      }
+      
+      .react-datepicker__navigation-icon::before {
+        border-color: ${isDarkMode ? '#a1a5b7' : '#7e8299'};
+        border-width: 2px 2px 0 0;
+        height: 8px;
+        width: 8px;
+        top: 11px;
+      }
+      
+      .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+        border-color: #ffffff;
+      }
+      
+      /* ========== MONTH CONTAINER ========== */
+      .react-datepicker__month {
+        margin: 8px;
+      }
+      
+      .react-datepicker__week {
+        display: flex;
+        justify-content: space-around;
+      }
+      
+      /* ========== DAY CELLS ========== */
+      .react-datepicker__day {
+        width: 40px;
+        height: 40px;
+        line-height: 40px;
+        margin: 2px;
+        border-radius: 8px;
+        color: ${isDarkMode ? '#ffffff' : '#3f4254'};
+        font-weight: 500;
+        font-size: 14px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .react-datepicker__day:hover:not(.react-datepicker__day--disabled):not(.react-datepicker__day--excluded) {
+        background-color: ${isDarkMode ? '#2b2b40' : '#f5f8fa'};
+        transform: scale(1.05);
+      }
+      
+      /* ========== AVAILABLE DATES ========== */
+      .react-datepicker__day.available-date {
+        background: ${isDarkMode 
+          ? 'linear-gradient(135deg, rgba(76, 175, 80, 0.2) 0%, rgba(76, 175, 80, 0.1) 100%)' 
+          : 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)'};
+        color: ${isDarkMode ? '#66bb6a' : '#2e7d32'};
+        font-weight: 700;
+        border: 2px solid ${isDarkMode ? '#66bb6a' : '#81c784'};
+        position: relative;
+      }
+      
+      .react-datepicker__day.available-date::after {
+        content: '✓';
+        position: absolute;
+        top: 2px;
+        right: 4px;
+        font-size: 10px;
+        color: ${isDarkMode ? '#66bb6a' : '#2e7d32'};
+      }
+      
+      .react-datepicker__day.available-date:hover {
+        background: ${isDarkMode 
+          ? 'linear-gradient(135deg, rgba(76, 175, 80, 0.4) 0%, rgba(76, 175, 80, 0.3) 100%)' 
+          : 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)'};
+        color: ${isDarkMode ? '#ffffff' : 'white'};
+        transform: scale(1.1);
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+      }
+      
+      /* ========== BLOCKED/EXCLUDED DATES ========== */
+      .react-datepicker__day--excluded,
+      .react-datepicker__day.blocked-date {
+        background: ${isDarkMode 
+          ? 'linear-gradient(135deg, #3d1f1f 0%, #4d2626 100%)' 
+          : 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)'} !important;
+        color: ${isDarkMode ? '#ff6b6b' : '#c62828'} !important;
+        font-weight: 700 !important;
+        text-decoration: line-through !important;
+        cursor: not-allowed !important;
+        border: 2px solid ${isDarkMode ? '#9c4146' : '#ef9a9a'} !important;
+        position: relative;
+        pointer-events: none !important;
+        opacity: 0.7;
+      }
+      
+      .react-datepicker__day--excluded::before,
+      .react-datepicker__day.blocked-date::before {
+        content: '✕';
+        position: absolute;
+        top: 2px;
+        right: 4px;
+        font-size: 10px;
+        font-weight: 900;
+        color: ${isDarkMode ? '#ff6b6b' : '#c62828'};
+      }
+      
+      /* ========== SELECTED DATE ========== */
+      .react-datepicker__day--selected.available-date,
+      .react-datepicker__day--keyboard-selected.available-date {
+        background: linear-gradient(135deg, ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"}, ${formData.day_choice === "Saturday" ? "#0784c3" : "#d63455"}) !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px ${formData.day_choice === "Saturday" ? "rgba(0, 158, 247, 0.4)" : "rgba(241, 65, 108, 0.4)"};
+        border: none !important;
+      }
+      
+      .react-datepicker__day--selected.available-date::after {
+        color: white;
+      }
+      
+      /* ========== DISABLED/OUTSIDE MONTH ========== */
+      .react-datepicker__day--disabled,
+      .react-datepicker__day--outside-month {
+        color: ${isDarkMode ? '#565674' : '#b5b5c3'} !important;
+        cursor: default !important;
+        opacity: 0.4;
+      }
+      
+      .react-datepicker__day--disabled:hover,
+      .react-datepicker__day--outside-month:hover {
+        background-color: transparent !important;
+        transform: none !important;
+      }
+      
+      /* ========== TODAY ========== */
+      .react-datepicker__day--today {
+        font-weight: 700;
+        position: relative;
+        color: ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
+      }
+      
+      .react-datepicker__day--today::after {
+        content: '';
+        position: absolute;
+        bottom: 4px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background-color: ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
+      }
+      
+      /* ========== DROPDOWNS ========== */
+      .react-datepicker__month-dropdown,
+      .react-datepicker__year-dropdown {
+        background-color: ${isDarkMode ? '#1e1e2d' : '#ffffff'};
+        border: 1px solid ${isDarkMode ? '#323248' : '#e4e6ef'};
+        border-radius: 8px;
+        box-shadow: 0 8px 24px ${isDarkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)'};
+        padding: 4px;
+      }
+      
+      .react-datepicker__month-option,
+      .react-datepicker__year-option {
+        padding: 8px 16px;
+        transition: all 0.2s ease;
+        border-radius: 6px;
+        color: ${isDarkMode ? '#a1a5b7' : '#3f4254'};
+        font-size: 14px;
+      }
+      
+      .react-datepicker__month-option:hover,
+      .react-datepicker__year-option:hover {
+        background-color: ${isDarkMode ? '#2b2b40' : '#f5f8fa'};
+        color: ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
+      }
+      
+      .react-datepicker__month-option--selected_month,
+      .react-datepicker__year-option--selected_year {
+        background: linear-gradient(135deg, ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"}, ${formData.day_choice === "Saturday" ? "#0784c3" : "#d63455"}) !important;
+        color: #ffffff !important;
+        font-weight: 600;
+      }
+      
+      /* ========== WEEKEND STYLING ========== */
+      .react-datepicker__day--weekend {
+        color: ${isDarkMode ? '#ff9f43' : '#ff6b6b'};
+      }
+      
+      /* ========== RESPONSIVE ========== */
+      @media (max-width: 768px) {
+        .react-datepicker {
+          font-size: 0.9em;
+        }
+        
+        .react-datepicker__day,
+        .react-datepicker__day-name {
+          width: 36px;
+          height: 36px;
+          line-height: 36px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, [formData.day_choice, isDarkMode]);
+
   return (
     <div className="card">
       {/* Header */}
       <div className="card-header">
         <h3 className="card-title">
           <KTIcon iconName="calendar-8" className={`fs-2 text-${config.color} me-2`} />
-          {config.emoji} Weekend Leave Request
+          {config.emoji} Weekend Work Request
         </h3>
         <div className="card-toolbar">
           <button
@@ -468,238 +812,6 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
           className="card-body"
           style={{ maxHeight: "calc(100vh - 300px)", overflowY: "auto" }}
         >
-          {/* Enhanced custom styles for datepicker */}
-          <style>{`
-            /* DatePicker Container */
-            .react-datepicker-wrapper {
-              width: 100%;
-            }
-            
-            .react-datepicker {
-              font-family: inherit;
-              border: 2px solid #e4e6ef;
-              border-radius: 0.95rem;
-              box-shadow: 0 0 50px 0 rgba(82, 63, 105, 0.15);
-            }
-            
-            /* Header */
-            .react-datepicker__header {
-              background-color: ${formData.day_choice === "Saturday" ? "#f1faff" : "#fff5f8"};
-              border-bottom: 2px solid #e4e6ef;
-              border-radius: 0.95rem 0.95rem 0 0;
-              padding: 1rem 0;
-            }
-            
-            .react-datepicker__current-month {
-              color: ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
-              font-weight: 600;
-              font-size: 1.1rem;
-              margin-bottom: 0.5rem;
-            }
-            
-            .react-datepicker__day-name {
-              color: #7e8299;
-              font-weight: 600;
-              width: 2.5rem;
-              line-height: 2.5rem;
-              margin: 0.2rem;
-            }
-            
-            /* Navigation */
-            .react-datepicker__navigation {
-              top: 1.2rem;
-              width: 2rem;
-              height: 2rem;
-              border: none;
-              background-color: ${formData.day_choice === "Saturday" ? "#e8f5fc" : "#fff5f8"};
-              border-radius: 0.475rem;
-            }
-            
-            .react-datepicker__navigation:hover {
-              background-color: ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
-            }
-            
-            .react-datepicker__navigation-icon::before {
-              border-color: ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
-              top: 8px;
-            }
-            
-            .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
-              border-color: #fff;
-            }
-            
-            /* Days */
-            .react-datepicker__month {
-              margin: 1rem;
-            }
-            
-            .react-datepicker__day {
-              width: 2.5rem;
-              line-height: 2.5rem;
-              margin: 0.2rem;
-              border-radius: 0.475rem;
-              color: #3f4254;
-              font-weight: 500;
-              transition: all 0.2s ease;
-            }
-            
-            .react-datepicker__day:hover {
-              background-color: #f5f8fa;
-              transform: scale(1.05);
-            }
-            
-            /* Available Dates */
-            .react-datepicker__day.available-date {
-              background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-              color: #2e7d32;
-              font-weight: 700;
-              border: 2px solid #81c784;
-              position: relative;
-            }
-            
-            .react-datepicker__day.available-date::after {
-              content: '✓';
-              position: absolute;
-              top: -2px;
-              right: 2px;
-              font-size: 10px;
-              color: #2e7d32;
-            }
-            
-            .react-datepicker__day.available-date:hover {
-              background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
-              color: white;
-              transform: scale(1.1);
-              box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
-            }
-            
-            /* Blocked/Excluded Dates - Cannot be clicked or selected */
-            .react-datepicker__day--excluded {
-              background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%) !important;
-              color: #c62828 !important;
-              font-weight: 700 !important;
-              text-decoration: line-through !important;
-              cursor: not-allowed !important;
-              border: 2px solid #ef9a9a !important;
-              position: relative;
-              pointer-events: none !important;
-              opacity: 0.6;
-            }
-            
-            .react-datepicker__day--excluded::before {
-              content: '✕';
-              position: absolute;
-              top: -2px;
-              right: 2px;
-              font-size: 10px;
-              color: #c62828;
-            }
-            
-            .react-datepicker__day--excluded:hover {
-              background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%) !important;
-              color: #c62828 !important;
-              transform: none !important;
-              box-shadow: none !important;
-            }
-            
-            /* Blocked Dates - Additional styling for custom class */
-            .react-datepicker__day.blocked-date {
-              background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
-              color: #c62828;
-              font-weight: 700;
-              text-decoration: line-through;
-              cursor: not-allowed !important;
-              border: 2px solid #ef9a9a;
-              position: relative;
-              pointer-events: none;
-              opacity: 0.6;
-            }
-            
-            .react-datepicker__day.blocked-date::before {
-              content: '✕';
-              position: absolute;
-              top: -2px;
-              right: 2px;
-              font-size: 10px;
-              color: #c62828;
-            }
-            
-            .react-datepicker__day.blocked-date:hover {
-              background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
-              color: #c62828;
-              transform: none;
-              box-shadow: none;
-            }
-            
-            /* Make blocked dates unselectable */
-            .react-datepicker__day--disabled.blocked-date,
-            .react-datepicker__day.blocked-date.react-datepicker__day--disabled,
-            .react-datepicker__day--excluded.blocked-date {
-              cursor: not-allowed !important;
-              pointer-events: none !important;
-            }
-            
-            /* Selected Date */
-            .react-datepicker__day--selected.available-date,
-            .react-datepicker__day--keyboard-selected.available-date {
-              background: linear-gradient(135deg, ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"} 0%, ${formData.day_choice === "Saturday" ? "#0095e8" : "#e8285a"} 100%);
-              color: white;
-              border-color: ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
-              transform: scale(1.1);
-              box-shadow: 0 5px 20px ${formData.day_choice === "Saturday" ? "rgba(0, 158, 247, 0.5)" : "rgba(241, 65, 108, 0.5)"};
-            }
-            
-            .react-datepicker__day--selected.available-date::after {
-              color: white;
-            }
-            
-            /* Disabled/Outside Month Days */
-            .react-datepicker__day--disabled,
-            .react-datepicker__day--outside-month {
-              color: #b5b5c3;
-              cursor: default;
-            }
-            
-            .react-datepicker__day--disabled:hover,
-            .react-datepicker__day--outside-month:hover {
-              background-color: transparent;
-              transform: none;
-            }
-            
-            /* Today */
-            .react-datepicker__day--today {
-              font-weight: 700;
-              border: 2px solid ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
-            }
-            
-            /* Dropdowns */
-            .react-datepicker__month-dropdown,
-            .react-datepicker__year-dropdown {
-              background-color: #fff;
-              border: 2px solid #e4e6ef;
-              border-radius: 0.475rem;
-              box-shadow: 0 0 30px 0 rgba(82, 63, 105, 0.15);
-            }
-            
-            .react-datepicker__month-option,
-            .react-datepicker__year-option {
-              padding: 0.5rem 1rem;
-              transition: all 0.2s ease;
-            }
-            
-            .react-datepicker__month-option:hover,
-            .react-datepicker__year-option:hover {
-              background-color: ${formData.day_choice === "Saturday" ? "#f1faff" : "#fff5f8"};
-              color: ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
-            }
-            
-            .react-datepicker__month-option--selected_month,
-            .react-datepicker__year-option--selected_year {
-              background-color: ${formData.day_choice === "Saturday" ? "#009ef7" : "#f1416c"};
-              color: white;
-            }
-          `}</style>
-
           {/* Loading existing requests indicator */}
           {loadingRequests && (
             <div className="alert alert-info d-flex align-items-center mb-7">
@@ -707,6 +819,22 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
               <span>Loading your existing requests...</span>
             </div>
           )}
+
+          {/* ✅ Date Restriction Info */}
+          <div className="alert alert-light-info d-flex align-items-center mb-4">
+            <KTIcon iconName="calendar-tick" className="fs-2 me-3 text-info" />
+            <div className="flex-grow-1">
+              <div className="d-flex align-items-center justify-content-between">
+                <small className="fw-bold text-info">
+                  📅 Available dates: {dateRangeText}
+                </small>
+                <span className="badge badge-light-info">Current Month</span>
+              </div>
+              <small className="text-muted d-block mt-1">
+                You can request for any {formData.day_choice} within this month
+              </small>
+            </div>
+          </div>
 
           {/* Day Choice Selection */}
           <div className="mb-7">
@@ -833,7 +961,7 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
                 </div>
                 <small className="text-muted">
                   <KTIcon iconName="shield-cross" className="fs-7 me-1" />
-                  Blocked dates will appear with a red strikethrough
+                  Blocked dates cannot be selected
                 </small>
               </div>
             </div>
@@ -887,15 +1015,15 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
                 filterDate={filterDate}
                 excludeDates={excludedDatesArray}
                 dayClassName={getDayClassName}
-                minDate={new Date()}
+                minDate={minDate} // ✅ วันที่ 1 ของเดือนนี้
+                maxDate={maxDate} // ✅ วันสุดท้ายของเดือนนี้
                 dateFormat="dd/MM/yyyy"
                 placeholderText={`Select a ${formData.day_choice}`}
                 className={`form-control form-control-lg ${dateError ? "is-invalid" : ""}`}
                 disabled={loadingRequests}
                 inline={false}
-                showMonthDropdown
-                showYearDropdown
-                dropdownMode="select"
+                showMonthDropdown={false} // ✅ ปิดเพราะล็อกแค่เดือนนี้
+                showYearDropdown={false}  // ✅ ปิดเพราะล็อกแค่เดือนนี้
               />
               
               {/* Calendar icon indicator */}
@@ -922,18 +1050,15 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
                 <div className="d-flex align-items-start">
                   <KTIcon iconName="information-5" className="fs-7 me-2 mt-1" />
                   <div>
-                    <div>Only {formData.day_choice}s are available for selection</div>
+                    <div>Only {formData.day_choice}s in {currentMonthName} are available</div>
                     <div className="mt-1">
                       <span className="badge badge-light-success me-2">
                         <span className="text-success">●</span> Available
                       </span>
                       <span className="badge badge-light-danger me-2">
-                        <span className="text-danger">●</span> Blocked (Cannot select)
+                        <span className="text-danger">●</span> Blocked
                       </span>
                     </div>
-                    <small className="text-muted mt-1 d-block">
-                      Dates with Pending or Accepted requests cannot be selected
-                    </small>
                   </div>
                 </div>
               </div>

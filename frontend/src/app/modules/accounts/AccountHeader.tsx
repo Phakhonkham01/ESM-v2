@@ -235,6 +235,20 @@ const AccountHeader: React.FC = () => {
                       </div>
                       <div className='fw-bold fs-6 text-gray-500'>Leave Days</div>
                     </div>
+                    <div className='border border-gray-300 border-dashed rounded min-w-125px py-3 px-4 me-6 mb-3'>
+                      <div className='d-flex align-items-center'>
+                        <KTIcon iconName='calendar' className='fs-3 text-primary me-2' />
+                        <div className='fs-2 fw-bolder'>{userProfile?.actual_leave_days ?? 0}</div>
+                      </div>
+                      <div className='fw-bold fs-6 text-gray-500'>Actual Leave Days</div>
+                    </div>
+                    <div className='border border-gray-300 border-dashed rounded min-w-125px py-3 px-4 me-6 mb-3'>
+                      <div className='d-flex align-items-center'>
+                        <KTIcon iconName='calendar' className='fs-3 text-primary me-2' />
+                        <div className='fs-2 fw-bolder'>{userProfile?.actual_leave_days ?? 0}</div>
+                      </div>
+                      <div className='fw-bold fs-6 text-gray-500'>Actual Leave Days</div>
+                    </div>
 
                     {/* Status */}
                     <div className='border border-gray-300 border-dashed rounded min-w-125px py-3 px-4 me-6 mb-3'>

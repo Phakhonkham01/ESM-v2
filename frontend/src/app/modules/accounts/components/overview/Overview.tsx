@@ -44,8 +44,8 @@ export function Overview() {
     // ✅ Weekend Leave Card
     {
       id: 'weekend-leave',
-      title: 'Weekend Leave',
-      description: 'Saturday or Sunday leave',
+      title: 'Weekend Work',
+      description: 'Saturday or Sunday work',
       icon: 'calendar-8',
       color: 'info',
       iconBg: 'light-info'

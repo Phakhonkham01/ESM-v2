@@ -8,6 +8,7 @@ import RequestModel from "../models/requestOTandFieldWork";
 
 const VALID_TITLES = ["OT", "FIELD_WORK"] as const;
 const VALID_STATUSES = ["Pending", "Accepted", "Rejected"] as const;
+const COST_PER_KM = 3000; // ค่าใช้จ่ายต่อกิโลเมตร (LAK/km)
 
 /* ============================================================
    HELPERS
@@ -23,8 +24,13 @@ const toMinutes = (time: string): number => {
   return h * 60 + m;
 };
 
+// ✅ Helper คำนวณค่าน้ำมันจากระยะทาง
+const calculateFuelCost = (distance: number): number => {
+  return distance * COST_PER_KM;
+};
+
 /* ============================================================
-   POPULATION HELPER - ✅ Centralized population config
+   POPULATION HELPER
 ============================================================ */
 
 const getPopulateConfig = () => [
@@ -45,6 +51,10 @@ const getPopulateConfig = () => [
   {
     path: "supervisor_id",
     select: "user_name user_email first_name_en last_name_en first_name_la last_name_la _id"
+  },
+  {
+    path: "employee_id",
+    select: "user_name user_email first_name_en last_name_en first_name_la last_name_la _id"
   }
 ];
 
@@ -59,12 +69,13 @@ export const createRequest = async (
   try {
     const {
       user_id,
-      supervisor_id, // array
+      supervisor_id, 
+      employee_id,
       date,
       title,
       start_hour,
       end_hour,
-      fuel,
+      distance, // ✅ รับ distance แทน fuel
       reason,
       description,
       date_off,
@@ -101,6 +112,21 @@ export const createRequest = async (
       return;
     }
 
+    // ✅ Validate employee IDs (optional field)
+    if (employee_id) {
+      if (!Array.isArray(employee_id)) {
+        res.status(400).json({ message: "employee_id must be an array" });
+        return;
+      }
+      const validEmployeeIds = employee_id.every((id: string) => 
+        mongoose.Types.ObjectId.isValid(id)
+      );
+      if (!validEmployeeIds) {
+        res.status(400).json({ message: "Invalid employee IDs" });
+        return;
+      }
+    }
+
     // Validate title
     if (!VALID_TITLES.includes(title)) {
       res.status(400).json({ message: "Invalid title. Must be 'OT' or 'FIELD_WORK'" });
@@ -119,34 +145,39 @@ export const createRequest = async (
       return;
     }
 
-    // Validate fuel for FIELD_WORK
+    // ✅ Validate distance and calculate fuel for FIELD_WORK
+    let finalDistance = 0;
     let finalFuel = 0;
+    
     if (title === "FIELD_WORK") {
-      if (fuel == null || isNaN(fuel) || Number(fuel) <= 0) {
+      if (distance == null || isNaN(distance) || Number(distance) <= 0) {
         res.status(400).json({
-          message: "Fuel price is required and must be greater than 0 for FIELD_WORK",
+          message: "Distance is required and must be greater than 0 for FIELD_WORK",
         });
         return;
       }
-      finalFuel = Number(fuel);
+      finalDistance = Number(distance);
+      finalFuel = calculateFuelCost(finalDistance); // ✅ คำนวณค่าน้ำมันจากระยะทาง
     }
 
     // Create request
     const request = await RequestModel.create({
       user_id,
       supervisor_id,
+      employee_id: employee_id || [],
       date,
       title,
       start_hour,
       end_hour,
-      fuel: finalFuel,
+      distance: finalDistance, // ✅ บันทึกระยะทาง
+      fuel: finalFuel, // ✅ บันทึกค่าน้ำมันที่คำนวณได้
       reason,
       description,
       date_off,
       status: "Pending",
     });
 
-    // ✅ Populate before sending response
+    // Populate before sending response
     const populatedRequest = await RequestModel.findById(request._id)
       .populate(getPopulateConfig());
 
@@ -155,13 +186,13 @@ export const createRequest = async (
       request: populatedRequest,
     });
   } catch (error: any) {
-    console.error('❌ Backend error:', error)
+    console.error('❌ Backend error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 /* ============================================================
-   GET ALL REQUESTS - ✅ UPDATED with proper population
+   GET ALL REQUESTS
 ============================================================ */
 
 export const getAllRequests = async (req: Request, res: Response) => {
@@ -187,7 +218,6 @@ export const getAllRequests = async (req: Request, res: Response) => {
       query.title = title;
     }
 
-    // ✅ Use centralized population config
     const requests = await RequestModel.find(query)
       .populate(getPopulateConfig())
       .sort({ createdAt: -1 });
@@ -208,7 +238,7 @@ export const getAllRequests = async (req: Request, res: Response) => {
 };
 
 /* ============================================================
-   READ BY USER - ✅ UPDATED with proper population
+   READ BY USER
 ============================================================ */
 
 export const getRequestsByUser = async (
@@ -223,7 +253,6 @@ export const getRequestsByUser = async (
       return;
     }
 
-    // ✅ Use centralized population config
     const requests = await RequestModel.find({ user_id: userId })
       .populate(getPopulateConfig())
       .sort({ createdAt: -1 });
@@ -243,7 +272,7 @@ export const getRequestsByUser = async (
 };
 
 /* ============================================================
-   READ BY SUPERVISOR - ✅ UPDATED with proper population
+   READ BY SUPERVISOR
 ============================================================ */
 
 export const getRequestsBySupervisor = async (
@@ -258,8 +287,6 @@ export const getRequestsBySupervisor = async (
       return;
     }
 
-    // ✅ Use centralized population config
-    // MongoDB will automatically search in array
     const requests = await RequestModel.find({
       supervisor_id: supervisorId,
     })
@@ -282,7 +309,7 @@ export const getRequestsBySupervisor = async (
 };
 
 /* ============================================================
-   READ BY ID - ✅ UPDATED with proper population
+   READ BY ID
 ============================================================ */
 
 export const getRequestById = async (req: Request, res: Response) => {
@@ -294,7 +321,6 @@ export const getRequestById = async (req: Request, res: Response) => {
       return;
     }
 
-    // ✅ Use centralized population config
     const request = await RequestModel.findById(id)
       .populate(getPopulateConfig());
 
@@ -319,7 +345,7 @@ export const getRequestById = async (req: Request, res: Response) => {
 };
 
 /* ============================================================
-   UPDATE STATUS - ✅ UPDATED with proper population
+   UPDATE STATUS
 ============================================================ */
 
 export const updateRequestStatus = async (
@@ -345,7 +371,7 @@ export const updateRequestStatus = async (
       { status },
       { new: true }
     )
-      .populate(getPopulateConfig()); // ✅ Add population
+      .populate(getPopulateConfig());
 
     if (!updated) {
       res.status(404).json({ message: "Request not found" });
@@ -366,7 +392,7 @@ export const updateRequestStatus = async (
 };
 
 /* ============================================================
-   UPDATE REQUEST (EDIT) - ✅ UPDATED with proper population
+   UPDATE REQUEST (EDIT)
 ============================================================ */
 
 export const updateRequest = async (
@@ -375,7 +401,7 @@ export const updateRequest = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, start_hour, end_hour, fuel, reason, date } = req.body;
+    const { title, start_hour, end_hour, distance, reason, date, employee_id } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       res.status(400).json({ message: "Invalid request ID" });
@@ -403,36 +429,67 @@ export const updateRequest = async (
     }
 
     if (toMinutes(finalEnd) <= toMinutes(finalStart)) {
-      res
-        .status(400)
-        .json({ message: "End time must be later than start time" });
+      res.status(400).json({ message: "End time must be later than start time" });
       return;
     }
 
-    let finalFuel = 0;
-    if (finalTitle === "FIELD_WORK") {
-      if (fuel == null || isNaN(fuel) || Number(fuel) <= 0) {
-        res.status(400).json({
-          message: "Fuel price is required for FIELD_WORK",
-        });
+    // ✅ Validate employee IDs if provided
+    if (employee_id !== undefined) {
+      if (!Array.isArray(employee_id)) {
+        res.status(400).json({ message: "employee_id must be an array" });
         return;
       }
-      finalFuel = Number(fuel);
+      const validEmployeeIds = employee_id.every((id: string) => 
+        mongoose.Types.ObjectId.isValid(id)
+      );
+      if (!validEmployeeIds) {
+        res.status(400).json({ message: "Invalid employee IDs" });
+        return;
+      }
+    }
+
+    // ✅ Calculate distance and fuel
+    let finalDistance = existing.distance;
+    let finalFuel = existing.fuel;
+    
+    if (finalTitle === "FIELD_WORK") {
+      if (distance !== undefined) {
+        if (distance == null || isNaN(distance) || Number(distance) <= 0) {
+          res.status(400).json({
+            message: "Distance is required and must be greater than 0 for FIELD_WORK",
+          });
+          return;
+        }
+        finalDistance = Number(distance);
+        finalFuel = calculateFuelCost(finalDistance); // ✅ คำนวณค่าน้ำมันจากระยะทาง
+      }
+    } else {
+      // ถ้าเปลี่ยนเป็น OT ให้ reset distance และ fuel
+      finalDistance = 0;
+      finalFuel = 0;
+    }
+
+    const updateData: any = {
+      title: finalTitle,
+      start_hour: finalStart,
+      end_hour: finalEnd,
+      distance: finalDistance, // ✅ บันทึกระยะทาง
+      fuel: finalFuel, // ✅ บันทึกค่าน้ำมันที่คำนวณได้
+      reason: reason ?? existing.reason,
+      date: date ?? existing.date,
+    };
+
+    // ✅ อัพเดท employee_id ถ้ามี
+    if (employee_id !== undefined) {
+      updateData.employee_id = employee_id;
     }
 
     const updated = await RequestModel.findByIdAndUpdate(
       id,
-      {
-        title: finalTitle,
-        start_hour: finalStart,
-        end_hour: finalEnd,
-        fuel: finalFuel,
-        reason: reason ?? existing.reason,
-        date: date ?? existing.date,
-      },
+      updateData,
       { new: true, runValidators: true }
     )
-      .populate(getPopulateConfig()); // ✅ Use centralized population
+      .populate(getPopulateConfig());
 
     res.json({
       success: true,
@@ -449,7 +506,7 @@ export const updateRequest = async (
 };
 
 /* ============================================================
-   DELETE - ✅ UPDATED with better response
+   DELETE
 ============================================================ */
 
 export const deleteRequest = async (
@@ -489,7 +546,7 @@ export const deleteRequest = async (
 };
 
 /* ============================================================
-   ANALYTICS - ✅ UPDATED with better structure
+   ANALYTICS
 ============================================================ */
 
 export const getRequestStats = async (
@@ -504,6 +561,15 @@ export const getRequestStats = async (
     const ot = await RequestModel.countDocuments({ title: "OT" });
     const fieldWork = await RequestModel.countDocuments({ title: "FIELD_WORK" });
 
+    // ✅ คำนวณสถิติเพิ่มเติมสำหรับ Field Work
+    const fieldWorkRequests = await RequestModel.find({ 
+      title: "FIELD_WORK",
+      status: "Accepted" 
+    });
+    
+    const totalDistance = fieldWorkRequests.reduce((sum, req) => sum + (req.distance || 0), 0);
+    const totalFuelCost = fieldWorkRequests.reduce((sum, req) => sum + (req.fuel || 0), 0);
+
     res.json({
       success: true,
       stats: {
@@ -516,6 +582,14 @@ export const getRequestStats = async (
         byType: {
           ot,
           fieldWork,
+        },
+        fieldWorkStats: {
+          totalDistance: totalDistance.toFixed(2),
+          totalFuelCost: totalFuelCost.toFixed(2),
+          averageDistance: fieldWorkRequests.length > 0 
+            ? (totalDistance / fieldWorkRequests.length).toFixed(2) 
+            : 0,
+          costPerKm: COST_PER_KM
         }
       }
     });

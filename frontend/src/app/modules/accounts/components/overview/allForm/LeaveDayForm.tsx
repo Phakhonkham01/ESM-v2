@@ -24,6 +24,39 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
   const [existingRequests, setExistingRequests] = useState<DayOffRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
 
+  // ✅ Detect dark mode
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Check for dark mode on mount
+    const checkDarkMode = () => {
+      const htmlElement = document.documentElement;
+      const bodyElement = document.body;
+      const isDark = 
+        htmlElement.getAttribute('data-bs-theme') === 'dark' ||
+        htmlElement.getAttribute('data-theme') === 'dark' ||
+        bodyElement.getAttribute('data-bs-theme') === 'dark' ||
+        bodyElement.classList.contains('dark') ||
+        htmlElement.classList.contains('dark');
+      setIsDarkMode(isDark);
+    };
+
+    checkDarkMode();
+
+    // Watch for theme changes
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-bs-theme', 'data-theme', 'class'],
+    });
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['data-bs-theme', 'class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   // Error states for date validation
   const [dateErrors, setDateErrors] = useState({
     start_date: "",
@@ -139,6 +172,35 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
     return matched;
   }, [supervisors, currentUser?.department_id]);
 
+  // ✅ Get min date (first day of current month)
+  const minDate = useMemo(() => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    firstDay.setHours(0, 0, 0, 0);
+    return firstDay;
+  }, []);
+
+  // ✅ Get max date (last day of current month)
+  const maxDate = useMemo(() => {
+    const today = new Date();
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    lastDay.setHours(23, 59, 59, 999);
+    return lastDay;
+  }, []);
+
+  // ✅ Get current month info
+  const currentMonthName = useMemo(() => {
+    const today = new Date();
+    return today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }, []);
+
+  // ✅ Get date range text
+  const dateRangeText = useMemo(() => {
+    const firstDay = new Date(minDate);
+    const lastDay = new Date(maxDate);
+    return `${firstDay.getDate()}-${lastDay.getDate()} ${firstDay.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
+  }, [minDate, maxDate]);
+
   // Get all blocked dates as Set for O(1) lookup
   const blockedDatesSet = useMemo(() => {
     const dates = new Set<string>();
@@ -212,21 +274,32 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
       conflictingDates
     };
   };
-
-  // Get min date (today)
-  const minDate = new Date();
   
   // Calculate total days
-  const calculateTotalDays = () => {
-    if (formData.day_off_type === "FULL_DAY") {
-      if (!formData.start_date || !formData.end_date) return 0;
-      const diffTime = Math.abs(formData.end_date.getTime() - formData.start_date.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays + 1;
-    } else {
-      return 0.5;
+ // Calculate total days (excluding weekends)
+const calculateTotalDays = () => {
+  if (formData.day_off_type === "FULL_DAY") {
+    if (!formData.start_date || !formData.end_date) return 0;
+    
+    // Count only weekdays (Monday-Friday)
+    let count = 0;
+    const currentDate = new Date(formData.start_date);
+    const endDate = new Date(formData.end_date);
+    
+    while (currentDate <= endDate) {
+      const dayOfWeek = currentDate.getDay();
+      // 0 = Sunday, 6 = Saturday
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        count++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
     }
-  };
+    
+    return count;
+  } else {
+    return 0.5;
+  }
+};
 
   const totalDays = calculateTotalDays();
 
@@ -530,6 +603,265 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
     return "";
   };
 
+  // ✅ Add CSS with dark mode support
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      /* ========== DATEPICKER CONTAINER ========== */
+      .react-datepicker-wrapper {
+        width: 100%;
+      }
+      
+      .react-datepicker-popper {
+        z-index: 9999 !important;
+      }
+      
+      .react-datepicker {
+        font-family: inherit;
+        background-color: ${isDarkMode ? '#1e1e2d' : '#ffffff'};
+        border: 1px solid ${isDarkMode ? '#323248' : '#e4e6ef'};
+        border-radius: 12px;
+        box-shadow: 0 10px 40px ${isDarkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)'};
+        padding: 8px;
+      }
+      
+      /* ========== HEADER ========== */
+      .react-datepicker__header {
+        background-color: transparent;
+        border-bottom: none;
+        padding: 16px 8px 8px;
+      }
+      
+      .react-datepicker__current-month {
+        color: ${isDarkMode ? '#ffffff' : '#181c32'};
+        font-weight: 600;
+        font-size: 16px;
+        margin-bottom: 16px;
+        text-align: center;
+      }
+      
+      .react-datepicker__day-names {
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 8px;
+      }
+      
+      .react-datepicker__day-name {
+        color: ${isDarkMode ? '#7e8299' : '#a1a5b7'};
+        font-weight: 600;
+        font-size: 13px;
+        width: 40px;
+        line-height: 40px;
+        margin: 0;
+        text-transform: uppercase;
+      }
+      
+      /* ========== NAVIGATION ARROWS ========== */
+      .react-datepicker__navigation {
+        top: 20px;
+        width: 32px;
+        height: 32px;
+        border: none;
+        background-color: ${isDarkMode ? '#2b2b40' : '#f5f8fa'};
+        border-radius: 8px;
+        transition: all 0.2s ease;
+      }
+      
+      .react-datepicker__navigation:hover {
+        background-color: #50cd89;
+      }
+      
+      .react-datepicker__navigation--previous {
+        left: 16px;
+      }
+      
+      .react-datepicker__navigation--next {
+        right: 16px;
+      }
+      
+      .react-datepicker__navigation-icon::before {
+        border-color: ${isDarkMode ? '#a1a5b7' : '#7e8299'};
+        border-width: 2px 2px 0 0;
+        height: 8px;
+        width: 8px;
+        top: 11px;
+      }
+      
+      .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+        border-color: #ffffff;
+      }
+      
+      /* ========== MONTH CONTAINER ========== */
+      .react-datepicker__month {
+        margin: 8px;
+      }
+      
+      .react-datepicker__week {
+        display: flex;
+        justify-content: space-around;
+      }
+      
+      /* ========== DAY CELLS ========== */
+      .react-datepicker__day {
+        width: 40px;
+        height: 40px;
+        line-height: 40px;
+        margin: 2px;
+        border-radius: 8px;
+        color: ${isDarkMode ? '#ffffff' : '#3f4254'};
+        font-weight: 500;
+        font-size: 14px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .react-datepicker__day:hover:not(.react-datepicker__day--disabled):not(.react-datepicker__day--excluded) {
+        background-color: ${isDarkMode ? '#2b2b40' : '#f5f8fa'};
+        transform: scale(1.05);
+      }
+      
+      /* ========== BLOCKED/EXCLUDED DATES ========== */
+      .react-datepicker__day--excluded,
+      .react-datepicker__day.blocked-date {
+        background: ${isDarkMode 
+          ? 'linear-gradient(135deg, #3d1f1f 0%, #4d2626 100%)' 
+          : 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)'} !important;
+        color: ${isDarkMode ? '#ff6b6b' : '#c62828'} !important;
+        font-weight: 700 !important;
+        text-decoration: line-through !important;
+        cursor: not-allowed !important;
+        border: 2px solid ${isDarkMode ? '#9c4146' : '#ef9a9a'} !important;
+        position: relative;
+        pointer-events: none !important;
+        opacity: 0.7;
+      }
+      
+      .react-datepicker__day--excluded::before,
+      .react-datepicker__day.blocked-date::before {
+        content: '✕';
+        position: absolute;
+        top: 2px;
+        right: 4px;
+        font-size: 10px;
+        font-weight: 900;
+        color: ${isDarkMode ? '#ff6b6b' : '#c62828'};
+      }
+      
+      /* ========== SELECTED DATE ========== */
+      .react-datepicker__day--selected,
+      .react-datepicker__day--keyboard-selected {
+        background: linear-gradient(135deg, #50cd89, #47be7d) !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(80, 205, 137, 0.4);
+        border: none !important;
+      }
+      
+      /* ========== IN RANGE ========== */
+      .react-datepicker__day--in-range {
+        background-color: ${isDarkMode ? 'rgba(80, 205, 137, 0.15)' : '#e8fff3'} !important;
+        color: ${isDarkMode ? '#66bb6a' : '#50cd89'} !important;
+      }
+      
+      .react-datepicker__day--in-selecting-range {
+        background-color: ${isDarkMode ? 'rgba(80, 205, 137, 0.1)' : '#e8fff3'};
+      }
+      
+      /* ========== TODAY ========== */
+      .react-datepicker__day--today {
+        font-weight: 700;
+        position: relative;
+        color: #50cd89;
+      }
+      
+      .react-datepicker__day--today::after {
+        content: '';
+        position: absolute;
+        bottom: 4px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background-color: #50cd89;
+      }
+      
+      /* ========== DISABLED/OUTSIDE MONTH ========== */
+      .react-datepicker__day--disabled,
+      .react-datepicker__day--outside-month {
+        color: ${isDarkMode ? '#565674' : '#b5b5c3'} !important;
+        cursor: default !important;
+        opacity: 0.4;
+      }
+      
+      .react-datepicker__day--disabled:hover,
+      .react-datepicker__day--outside-month:hover {
+        background-color: transparent !important;
+        transform: none !important;
+      }
+      
+      /* ========== DROPDOWNS ========== */
+      .react-datepicker__month-dropdown,
+      .react-datepicker__year-dropdown {
+        background-color: ${isDarkMode ? '#1e1e2d' : '#ffffff'};
+        border: 1px solid ${isDarkMode ? '#323248' : '#e4e6ef'};
+        border-radius: 8px;
+        box-shadow: 0 8px 24px ${isDarkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)'};
+        padding: 4px;
+      }
+      
+      .react-datepicker__month-option,
+      .react-datepicker__year-option {
+        padding: 8px 16px;
+        transition: all 0.2s ease;
+        border-radius: 6px;
+        color: ${isDarkMode ? '#a1a5b7' : '#3f4254'};
+        font-size: 14px;
+      }
+      
+      .react-datepicker__month-option:hover,
+      .react-datepicker__year-option:hover {
+        background-color: ${isDarkMode ? '#2b2b40' : '#f5f8fa'};
+        color: #50cd89;
+      }
+      
+      .react-datepicker__month-option--selected_month,
+      .react-datepicker__year-option--selected_year {
+        background: linear-gradient(135deg, #50cd89, #47be7d) !important;
+        color: #ffffff !important;
+        font-weight: 600;
+      }
+      
+      /* ========== WEEKEND STYLING ========== */
+      .react-datepicker__day--weekend {
+        color: ${isDarkMode ? '#ff9f43' : '#ff6b6b'};
+      }
+      
+      /* ========== RESPONSIVE ========== */
+      @media (max-width: 768px) {
+        .react-datepicker {
+          font-size: 0.9em;
+        }
+        
+        .react-datepicker__day,
+        .react-datepicker__day-name {
+          width: 36px;
+          height: 36px;
+          line-height: 36px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, [isDarkMode]);
+
   return (
     <div className="card">
       {/* Header */}
@@ -554,196 +886,6 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
           className="card-body"
           style={{ maxHeight: "calc(100vh - 300px)", overflowY: "auto" }}
         >
-          {/* Enhanced custom styles for datepicker */}
-          <style>{`
-            /* DatePicker Container */
-            .react-datepicker-wrapper {
-              width: 100%;
-            }
-            
-            .react-datepicker {
-              font-family: inherit;
-              border: 2px solid #e4e6ef;
-              border-radius: 0.95rem;
-              box-shadow: 0 0 50px 0 rgba(82, 63, 105, 0.15);
-            }
-            
-            /* Header */
-            .react-datepicker__header {
-              background-color: #f1faff;
-              border-bottom: 2px solid #e4e6ef;
-              border-radius: 0.95rem 0.95rem 0 0;
-              padding: 1rem 0;
-            }
-            
-            .react-datepicker__current-month {
-              color: #50cd89;
-              font-weight: 600;
-              font-size: 1.1rem;
-              margin-bottom: 0.5rem;
-            }
-            
-            .react-datepicker__day-name {
-              color: #7e8299;
-              font-weight: 600;
-              width: 2.5rem;
-              line-height: 2.5rem;
-              margin: 0.2rem;
-            }
-            
-            /* Navigation */
-            .react-datepicker__navigation {
-              top: 1.2rem;
-              width: 2rem;
-              height: 2rem;
-              border: none;
-              background-color: #e8f5fc;
-              border-radius: 0.475rem;
-            }
-            
-            .react-datepicker__navigation:hover {
-              background-color: #50cd89;
-            }
-            
-            .react-datepicker__navigation-icon::before {
-              border-color: #50cd89;
-              top: 8px;
-            }
-            
-            .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
-              border-color: #fff;
-            }
-            
-            /* Days */
-            .react-datepicker__month {
-              margin: 1rem;
-            }
-            
-            .react-datepicker__day {
-              width: 2.5rem;
-              line-height: 2.5rem;
-              margin: 0.2rem;
-              border-radius: 0.475rem;
-              color: #3f4254;
-              font-weight: 500;
-              transition: all 0.2s ease;
-            }
-            
-            .react-datepicker__day:hover {
-              background-color: #f5f8fa;
-              transform: scale(1.05);
-            }
-            
-            /* Blocked/Excluded Dates */
-            .react-datepicker__day--excluded {
-              background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%) !important;
-              color: #c62828 !important;
-              font-weight: 700 !important;
-              text-decoration: line-through !important;
-              cursor: not-allowed !important;
-              border: 2px solid #ef9a9a !important;
-              position: relative;
-              pointer-events: none !important;
-              opacity: 0.6;
-            }
-            
-            .react-datepicker__day--excluded::before {
-              content: '✕';
-              position: absolute;
-              top: -2px;
-              right: 2px;
-              font-size: 10px;
-              color: #c62828;
-            }
-            
-            .react-datepicker__day.blocked-date {
-              background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
-              color: #c62828;
-              font-weight: 700;
-              text-decoration: line-through;
-              cursor: not-allowed !important;
-              border: 2px solid #ef9a9a;
-              position: relative;
-              pointer-events: none;
-              opacity: 0.6;
-            }
-            
-            .react-datepicker__day.blocked-date::before {
-              content: '✕';
-              position: absolute;
-              top: -2px;
-              right: 2px;
-              font-size: 10px;
-              color: #c62828;
-            }
-            
-            /* Selected Date */
-            .react-datepicker__day--selected,
-            .react-datepicker__day--keyboard-selected {
-              background: linear-gradient(135deg, #50cd89 0%, #47be7d 100%);
-              color: white;
-              border-color: #50cd89;
-              transform: scale(1.1);
-              box-shadow: 0 5px 20px rgba(80, 205, 137, 0.5);
-            }
-            
-            /* In Range */
-            .react-datepicker__day--in-range {
-              background-color: #e8fff3;
-              color: #50cd89;
-            }
-            
-            .react-datepicker__day--in-selecting-range {
-              background-color: #e8fff3;
-            }
-            
-            /* Today */
-            .react-datepicker__day--today {
-              font-weight: 700;
-              border: 2px solid #50cd89;
-            }
-            
-            /* Disabled/Outside Month Days */
-            .react-datepicker__day--disabled,
-            .react-datepicker__day--outside-month {
-              color: #b5b5c3;
-              cursor: default;
-            }
-            
-            .react-datepicker__day--disabled:hover,
-            .react-datepicker__day--outside-month:hover {
-              background-color: transparent;
-              transform: none;
-            }
-            
-            /* Dropdowns */
-            .react-datepicker__month-dropdown,
-            .react-datepicker__year-dropdown {
-              background-color: #fff;
-              border: 2px solid #e4e6ef;
-              border-radius: 0.475rem;
-              box-shadow: 0 0 30px 0 rgba(82, 63, 105, 0.15);
-            }
-            
-            .react-datepicker__month-option,
-            .react-datepicker__year-option {
-              padding: 0.5rem 1rem;
-              transition: all 0.2s ease;
-            }
-            
-            .react-datepicker__month-option:hover,
-            .react-datepicker__year-option:hover {
-              background-color: #e8fff3;
-              color: #50cd89;
-            }
-            
-            .react-datepicker__month-option--selected_month,
-            .react-datepicker__year-option--selected_year {
-              background-color: #50cd89;
-              color: white;
-            }
-          `}</style>
-
           {/* Loading existing requests indicator */}
           {loadingRequests && (
             <div className="alert alert-info d-flex align-items-center mb-7">
@@ -751,6 +893,22 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
               <span>Loading your existing leave requests...</span>
             </div>
           )}
+
+          {/* ✅ Date Restriction Info */}
+          <div className="alert alert-light-info d-flex align-items-center mb-4">
+            <KTIcon iconName="calendar-tick" className="fs-2 me-3 text-info" />
+            <div className="flex-grow-1">
+              <div className="d-flex align-items-center justify-content-between">
+                <small className="fw-bold text-info">
+                  📅 Available dates: {dateRangeText}
+                </small>
+                <span className="badge badge-light-info">Current Month</span>
+              </div>
+              <small className="text-muted d-block mt-1">
+                You can request leave for any date within this month
+              </small>
+            </div>
+          </div>
 
           {/* Show existing requests info */}
           {!loadingRequests && existingRequests.length > 0 && (
@@ -900,6 +1058,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                     excludeDates={excludedDatesArray}
                     dayClassName={getDayClassName}
                     minDate={minDate}
+                    maxDate={maxDate}
                     selectsStart
                     startDate={formData.start_date}
                     endDate={formData.end_date}
@@ -908,9 +1067,8 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                     className={`form-control form-control-lg ${dateErrors.start_date ? "is-invalid" : ""}`}
                     disabled={loadingRequests}
                     inline={false}
-                    showMonthDropdown
-                    showYearDropdown
-                    dropdownMode="select"
+                    showMonthDropdown={true}
+                    showYearDropdown={true}
                   />
                   <div 
                     className="position-absolute top-50 end-0 translate-middle-y pe-4" 
@@ -929,7 +1087,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                 ) : (
                   <div className="form-text mt-2">
                     <KTIcon iconName="information-5" className="fs-7 me-1" />
-                    Select start date for leave
+                    Select start date in {currentMonthName}
                   </div>
                 )}
               </div>
@@ -950,6 +1108,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                     excludeDates={excludedDatesArray}
                     dayClassName={getDayClassName}
                     minDate={formData.start_date || minDate}
+                    maxDate={maxDate}
                     selectsEnd
                     startDate={formData.start_date}
                     endDate={formData.end_date}
@@ -958,9 +1117,8 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                     className={`form-control form-control-lg ${dateErrors.end_date ? "is-invalid" : ""}`}
                     disabled={loadingRequests || !formData.start_date}
                     inline={false}
-                    showMonthDropdown
-                    showYearDropdown
-                    dropdownMode="select"
+                    showMonthDropdown={true}
+                    showYearDropdown={true}
                   />
                   <div 
                     className="position-absolute top-50 end-0 translate-middle-y pe-4" 
@@ -979,7 +1137,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                 ) : (
                   <div className="form-text mt-2">
                     <KTIcon iconName="information-5" className="fs-7 me-1" />
-                    End date must not be before start date
+                    End date must be in {currentMonthName}
                   </div>
                 )}
               </div>
@@ -1002,14 +1160,14 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                     excludeDates={excludedDatesArray}
                     dayClassName={getDayClassName}
                     minDate={minDate}
+                    maxDate={maxDate}
                     dateFormat="dd/MM/yyyy"
                     placeholderText="Select leave date"
                     className={`form-control form-control-lg ${dateErrors.start_date ? "is-invalid" : ""}`}
                     disabled={loadingRequests}
                     inline={false}
-                    showMonthDropdown
-                    showYearDropdown
-                    dropdownMode="select"
+                    showMonthDropdown={false}
+                    showYearDropdown={false}
                   />
                   <div 
                     className="position-absolute top-50 end-0 translate-middle-y pe-4" 
@@ -1028,7 +1186,7 @@ const LeaveDayForm: React.FC<LeaveDayFormProps> = ({ onClose, onSuccess }) => {
                 ) : (
                   <div className="form-text mt-2">
                     <KTIcon iconName="information-5" className="fs-7 me-1" />
-                    Select date for half-day leave
+                    Select date in {currentMonthName}
                   </div>
                 )}
               </div>

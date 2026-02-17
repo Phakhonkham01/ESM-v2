@@ -42,6 +42,7 @@ export type User = {
   role: 'admin' | 'employee' | 'supervisor'
   department_id?: DepartmentIdType
   leave_days: number
+  actual_leave_days: number
   status: 'Active' | 'Inactive' | 'On Leave'
   // ฟิลด์ใหม่ที่เพิ่ม
   first_name_en: string
@@ -67,6 +68,7 @@ export const initialUser: User = {
   role: 'employee',
   department_id: null,
   leave_days: 15,
+  actual_leave_days: 0,
   status: 'Active',
   // ค่าเริ่มต้นสำหรับฟิลด์ใหม่
   first_name_en: '',

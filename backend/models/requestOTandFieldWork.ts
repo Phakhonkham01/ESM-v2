@@ -3,11 +3,13 @@ import mongoose, { Schema, Document, Types } from "mongoose";
 export interface IRequest extends Document {
   user_id: Types.ObjectId;
   supervisor_id: Types.ObjectId;
+  employee_id: Types.ObjectId;
   date: Date;
   title: "OT" | "FIELD_WORK";
   start_hour: string;
   end_hour: string;
   fuel: number;
+  distance: number;
   date_off?: Date;
   description?: string;
   reason: string;
@@ -29,6 +31,9 @@ const requestSchema = new Schema<IRequest>(
       ref: "User",
       required: true,
     }],
+    employee_id: [{
+      type: Schema.Types.ObjectId,
+      ref: "User",}],
 
     date: {
       type: Date,
@@ -56,6 +61,11 @@ const requestSchema = new Schema<IRequest>(
     fuel: {
       type: Number,
       min: [0, "Fuel price must be >= 0"],
+      default: 0,
+    },
+    distance: {
+      type: Number,
+      min: [0, "Distance must be >= 0"],
       default: 0,
     },
 
