@@ -1192,7 +1192,7 @@ const dateRangeText = useMemo(() => {
           )}
 
           {/* Show existing requests info */}
-          {!loadingRequests && existingRequests.length > 0 && (
+          {/* {!loadingRequests && existingRequests.length > 0 && (
             <div className="alert alert-warning d-flex align-items-start mb-7">
               <KTIcon iconName="information-5" className="fs-2 me-3 mt-1" />
               <div className="flex-grow-1">
@@ -1251,7 +1251,7 @@ const dateRangeText = useMemo(() => {
                 </small>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Auto-Selected Supervisors Info */}
           <div

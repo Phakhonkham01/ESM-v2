@@ -914,7 +914,7 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
           </div>
 
           {/* Show existing requests info for selected day */}
-          {!loadingRequests && currentDayRequests.length > 0 && (
+          {/* {!loadingRequests && currentDayRequests.length > 0 && (
             <div className="alert alert-warning d-flex align-items-start mb-7">
               <KTIcon iconName="information-5" className="fs-2 me-3 mt-1" />
               <div className="flex-grow-1">
@@ -965,7 +965,7 @@ const SaturdaySundayRequest: React.FC<SatSunRequestProps> = ({
                 </small>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Auto-Selected Supervisors Info */}
           <div
