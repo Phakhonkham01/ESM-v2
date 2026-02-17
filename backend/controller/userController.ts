@@ -1,3 +1,4 @@
+//file name userController.ts
 import mongoose from "mongoose";
 import { Request, Response } from "express";
 import User, { IUser } from "../models/User";
@@ -25,6 +26,7 @@ interface CreateUserBody {
   gender?: 'male' | 'female' | 'other';
   position_id?: mongoose.Types.ObjectId | null;
   base_salary?: number;
+  social_security?: number;
 }
 
 interface UpdateUserBody extends Partial<CreateUserBody> {
@@ -73,6 +75,7 @@ export const createUser = async (
       gender,
       position_id,
       base_salary,
+      social_security,
     } = req.body;
 
     console.log('📥 Create user request body:', req.body);
@@ -119,6 +122,7 @@ export const createUser = async (
       start_work: new Date(start_work),
       gender: gender || 'male',
       position_id: position_id || null,
+      social_security: social_security ?? 0,
       base_salary: base_salary || 0,
     });
 
@@ -146,6 +150,8 @@ export const createUser = async (
         gender: user.gender,
         position_id: user.position_id,
         base_salary: user.base_salary,
+
+        social_security: user.social_security ?? 0,
       },
     });
   } catch (err: any) {
@@ -263,6 +269,7 @@ export const updateUser = async (
       gender,
       position_id,
       base_salary,
+      social_security,
     } = req.body;
     
     console.log("🚀 ~ Update user request body:", req.body);
@@ -295,7 +302,7 @@ export const updateUser = async (
     if (gender) user.gender = gender;
     if (position_id !== undefined) user.position_id = position_id;
     if (base_salary !== undefined) user.base_salary = base_salary;
-
+    if (social_security !== undefined) user.social_security = social_security;
     await user.save();
 
     res.status(200).json({ message: "User update completed.", user });

@@ -1,3 +1,4 @@
+//file name User.ts
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -41,6 +42,7 @@ export interface IUser extends Document {
   // Position & Salary
   position_id: Types.ObjectId | null;
   base_salary: number;
+  social_security: number;
   
   // Google Integration
   google_tokens?: IGoogleTokens;
@@ -158,6 +160,11 @@ const UserSchema = new Schema<IUser, IUserModel>(
       type: Number,
       default: 0,
     },
+    
+    social_security: {
+    type: Number,
+    default: 0,
+},
     // Google Integration
     google_tokens: {
       type: Object,

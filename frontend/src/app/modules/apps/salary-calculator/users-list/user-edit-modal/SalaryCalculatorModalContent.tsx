@@ -1,3 +1,4 @@
+// SalaryCalculatorModalContent.tsx
 import { FC, useState, useEffect, useCallback } from 'react'
 import { useQueryClient } from 'react-query'
 import { KTIcon } from '../../../../../../_metronic/helpers'
@@ -7,7 +8,6 @@ import axios from 'axios'
 import {
   getMonthName,
   formatCurrency,
-  
 } from './constants'
 import {
   Step1BasicInfo,
@@ -23,8 +23,15 @@ import type {
   ExistingSalary
 } from './interfaces'
 
-// ✅ เพີ່ມ import SystemOTData
+// ✅ Import types
 import type { SystemOTData } from './SalaryStepComponents'
+
+// ✅ Add SatSunData type
+interface SatSunData {
+  acceptedRequests: any[]
+  totalDaysOff: number
+  totalHolidayPay: number
+}
 
 // Add API URL configuration
 const API_URL = import.meta.env.VITE_APP_API_URL
@@ -35,14 +42,17 @@ interface SalaryCalculatorModalContentProps {
   userId: string
   onClose: () => void
   user?: any
+  initialStep?: number
 }
 
 const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
   userId,
   onClose,
-  user: propUser
+  user: propUser,
+  initialStep = 0,
 }) => {
-  const [activeStep, setActiveStep] = useState(0)
+  const [activeStep, setActiveStep] = useState(initialStep)
+  
   const [loading, setLoading] = useState(false)
   const [prefillData, setPrefillData] = useState<PrefillData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -51,19 +61,31 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
 
   const [existingSalaries, setExistingSalaries] = useState<ExistingSalary[]>([])
   
-  // Add missing state variables for month and year
+  // Month and year state
   const currentDate = new Date()
-  const [selectedMonth, setSelectedMonth] = useState<number>(currentDate.getMonth() + 1) // 1-12
+  const [selectedMonth, setSelectedMonth] = useState<number>(currentDate.getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState<number>(currentDate.getFullYear())
   
-  // ✅ เพີ່ມ systemOTData state - ສຳຄັນທີ່ສຸດ!
+  // ✅ systemOTData state
   const [systemOTData, setSystemOTData] = useState<SystemOTData>({
     systemOTDetails: [],
     totalFuelCosts: 0,
     totalOTAmount: 0,
   })
   
+  // ✅ satSunData state
+  const [satSunData, setSatSunData] = useState<SatSunData>({
+    acceptedRequests: [],
+    totalDaysOff: 0,
+    totalHolidayPay: 0,
+  })
+  
+  // ✅ State สำหรับ loading ข้อมูลเพิ่มเติม
+  const [loadingOTData, setLoadingOTData] = useState(false)
+  const [loadingSatSunData, setLoadingSatSunData] = useState(false)
+  
   const queryClient = useQueryClient()
+  const API_BASE_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:8001'
 
   const [formData, setFormData] = useState<SalaryFormData>({
     user_id: userId,
@@ -98,6 +120,16 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
 
   const [manualOTDetails, setManualOTDetails] = useState<any[]>([])
 
+  // Debug effects
+  useEffect(() => {
+    console.log('📌 SalaryCalculatorModalContent - initialStep:', initialStep)
+    console.log('📌 SalaryCalculatorModalContent - activeStep set to:', activeStep)
+  }, [initialStep, activeStep])
+
+  useEffect(() => {
+    console.log('📌 Active step set to:', activeStep)
+  }, [activeStep])
+
   // Update formData when selectedMonth or selectedYear changes
   useEffect(() => {
     setFormData(prev => ({
@@ -123,26 +155,42 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     }
   }, [userId])
 
-  // Fetch prefill data when month/year changes
+  // ✅ useEffect โหลดข้อมูลเมื่อ userId, month, year เปลี่ยน
   useEffect(() => {
     if (userId && selectedMonth && selectedYear) {
-      fetchPrefillData()
+      // ถ้าเปิด Step 5 โดยตรง (initialStep = 4) ให้โหลดข้อมูลทั้งหมดทันที
+      if (initialStep === 4) {
+        console.log('📌 Step 5 direct access - loading all data immediately')
+        Promise.all([
+          fetchPrefillData(),
+          fetchOTandFuelData(),
+          fetchSatSunData()
+        ]).catch(error => {
+          console.error('Error loading data for Step 5:', error)
+        })
+      } else {
+        // ถ้าเป็น step อื่น ให้โหลดเฉพาะ prefillData
+        fetchPrefillData()
+      }
     }
-  }, [userId, selectedMonth, selectedYear])
+  }, [userId, selectedMonth, selectedYear, initialStep])
 
-  // ✅ เພີ່ມ Debug Effect ເພື່ອກວດສອບ systemOTData
+  // Debug effects for data updates
   useEffect(() => {
     console.log('🔍 [Parent] systemOTData updated:', systemOTData)
   }, [systemOTData])
+
+  useEffect(() => {
+    console.log('📅 [Parent] satSunData updated:', satSunData)
+  }, [satSunData])
 
   const fetchUserData = async () => {
     try {
       setLoading(true)
       const response = await axios.get(`${USERS_URL}/${userId}`)
-      // Make sure we're extracting the user correctly from the response
       const userData = response.data.user || response.data
       setUser(userData)
-      console.log('User data loaded:', userData) // Debug log
+      console.log('User data loaded:', userData)
     } catch (err: any) {
       setError('Failed to load user data')
       console.error('Error fetching user:', err)
@@ -177,7 +225,12 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
       )
 
       if (response.data && response.data.data) {
-        setPrefillData(response.data.data)
+        const data = response.data.data
+        setPrefillData(data)
+        
+        if (data.user.social_security !== undefined) {
+          setFormData(prev => ({ ...prev, social_security: data.user.social_security }));
+        }
       }
     } catch (err: any) {
       setError(
@@ -189,20 +242,196 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     }
   }
 
-  // ✅ เພີ່ມ Callback Function ສຳລັບຮັບຂໍ້ມູນຈາກ Step 1
+  // ✅ ฟังก์ชันโหลด OT และ Fuel Data
+  const fetchOTandFuelData = async () => {
+    if (!userId) return
+    
+    setLoadingOTData(true)
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/requestOTandFieldWorkRoutes/user/${userId}`
+      )
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      
+      const data = await response.json()
+      console.log('📦 OT API response:', data)
+
+      let requests = []
+      if (Array.isArray(data)) requests = data
+      else if (data?.data && Array.isArray(data.data)) requests = data.data
+      else if (data?.requests && Array.isArray(data.requests)) requests = data.requests
+      else requests = []
+
+      const acceptedRequests = requests.filter((req: any) => {
+        if (!req?.date || !req?.status) return false
+        const requestDate = new Date(req.date)
+        if (isNaN(requestDate.getTime())) return false
+        const requestMonth = requestDate.getMonth() + 1
+        const requestYear = requestDate.getFullYear()
+        return req.status === "Accepted" &&
+               requestMonth === selectedMonth &&
+               requestYear === selectedYear
+      })
+
+      let totalFuelCosts = 0
+      const systemOTDetails: any[] = []
+      const BASE_HOURLY_RATE = 25000
+
+      acceptedRequests.forEach((request: any) => {
+        totalFuelCosts += Number(request.fuel) || 0
+
+        if (request.title === "OT" && request.start_hour && request.end_hour) {
+          const start = request.start_hour.split(':').map(Number)
+          const end = request.end_hour.split(':').map(Number)
+          const startMinutes = start[0] * 60 + start[1]
+          let endMinutes = end[0] * 60 + end[1]
+
+          if (endMinutes < startMinutes) endMinutes += 24 * 60
+
+          const totalHours = (endMinutes - startMinutes) / 60
+          const requestDate = new Date(request.date)
+          const isWeekend = requestDate.getDay() === 0 || requestDate.getDay() === 6
+
+          // คำนวณ OT amount
+          const THRESHOLD = 22 * 60
+          const multipliers = {
+            weekday: { before22: 1.5, after22: 2.0 },
+            weekend: { before22: 2.5, after22: 3.0 }
+          }
+          const multiplier = isWeekend ? multipliers.weekend : multipliers.weekday
+
+          let amount = 0
+          let hoursBefore22 = 0
+          let hoursAfter22 = 0
+
+          if (startMinutes < THRESHOLD && endMinutes > THRESHOLD) {
+            hoursBefore22 = (THRESHOLD - startMinutes) / 60
+            hoursAfter22 = (endMinutes - THRESHOLD) / 60
+            amount = (hoursBefore22 * BASE_HOURLY_RATE * multiplier.before22) +
+                     (hoursAfter22 * BASE_HOURLY_RATE * multiplier.after22)
+          } else if (endMinutes <= THRESHOLD) {
+            hoursBefore22 = totalHours
+            amount = totalHours * BASE_HOURLY_RATE * multiplier.before22
+          } else {
+            hoursAfter22 = totalHours
+            amount = totalHours * BASE_HOURLY_RATE * multiplier.after22
+          }
+
+          systemOTDetails.push({
+            date: request.date,
+            ot_type: isWeekend ? 'weekend' : 'weekday',
+            start_hour: request.start_hour,
+            end_hour: request.end_hour,
+            total_hours: totalHours,
+            amount: Math.round(amount),
+            hourly_rate: BASE_HOURLY_RATE,
+            request_id: request._id
+          })
+        }
+      })
+
+      const totalOTAmount = systemOTDetails.reduce((sum, d) => sum + d.amount, 0)
+
+      setSystemOTData({
+        systemOTDetails,
+        totalFuelCosts,
+        totalOTAmount,
+      })
+
+      console.log('✅ OT Data loaded:', {
+        totalFuelCosts,
+        totalOTAmount,
+        detailsCount: systemOTDetails.length
+      })
+
+    } catch (error) {
+      console.error("Error fetching OT data:", error)
+      setSystemOTData({
+        systemOTDetails: [],
+        totalFuelCosts: 0,
+        totalOTAmount: 0,
+      })
+    } finally {
+      setLoadingOTData(false)
+    }
+  }
+
+  // ✅ ฟังก์ชันโหลด Saturday/Sunday Data
+  const fetchSatSunData = async () => {
+    if (!userId) return
+    
+    setLoadingSatSunData(true)
+    const HOLIDAY_PAY_RATE = 200000
+    
+    try {
+      console.log(`🔍 Fetching Saturday/Sunday data for user: ${userId}`)
+      
+      const response = await fetch(
+        `${API_BASE_URL}/sat-sun-requests/user/${userId}`
+      )
+      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      
+      const data = await response.json()
+      
+      let requests = []
+      if (data?.requests && Array.isArray(data.requests)) {
+        requests = data.requests
+      } else if (Array.isArray(data)) {
+        requests = data
+      }
+      
+      const acceptedRequests = requests.filter((req: any) => {
+        if (!req?.start_date_time || req?.status !== 'Accepted') return false
+        const requestDate = new Date(req.start_date_time)
+        if (isNaN(requestDate.getTime())) return false
+        const requestMonth = requestDate.getMonth() + 1
+        const requestYear = requestDate.getFullYear()
+        return requestMonth === selectedMonth && requestYear === selectedYear
+      })
+      
+      const totalDaysOff = acceptedRequests.reduce(
+        (sum: number, req: any) => sum + (req.date_off_number || 0),
+        0
+      )
+      
+      const totalHolidayPay = totalDaysOff * HOLIDAY_PAY_RATE
+      
+      setSatSunData({
+        acceptedRequests,
+        totalDaysOff,
+        totalHolidayPay,
+      })
+      
+      console.log('✅ SatSun Data loaded:', {
+        totalDaysOff,
+        totalHolidayPay
+      })
+      
+    } catch (error) {
+      console.error("Error fetching Saturday/Sunday data:", error)
+      setSatSunData({
+        acceptedRequests: [],
+        totalDaysOff: 0,
+        totalHolidayPay: 0,
+      })
+    } finally {
+      setLoadingSatSunData(false)
+    }
+  }
+
+  // ✅ Callback for systemOTData from Step 1
   const handleSystemOTDetailsUpdate = (data: { 
     systemOTDetails: any[]
     totalFuelCosts: number 
   }) => {
     console.log('🔥 [Parent] Callback triggered with data:', data)
     
-    // ຄຳນວນຍອດລວມ OT
     const totalOTAmount = data.systemOTDetails.reduce(
       (sum, detail) => sum + detail.amount, 
       0
     )
 
-    // ອັບເດທ state
     setSystemOTData({
       systemOTDetails: data.systemOTDetails,
       totalFuelCosts: data.totalFuelCosts,
@@ -216,6 +445,12 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     })
   }
 
+  // ✅ Callback for satSunData from Step 1
+  const handleSatSunDataUpdate = useCallback((data: SatSunData) => {
+    console.log('📅 [Parent] satSunData updated:', data)
+    setSatSunData(data)
+  }, [])
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -226,7 +461,6 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     }))
   }
 
-  // Add the missing handleCutOffDaysChange function
   const handleCutOffDaysChange = (days: number) => {
     if (!prefillData) return
 
@@ -378,49 +612,52 @@ const SalaryCalculatorModalContent: FC<SalaryCalculatorModalContentProps> = ({
     return { totalHours, totalWeekendDays, totalAmount }
   }
 
-  // ✅ ແກ້ໄຂ calculateTotalIncome ໃຫ້ໃຊ້ systemOTData
-const calculateTotalIncome = () => {
-  if (!prefillData) return 0
+  // ✅ Calculate total income
+  const calculateTotalIncome = () => {
+    if (!prefillData) return 0
 
-  const { base_salary } = prefillData.user
-  const fuel_costs = systemOTData.totalFuelCosts
-  const { bonus, commission, money_not_spent_on_holidays, office_expenses, other_income } = formData
+    const { base_salary } = prefillData.user
+    const fuel_costs = systemOTData.totalFuelCosts
+    const { bonus, commission, money_not_spent_on_holidays, office_expenses, other_income } = formData
 
-  const manualOTAmount = manualOTDetails.reduce(
-    (sum, detail) => sum + detail.amount,
-    0
-  )
-  const otAmount = systemOTData.totalOTAmount + manualOTAmount
+    const manualOTAmount = manualOTDetails.reduce(
+      (sum, detail) => sum + detail.amount,
+      0
+    )
+    const otAmount = systemOTData.totalOTAmount + manualOTAmount
 
-  return (
-    base_salary +
-    otAmount +
-    bonus +
-    commission +
-    fuel_costs +
-    money_not_spent_on_holidays +
-    office_expenses +   // ✅ added
-    other_income
-  )
-}
-
-const calculateTotalDeductions = () => {
-  if (!prefillData) return 0
-
-  // Determine absence deduction (auto if exceed_days exists, else manual)
-  const exceedDays = prefillData.calculated.exceed_days ?? 0
-  let absenceDeduction = 0
-
-  if (exceedDays > 0) {
-    const workingDaysInMonth = formData.working_days || 26
-    const dailySalary = prefillData.user.base_salary / workingDaysInMonth
-    absenceDeduction = Math.round(dailySalary * exceedDays)
-  } else {
-    absenceDeduction = formData.cut_off_pay_days * formData.cut_off_pay_amount
+    return (
+      base_salary +
+      otAmount +
+      bonus +
+      commission +
+      fuel_costs +
+      money_not_spent_on_holidays +
+      office_expenses +
+      other_income +
+      satSunData.totalHolidayPay // ✅ Add Saturday/Sunday holiday pay
+    )
   }
 
-  return absenceDeduction + formData.social_security   // ❗ office_expenses removed
-}
+  // ✅ Calculate total deductions
+  const calculateTotalDeductions = () => {
+    if (!prefillData) return 0
+
+    const exceedDays = prefillData.calculated.exceed_days ?? 0
+    let absenceDeduction = 0
+
+    if (exceedDays > 0) {
+      const workingDaysInMonth = formData.working_days || 26
+      const dailySalary = prefillData.user.base_salary / workingDaysInMonth
+      absenceDeduction = Math.round(dailySalary * exceedDays)
+    } else {
+      absenceDeduction = formData.cut_off_pay_days * formData.cut_off_pay_amount
+    }
+
+    return absenceDeduction + formData.social_security
+  }
+
+  // ✅ Calculate net salary
   const calculateNetSalary = () => {
     const totalIncome = calculateTotalIncome()
     const totalDeductions = calculateTotalDeductions()
@@ -499,7 +736,7 @@ const calculateTotalDeductions = () => {
       const currentUser = authData ? JSON.parse(authData) : {}
       const created_by = currentUser._id || currentUser.id || userId
 
-      // ✅ ລວມ OT ຈາກລະບົບ ແລະ Manual
+      // ✅ Combine OT from system and manual
       const allOTDetails = [
         ...systemOTData.systemOTDetails,
         ...manualOTDetails,
@@ -526,7 +763,11 @@ const calculateTotalDeductions = () => {
         ot_amount: totalOTAmount,
         ot_hours: totalOTHours,
         ot_details: allOTDetails,
-        fuel_costs: systemOTData.totalFuelCosts, // ✅ ໃຊ້ຈາກ systemOTData
+        fuel_costs: systemOTData.totalFuelCosts,
+        // ✅ Add Saturday/Sunday holiday pay
+        holiday_pay: satSunData.totalHolidayPay,
+        holiday_days: satSunData.totalDaysOff,
+        holiday_requests: satSunData.acceptedRequests,
         day_off_days: prefillData?.calculated.day_off_days || 0,
         remaining_vacation_days:
           prefillData?.calculated.remaining_vacation_days || 0,
@@ -544,7 +785,6 @@ const calculateTotalDeductions = () => {
       if (response.status === 201 || response.status === 200) {
         setSuccess(true)
 
-        // Show success message
         await Swal.fire({
           title: 'Success!',
           text: 'Salary calculation completed successfully',
@@ -552,10 +792,7 @@ const calculateTotalDeductions = () => {
           confirmButtonColor: '#45cc67',
         })
 
-        // Invalidate queries to refresh data
         queryClient.invalidateQueries([QUERIES.USERS_LIST])
-        
-        // Close modal
         onClose()
       }
     } catch (err: any) {
@@ -573,9 +810,6 @@ const calculateTotalDeductions = () => {
     }
   }
 
-  // The backdrop is a React-rendered element in SalaryCalculatorModal.
-  // Calling onClose() triggers setItemIdForUpdate(undefined) in the parent,
-  // which unmounts the entire modal + backdrop automatically. No DOM cleanup needed.
   const handleClose = useCallback(() => {
     onClose()
   }, [onClose])
@@ -588,13 +822,47 @@ const calculateTotalDeductions = () => {
     "Summary"
   ]
 
+  // ✅ แสดง loading ถ้ากำลังโหลดข้อมูลสำหรับ Step 5
+  if (initialStep === 4 && (loadingOTData || loadingSatSunData || loading)) {
+    return (
+      <>
+        {/* Header */}
+        <div className="modal-header" style={{ borderBottom: '1px solid #eee' }}>
+          <h2 className="fw-bold mb-0">Payroll Calculation System</h2>
+          <div
+            className="btn btn-icon btn-sm btn-active-light-primary ms-2"
+            onClick={handleClose}
+            style={{ cursor: 'pointer' }}
+            aria-label="Close"
+          >
+            <KTIcon iconName="cross" className="fs-1" />
+          </div>
+        </div>
+        <div className="modal-body py-10 px-lg-17" style={{ minHeight: '700px' }}>
+          <div className="d-flex flex-column align-items-center justify-content-center py-10">
+            <div className="spinner-border text-primary mb-4" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <span className="text-muted">Loading salary data for Step 5...</span>
+            <div className="mt-3 text-muted small">
+              {loadingOTData && 'Loading OT data... '}
+              {loadingSatSunData && 'Loading holiday data... '}
+              {loading && 'Loading prefill data...'}
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   const renderStepContent = (step: number) => {
     const commonProps = {
       user: user || {},
       month: selectedMonth,
       year: selectedYear,
       prefillData,
-      systemOTData, // ✅ ເພີ່ມ prop ນີ້
+      systemOTData, // ✅ Pass systemOTData
+      satSunData,   // ✅ Pass satSunData
       formData,
       onInputChange: handleInputChange,
       calculateTotalIncome,
@@ -609,7 +877,8 @@ const calculateTotalDeductions = () => {
       handleCutOffDaysChange,
       onMonthChange: (month: number) => setSelectedMonth(month),
       onYearChange: (year: number) => setSelectedYear(year),
-      onSystemOTDetailsUpdate: handleSystemOTDetailsUpdate, // ✅ ເພີ່ມ callback
+      onSystemOTDetailsUpdate: handleSystemOTDetailsUpdate, // ✅ Pass callback
+      onSatSunDataUpdate: handleSatSunDataUpdate,          // ✅ Pass callback
     }
 
     switch (step) {
@@ -630,14 +899,28 @@ const calculateTotalDeductions = () => {
 
   if (loading && !prefillData) {
     return (
-      <div className="modal-body py-10 px-lg-17" style={{ minHeight: '700px' }}>
-        <div className="d-flex flex-column align-items-center justify-content-center py-10">
-          <div className="spinner-border text-primary mb-4" role="status">
-            <span className="visually-hidden">Loading...</span>
+      <>
+        {/* Header */}
+        <div className="modal-header" style={{ borderBottom: '1px solid #eee' }}>
+          <h2 className="fw-bold mb-0">Payroll Calculation System</h2>
+          <div
+            className="btn btn-icon btn-sm btn-active-light-primary ms-2"
+            onClick={handleClose}
+            style={{ cursor: 'pointer' }}
+            aria-label="Close"
+          >
+            <KTIcon iconName="cross" className="fs-1" />
           </div>
-          <span className="text-muted">Loading calculation data...</span>
         </div>
-      </div>
+        <div className="modal-body py-10 px-lg-17" style={{ minHeight: '700px' }}>
+          <div className="d-flex flex-column align-items-center justify-content-center py-10">
+            <div className="spinner-border text-primary mb-4" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <span className="text-muted">Loading calculation data...</span>
+          </div>
+        </div>
+      </>
     )
   }
 
@@ -646,7 +929,6 @@ const calculateTotalDeductions = () => {
       {/* Header */}
       <div className="modal-header" style={{ borderBottom: '1px solid #eee' }}>
         <h2 className="fw-bold mb-0">Payroll Calculation System</h2>
-        {/* Close button — handleClose uses Bootstrap JS API directly */}
         <div
           className="btn btn-icon btn-sm btn-active-light-primary ms-2"
           onClick={handleClose}

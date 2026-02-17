@@ -1,3 +1,4 @@
+//file name interfaces.ts
 export interface SalaryFormData {
   user_id: string
   salary: number
@@ -13,6 +14,7 @@ export interface SalaryFormData {
   cut_off_pay_days: number
   cut_off_pay_amount: number
   working_days: number
+  
   notes?: string
 }
 
@@ -22,6 +24,7 @@ export interface PrefillData {
     name: string
     base_salary: number
     vacation_days: number
+    social_security: number
   }
   calculated: {
     ot_amount: number

@@ -1,4 +1,4 @@
-// routes/satSunRequest.routes.ts
+// routes/sat_sunRequestRoutes.ts
 import express from "express";
 import {
   createSatSunRequest,

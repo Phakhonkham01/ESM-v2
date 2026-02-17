@@ -1,3 +1,4 @@
+//file name _models.ts
 import {ID, Response} from '../../../../../../_metronic/helpers'
 
 // ✅ ประกาศ interface ก่อน
@@ -55,6 +56,7 @@ export type User = {
   gender: 'male' | 'female' | 'other'
   position_id?: PositionIdType
   base_salary?: number
+  social_security?: number
   createdAt?: string
   updatedAt?: string
 }
@@ -80,6 +82,7 @@ export const initialUser: User = {
   gender: 'male',
   position_id: null,
   base_salary: 0,
+  social_security: 0,
   createdAt:'',
   updatedAt:''
 }

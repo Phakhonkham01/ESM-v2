@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
-import {SalaryCalculatorModalContent} from './SalaryCalculatorModalContent'
+import { SalaryCalculatorModalContent } from './SalaryCalculatorModalContent'
+import { useListView } from '../core/ListViewProvider'
 
 interface Props {
   userId: string
@@ -7,12 +8,16 @@ interface Props {
 }
 
 const SalaryCalculatorModal = ({ userId, onClose }: Props) => {
+  const { initialStep } = useListView() // ✅ ดึง initialStep จาก provider
+
   useEffect(() => {
     document.body.classList.add('modal-open')
     return () => {
       document.body.classList.remove('modal-open')
     }
   }, [])
+
+  console.log('📌 SalaryCalculatorModal initialStep:', initialStep) // ✅ debug
 
   return (
     <>
@@ -25,7 +30,11 @@ const SalaryCalculatorModal = ({ userId, onClose }: Props) => {
       >
         <div className="modal-dialog modal-dialog-centered mw-1000px">
           <div className="modal-content">
-            <SalaryCalculatorModalContent userId={userId} onClose={onClose} />
+            <SalaryCalculatorModalContent 
+              userId={userId} 
+              onClose={onClose}
+              initialStep={initialStep} // ✅ ส่ง initialStep ไป
+            />
           </div>
         </div>
       </div>

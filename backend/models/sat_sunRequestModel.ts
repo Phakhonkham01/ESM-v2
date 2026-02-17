@@ -1,4 +1,4 @@
-// models/SatSunRequest.model.ts
+// models/sat_sunRequestodel.ts
 import mongoose, { Schema, Document, Types } from "mongoose";
 
 // ✅ Interface สำหรับ TypeScript

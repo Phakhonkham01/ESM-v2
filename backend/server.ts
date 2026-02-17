@@ -1,3 +1,4 @@
+//file name server.ts
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -20,18 +21,27 @@ await connectDB();
 const app: Express = express();
 
 // CORS Configuration
+// app.use(
+//     cors({
+//         origin: [
+//             process.env.CLIENT_URL!, // The '!' tells TS this won't be undefined
+//             'http://localhost:5173',
+//             'http://localhost:5174',
+//             '0.0.0.0'
+//         ],
+//         methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+//         allowedHeaders: ["Content-Type", "Authorization"],
+//         credentials: true
+//     })
+// );
 app.use(
-    cors({
-        origin: [
-            process.env.CLIENT_URL!, // The '!' tells TS this won't be undefined
-            'http://localhost:5173',
-            'http://localhost:5174'
-        ],
-        methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-        allowedHeaders: ["Content-Type", "Authorization"],
-        credentials: true
-    })
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+  })
 );
+
 
 // Middleware
 app.use(express.json());

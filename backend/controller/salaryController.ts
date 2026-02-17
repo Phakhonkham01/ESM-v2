@@ -727,6 +727,10 @@ export const getSalaryById = async (req: Request, res: Response): Promise<void> 
  * GET - Get prefill data for salary form
  * GET /api/salaries/prefill/:userId
  */
+/**
+ * GET - Get prefill data for salary form
+ * GET /api/salaries/prefill/:userId
+ */
 export const getPrefillData = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId } = req.params;
@@ -743,10 +747,10 @@ export const getPrefillData = async (req: Request, res: Response): Promise<void>
     const currentMonth = month ? parseInt(month as string) : getCurrentMonthYear().month;
     const currentYear = year ? parseInt(year as string) : getCurrentMonthYear().year;
 
-    // ✅ Get user with correct leave fields
+    // ✅ Get user with correct leave fields - รวม social_security ด้วย
     const user = await User.findById(userId)
       .select(
-        "first_name_en last_name_en base_salary leave_days actual_leave_days role department_id position_id"
+        "first_name_en last_name_en base_salary social_security leave_days actual_leave_days role department_id position_id"
       )
       .populate("department_id", "department_name")
       .populate("position_id", "position_name");
@@ -763,7 +767,7 @@ export const getPrefillData = async (req: Request, res: Response): Promise<void>
     const otCalculation = await calculateOTWithoutMultiplier(userId, currentMonth, currentYear);
     const fuel_costs = await calculateFuelCosts(userId, currentMonth, currentYear);
 
-    // --- ✅ NEW: Day off calculations using actual_leave_days and paid_holidays ---
+    // --- Day off calculations using actual_leave_days and paid_holidays ---
     const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
     const endOfMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59);
 
@@ -802,7 +806,7 @@ export const getPrefillData = async (req: Request, res: Response): Promise<void>
       vacationColor = 'yellow';
     }
 
-    // --- Department & position info (unchanged) ---
+    // --- Department & position info ---
     const userObj = user.toObject() as any;
     const departmentInfo = userObj.department_id ? {
       _id: userObj.department_id._id,
@@ -814,6 +818,15 @@ export const getPrefillData = async (req: Request, res: Response): Promise<void>
       name: userObj.position_id.position_name
     } : null;
 
+    // ✅ เพิ่ม Debug log เพื่อตรวจสอบค่า social_security
+    console.log('👤 User data from DB in getPrefillData:', {
+      id: user._id,
+      base_salary: user.base_salary,
+      social_security: user.social_security, // ควรมีค่า
+      leave_days: user.leave_days,
+      actual_leave_days: user.actual_leave_days
+    });
+
     res.status(200).json({
       message: "Prefill data retrieved successfully",
       data: {
@@ -821,8 +834,9 @@ export const getPrefillData = async (req: Request, res: Response): Promise<void>
           _id: user._id,
           name: `${user.first_name_en} ${user.last_name_en}`,
           base_salary: user.base_salary || 0,
-          vacation_days: user.leave_days || 0,        // ✅ original allocation
-          actual_leave_days: user.actual_leave_days,  // ✅ current balance
+          social_security: user.social_security || 0, // ✅ เพิ่ม social_security ตรงนี้
+          vacation_days: user.leave_days || 0,
+          actual_leave_days: user.actual_leave_days,
           role: user.role || 'Employee',
           department_id: departmentInfo,
           position_id: positionInfo
