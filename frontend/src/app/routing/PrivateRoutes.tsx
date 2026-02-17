@@ -7,6 +7,7 @@ import { MenuTestPage } from '../pages/MenuTestPage'
 import { getCSSVariableValue } from '../../_metronic/assets/ts/_utils'
 import { WithChildren } from '../../_metronic/helpers'
 import BuilderPageWrapper from '../pages/layout-builder/BuilderPageWrapper'
+import SatSunRequestPage from '../modules/apps/sat_sunRequest/satSunRequestPage'
 
 
 const PrivateRoutes = () => {
@@ -128,6 +129,15 @@ const PrivateRoutes = () => {
           element={
             <SuspensedView>
             <SupervosorDayOffPage/>
+            </SuspensedView>
+          }
+        />
+
+        <Route
+          path='apps/sat-sun-request/*'
+          element={
+            <SuspensedView>
+            <SatSunRequestPage/>
             </SuspensedView>
           }
         />

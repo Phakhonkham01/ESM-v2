@@ -113,6 +113,12 @@ export function AsideMenuMain() {
         fontIcon='bi-layers'
       />
       <AsideMenuItem
+        to='/apps/sat-sun-request/sat-sun-request-list'
+        icon='people'
+        title='Sat-Sun Request List user'
+        fontIcon='bi-layers'
+      />
+      <AsideMenuItem
         to='/apps/request-day-off'
         icon='people'
         title='Request Day-Off'
