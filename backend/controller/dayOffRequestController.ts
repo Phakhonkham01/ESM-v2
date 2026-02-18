@@ -77,8 +77,6 @@ export const createDayOffRequest = async (
   res: Response
 ): Promise<void> => {
   try {
-    console.log('📥 Received data:', req.body);
-
     const {
       user_id,
       supervisor_id,
@@ -187,8 +185,6 @@ export const getDayOffRequestsAllUser = async (
       limit = '10',
     } = req.query;
 
-    console.log('📋 Fetching all day off requests with filters:', { year, month, department, status, search, page, limit });
-
     // ──────────────────────────────────────────────────
     // 1.  Build MongoDB query (fields that exist on the document)
     // ──────────────────────────────────────────────────
@@ -245,12 +241,8 @@ export const getDayOffRequestsAllUser = async (
 
     // Filter by department name (populated field)
     if (department && department !== '' && department !== 'All Departments') {
-      console.log(`🔍 Filtering by department: "${department}"`)
       const beforeCount = requests.length
-
       requests = requests.filter((r: any) => getDeptName(r) === department)
-
-      console.log(`📊 Department filter: ${beforeCount} → ${requests.length} results`)
     }
 
     // Search in title / employee name / email
@@ -276,9 +268,6 @@ export const getDayOffRequestsAllUser = async (
     const limitNum = Math.max(1, parseInt(limit as string));
     const skip     = (pageNum - 1) * limitNum;
     const paginated = requests.slice(skip, skip + limitNum);
-
-    console.log(`✅ Total after filters: ${total}, returning page ${pageNum} (${paginated.length} items)`);
-
     res.status(200).json({
       success:    true,
       count:      paginated.length,

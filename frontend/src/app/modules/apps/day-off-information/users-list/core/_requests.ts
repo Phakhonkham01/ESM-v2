@@ -61,8 +61,6 @@ const normalizeUserData = (userData: any): any => {
       last_name_en: userData.last_name_en,
       user_email: userData.user_email || userData.email,
       employee_id: userData.employee_id,
-      // ✅ preserve department_id ตามที่เป็น (อาจเป็น array หรือ object)
-      //    extractUserInfo ใน _models.ts รองรับทั้งสองแบบอยู่แล้ว
       department_id: userData.department_id,
       position_id: userData.position_id,
     }
@@ -70,24 +68,16 @@ const normalizeUserData = (userData: any): any => {
   return userData
 }
 
-// ✅ KEY FIX: spread formatted LAST so employee_department ไม่ถูกทับด้วย raw object
 const mapDayOffRequest = (request: any): DayOffRequest => {
   if (!request) throw new Error('Cannot map null or undefined request')
-
-  // formatDayOffRequest แปลง nested objects → string fields
-  // เช่น employee_id.department_id.department_name → employee_department: "Engineering"
   const formatted = formatDayOffRequest(request)
 
-  // ใช้ type assertion เพื่อให้ TypeScript ยอมรับ normalized objects
   const mapped: DayOffRequest = {
-    // ✅ spread formatted ก่อน เพื่อให้ employee_department, employee_name ฯลฯ
-    //    ที่ถูก extract จาก populated objects ไม่ถูกทับ
     ...(formatted as unknown as DayOffRequest),
-    // override ด้วย raw/normalized values ที่ต้องการ
-    id:          request._id || request.id,
-    _id:         request._id || request.id,
-    created_at:  request.created_at,
-    updated_at:  request.updated_at,
+    id: request._id || request.id,
+    _id: request._id || request.id,
+    created_at: request.created_at,
+    updated_at: request.updated_at,
     employee_id: normalizeUserData(request.employee_id) as any,
     supervisor_id: (
       Array.isArray(request.supervisor_id)
@@ -100,7 +90,27 @@ const mapDayOffRequest = (request: any): DayOffRequest => {
   return mapped
 }
 
-// ✅ สร้าง links array ที่ UsersListPagination ต้องการ
+// Type guard for valid items_per_page values
+type ValidItemsPerPage = 8 | 10 | 30 | 50 | 100
+const VALID_ITEMS_PER_PAGE = [8, 10, 30, 50, 100] as const
+
+const isValidItemsPerPage = (value: number): value is ValidItemsPerPage => {
+  return VALID_ITEMS_PER_PAGE.includes(value as ValidItemsPerPage)
+}
+
+// Helper to ensure items_per_page is a valid type
+const normalizeItemsPerPage = (limit: number | undefined): ValidItemsPerPage => {
+  if (!limit) return 8
+  // Find closest valid value
+  if (isValidItemsPerPage(limit)) {
+    return limit
+  }
+
+  // Default to 8 if not a valid value
+  return 8
+}
+
+// Helper function to build pagination links
 const buildPaginationLinks = (
   page: number,
   totalPages: number
@@ -156,51 +166,43 @@ export const getFilteredDayOffRequests = async (params?: {
   try {
     const queryParams = new URLSearchParams()
 
-    if (params?.search)   queryParams.append('search', params.search)
-    if (params?.year)     queryParams.append('year', params.year)
-    if (params?.month)    queryParams.append('month', params.month)
+    if (params?.search) queryParams.append('search', params.search)
+    if (params?.year) queryParams.append('year', params.year)
+    if (params?.month) queryParams.append('month', params.month)
     if (params?.department && params.department !== 'All Departments')
       queryParams.append('department', params.department)
     if (params?.status && params.status !== 'All Status')
       queryParams.append('status', params.status)
-    if (params?.userId)   queryParams.append('userId', params.userId)
-    if (params?.page)     queryParams.append('page', params.page.toString())
-    if (params?.limit)    queryParams.append('limit', params.limit.toString())
+    if (params?.userId) queryParams.append('userId', params.userId)
+    if (params?.page) queryParams.append('page', params.page.toString())
+
+    // ✅ กำหนด limit ครั้งเดียวและเก็บไว้ใช้ตลอด
+    const limit = normalizeItemsPerPage(params?.limit)
+    queryParams.append('limit', limit.toString())
 
     const queryString = queryParams.toString()
     const url = `${DAY_OFF_REQUEST_URL}/allusers${queryString ? `?${queryString}` : ''}`
 
-    console.log('📡 Requesting:', url)
-
     const response = await axiosInstance.get(url)
-
     const rawRequests = response.data.requests || response.data.data || []
-
-    // Debug: ตรวจสอบว่า department populate ถูกต้องหรือไม่
-    if (rawRequests.length > 0) {
-      const sample = rawRequests[0]
-      console.log('🔍 Sample raw request employee_id:', JSON.stringify(sample.employee_id, null, 2))
-    }
-
     const requests: DayOffRequest[] = rawRequests.map((r: any) => mapDayOffRequest(r))
 
-    // Debug: ตรวจสอบ employee_department หลัง map
-    if (requests.length > 0) {
-      const sample = requests[0] as any
-      console.log('✅ Sample mapped employee_department:', sample.employee_department)
-    }
+    const total = response.data.total || response.data.count || rawRequests.length || 0
+    const page = response.data.page || params?.page || 1
 
-    const total      = response.data.total     || response.data.count || rawRequests.length || 0
-    const page       = response.data.page       || params?.page       || 1
-    const limit      = response.data.limit      || params?.limit      || 10
-    const totalPages = response.data.totalPages || Math.ceil(total / limit) || 1
+    // ✅ ใช้ limit ที่ประกาศไว้แล้ว โดยให้ precedence กับค่าจาก response ถ้ามี
+    const finalLimit = response.data.limit
+      ? normalizeItemsPerPage(response.data.limit)
+      : limit
+
+    const totalPages = response.data.totalPages || Math.ceil(total / finalLimit) || 1
 
     return {
       data: requests,
       payload: {
         pagination: {
           page,
-          items_per_page: limit,
+          items_per_page: finalLimit,
           links: buildPaginationLinks(page, totalPages),
           total,
           totalPages,
@@ -214,7 +216,7 @@ export const getFilteredDayOffRequests = async (params?: {
       payload: {
         pagination: {
           page: params?.page || 1,
-          items_per_page: params?.limit || 10,
+          items_per_page: normalizeItemsPerPage(params?.limit || 8),
           links: buildPaginationLinks(1, 1),
           total: 0,
           totalPages: 1,
@@ -259,7 +261,7 @@ export const getDepartmentNames = async (): Promise<string[]> => {
 
       list.forEach((dept: any) => {
         if (dept.department_name) departmentNames.push(dept.department_name)
-        else if (dept.name)       departmentNames.push(dept.name)
+        else if (dept.name) departmentNames.push(dept.name)
       })
     }
 
@@ -352,14 +354,14 @@ export const createDayOffRequest = async (
       : [requestData.supervisor_id]
 
     const payload: any = {
-      user_id:          requestData.user_id,
-      employee_id:      requestData.employee_id,
-      supervisor_id:    supervisorIdArray,
-      day_off_type:     requestData.day_off_type,
-      start_date_time:  requestData.start_date_time,
-      end_date_time:    requestData.end_date_time,
-      title:            requestData.title,
-      status:           'Pending',
+      user_id: requestData.user_id,
+      employee_id: requestData.employee_id,
+      supervisor_id: supervisorIdArray,
+      day_off_type: requestData.day_off_type,
+      start_date_time: requestData.start_date_time,
+      end_date_time: requestData.end_date_time,
+      title: requestData.title,
+      status: 'Pending',
     }
 
     if (requestData.date_off_number !== undefined) {
@@ -378,7 +380,7 @@ export const createDayOffRequest = async (
   } catch (error: any) {
     if (error.response) {
       let msg = 'Failed to create day off request'
-      if (error.response.data?.message)    msg = error.response.data.message
+      if (error.response.data?.message) msg = error.response.data.message
       else if (error.response.data?.error) msg = error.response.data.error
       else if (error.response.data?.errors)
         msg = error.response.data.errors.map((e: any) => `${e.field}: ${e.message}`).join(', ')
@@ -476,14 +478,14 @@ export const checkDateOverlap = async (
     const response = await getDayOffRequestsByUser(employeeId)
     const requests = response.data || []
     const start = new Date(startDate)
-    const end   = new Date(endDate)
+    const end = new Date(endDate)
 
     const overlappingRequests = requests.filter((request) => {
       if (excludeRequestId && (request.id === excludeRequestId || request._id === excludeRequestId))
         return false
       if (request.status !== 'Accepted' && request.status !== 'Pending') return false
       const rStart = new Date(request.start_date_time)
-      const rEnd   = new Date(request.end_date_time)
+      const rEnd = new Date(request.end_date_time)
       return (start <= rEnd && end >= rStart) || (rStart <= end && rEnd >= start)
     })
 
@@ -498,21 +500,21 @@ export const validateDayOffRequestData = (
 ): { isValid: boolean; errors: string[] } => {
   const errors: string[] = []
 
-  if (!data.user_id)     errors.push('User ID is required')
+  if (!data.user_id) errors.push('User ID is required')
   if (!data.employee_id) errors.push('Employee ID is required')
   if (!data.supervisor_id || (Array.isArray(data.supervisor_id) && data.supervisor_id.length === 0))
     errors.push('At least one supervisor is required')
-  if (!data.day_off_type)    errors.push('Day off type is required')
+  if (!data.day_off_type) errors.push('Day off type is required')
   if (!data.start_date_time) errors.push('Start date is required')
-  if (!data.end_date_time)   errors.push('End date is required')
-  if (!data.title?.trim())   errors.push('Title is required')
+  if (!data.end_date_time) errors.push('End date is required')
+  if (!data.title?.trim()) errors.push('Title is required')
 
   if (data.start_date_time && data.end_date_time) {
     const s = new Date(data.start_date_time)
     const e = new Date(data.end_date_time)
     if (isNaN(s.getTime())) errors.push('Invalid start date format')
     if (isNaN(e.getTime())) errors.push('Invalid end date format')
-    if (e < s)              errors.push('End date must be later than start date')
+    if (e < s) errors.push('End date must be later than start date')
     if (data.day_off_type === 'HALF_DAY' && s.toDateString() !== e.toDateString())
       errors.push('Half day leave must be within the same day')
   }

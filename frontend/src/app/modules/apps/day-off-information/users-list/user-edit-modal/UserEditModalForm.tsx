@@ -1,4 +1,4 @@
-import { FC, useEffect, useState, useMemo, useCallback } from 'react'
+import { FC, useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import * as Yup from 'yup'
 import { useFormik } from 'formik'
 import clsx from 'clsx'
@@ -9,6 +9,8 @@ import { useListView } from '../core/ListViewProvider'
 import { createDayOffRequest, getDayOffRequestById, updateDayOffRequest, getDayOffRequestsByUser } from '../core/_requests'
 import { useQueryResponse } from '../core/QueryResponseProvider'
 import { DayOffRequest, DayOffRequestDTO, FormattedDayOffRequest } from '../core/_models'
+// Metronic 8 theme hook — adjust path if needed in your project
+import { useThemeMode } from '../../../../../../_metronic/partials/layout/theme-mode/ThemeModeProvider'
 
 /* -------------------- Types -------------------- */
 interface Department {
@@ -176,11 +178,411 @@ const handleSubmitError = (error: any) => {
   }
 }
 
+/* ==================== Custom DatePicker Component ==================== */
+interface DatePickerProps {
+  value: string
+  onChange: (date: string) => void
+  minDate?: string
+  maxDate?: string
+  placeholder?: string
+  disabled?: boolean
+  hasError?: boolean
+  conflictDates?: string[]
+  isDark?: boolean   // passed from parent reading Metronic theme
+}
+
+const THAI_MONTHS = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
+  'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม',
+  'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+]
+const THAI_DAYS_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
+
+const CustomDatePicker: FC<DatePickerProps> = ({
+  value,
+  onChange,
+  minDate,
+  maxDate,
+  placeholder = 'Select date',
+  disabled = false,
+  hasError = false,
+  conflictDates = [],
+  isDark = false,
+}) => {
+  const [open, setOpen] = useState(false)
+  const [viewDate, setViewDate] = useState<Date>(() => {
+    if (value) return new Date(value + 'T00:00:00')
+    return new Date()
+  })
+  const ref = useRef<HTMLDivElement>(null)
+
+  /* ---- Metronic / Bootstrap CSS variable tokens ---- */
+  // Light:  --bs-body-bg=#ffffff, --bs-body-color=#181c32
+  // Dark:   --bs-body-bg=#1e1e2d, --bs-body-color=#cdcde6
+  const tk = useMemo(() => isDark
+    ? {
+        // trigger
+        triggerBg: '#1e1e2d',
+        triggerBorder: hasError ? '#f1416c' : open ? '#009ef7' : '#323248',
+        triggerColor: value ? '#cdcde6' : '#565674',
+        triggerDisabledBg: '#151521',
+        // dropdown
+        dropdownBg: '#1e1e2d',
+        dropdownBorder: '#323248',
+        dropdownShadow: '0 8px 32px rgba(0,0,0,0.45)',
+        // nav button
+        navBtnBg: '#151521',
+        navBtnHover: '#2b2b40',
+        // month label
+        monthLabel: '#cdcde6',
+        // day header
+        dayHeaderColor: '#565674',
+        // day cell colors
+        cellDefault: '#cdcde6',
+        cellDisabled: '#3d3d5c',
+        cellSelected: '#009ef7',
+        cellSelectedText: '#ffffff',
+        cellToday: '#1b3a4b',
+        cellTodayText: '#009ef7',
+        cellTodayOutline: '#1a4a5e',
+        cellConflictBg: '#2d1b1b',
+        cellConflictText: '#f1416c',
+        cellHoverBg: '#2b2b40',
+        // legend
+        legendText: '#565674',
+        legendDivider: '#323248',
+      }
+    : {
+        triggerBg: '#f5f8fa',
+        triggerBorder: hasError ? '#f1416c' : open ? '#009ef7' : '#e4e6ef',
+        triggerColor: value ? '#181c32' : '#a1a5b7',
+        triggerDisabledBg: '#eff2f5',
+        dropdownBg: '#ffffff',
+        dropdownBorder: '#e4e6ef',
+        dropdownShadow: '0 8px 32px rgba(0,0,0,0.14)',
+        navBtnBg: '#f5f8fa',
+        navBtnHover: '#e4e6ef',
+        monthLabel: '#181c32',
+        dayHeaderColor: '#a1a5b7',
+        cellDefault: '#181c32',
+        cellDisabled: '#d1d3e0',
+        cellSelected: '#009ef7',
+        cellSelectedText: '#ffffff',
+        cellToday: '#e8f4fd',
+        cellTodayText: '#009ef7',
+        cellTodayOutline: '#b8dcfa',
+        cellConflictBg: '#fff5f8',
+        cellConflictText: '#f1416c',
+        cellHoverBg: '#e8f4fd',
+        legendText: '#a1a5b7',
+        legendDivider: '#f5f8fa',
+      }, [isDark, hasError, open, value])
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Sync view when value changes externally
+  useEffect(() => {
+    if (value) setViewDate(new Date(value + 'T00:00:00'))
+  }, [value])
+
+  const daysInMonth = useMemo(() => {
+    const year = viewDate.getFullYear()
+    const month = viewDate.getMonth()
+    const firstDay = new Date(year, month, 1).getDay()
+    const total = new Date(year, month + 1, 0).getDate()
+    const days: (number | null)[] = Array(firstDay).fill(null)
+    for (let i = 1; i <= total; i++) days.push(i)
+    return days
+  }, [viewDate])
+
+  const toDateStr = (day: number): string => {
+    const y = viewDate.getFullYear()
+    const m = viewDate.getMonth()
+    return `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  }
+
+  const isDisabledDay = (day: number): boolean => {
+    const ds = toDateStr(day)
+    if (minDate && ds < minDate) return true
+    if (maxDate && ds > maxDate) return true
+    if (isLastDayOfMonth(ds)) return true
+    return false
+  }
+
+  const isConflictDay = (day: number): boolean => conflictDates.includes(toDateStr(day))
+
+  const isSelectedDay = (day: number): boolean => {
+    if (!value) return false
+    const d = new Date(value + 'T00:00:00')
+    return (
+      d.getFullYear() === viewDate.getFullYear() &&
+      d.getMonth() === viewDate.getMonth() &&
+      d.getDate() === day
+    )
+  }
+
+  const isToday = (day: number): boolean => {
+    const now = new Date()
+    return (
+      now.getFullYear() === viewDate.getFullYear() &&
+      now.getMonth() === viewDate.getMonth() &&
+      now.getDate() === day
+    )
+  }
+
+  const handleSelect = (day: number) => {
+    if (isDisabledDay(day)) return
+    onChange(toDateStr(day))
+    setOpen(false)
+  }
+
+  const prevMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))
+  const nextMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))
+
+  const formatDisplay = (ds: string): string => {
+    const d = new Date(ds + 'T00:00:00')
+    return `${d.getDate()} ${THAI_MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`
+  }
+
+  return (
+    <div style={{ position: 'relative' }} ref={ref}>
+      {/* ---- Trigger — styled to match Metronic form-control-solid ---- */}
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((o) => !o)}
+        disabled={disabled}
+        style={{
+          width: '100%',
+          padding: '10.5px 12px',
+          border: `1px solid ${tk.triggerBorder}`,
+          borderRadius: '0.475rem',
+          background: disabled ? tk.triggerDisabledBg : tk.triggerBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          boxShadow: open ? '0 0 0 0.25rem rgba(0,158,247,0.25)' : 'none',
+          transition: 'border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out',
+          fontSize: '1.1rem',
+          color: tk.triggerColor,
+          fontFamily: 'inherit',
+          outline: 'none',
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <svg
+            width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke={hasError ? '#f1416c' : '#009ef7'} strokeWidth="2"
+            style={{ flexShrink: 0 }}
+          >
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8"  y1="2" x2="8"  y2="6" />
+            <line x1="3"  y1="10" x2="21" y2="10" />
+          </svg>
+          {value ? formatDisplay(value) : placeholder}
+        </span>
+        <svg
+          width="11" height="11" viewBox="0 0 24 24" fill="none"
+          stroke={isDark ? '#565674' : '#a1a5b7'} strokeWidth="2.5"
+          style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {/* ---- Dropdown calendar ---- */}
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: 0,
+          zIndex: 9999,
+          background: tk.dropdownBg,
+          borderRadius: '0.75rem',
+          boxShadow: tk.dropdownShadow,
+          padding: '14px',
+          width: '286px',
+          border: `1px solid ${tk.dropdownBorder}`,
+        }}>
+
+          {/* Month navigation */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <button
+              type="button"
+              onClick={prevMonth}
+              style={{
+                background: tk.navBtnBg, border: 'none', borderRadius: 6,
+                width: 28, height: 28, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = tk.navBtnHover)}
+              onMouseLeave={e => (e.currentTarget.style.background = tk.navBtnBg)}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#009ef7" strokeWidth="2.5">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+
+            <span style={{ fontWeight: 700, color: tk.monthLabel, fontSize: 13 }}>
+              {THAI_MONTHS[viewDate.getMonth()]} {viewDate.getFullYear() + 543}
+            </span>
+
+            <button
+              type="button"
+              onClick={nextMonth}
+              style={{
+                background: tk.navBtnBg, border: 'none', borderRadius: 6,
+                width: 28, height: 28, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = tk.navBtnHover)}
+              onMouseLeave={e => (e.currentTarget.style.background = tk.navBtnBg)}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#009ef7" strokeWidth="2.5">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Day-of-week headers */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginBottom: 4 }}>
+            {THAI_DAYS_SHORT.map((d) => (
+              <div
+                key={d}
+                style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: tk.dayHeaderColor, padding: '2px 0' }}
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Day grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+            {daysInMonth.map((day, i) => {
+              if (!day) return <div key={`e-${i}`} />
+              const dis      = isDisabledDay(day)
+              const conflict = isConflictDay(day)
+              const selected = isSelectedDay(day)
+              const today    = isToday(day)
+
+              // Resolve colors
+              let bg    = 'transparent'
+              let color = tk.cellDefault
+              let outline = 'none'
+
+              if (dis) {
+                color = tk.cellDisabled
+              } else if (selected) {
+                bg = tk.cellSelected; color = tk.cellSelectedText
+              } else if (conflict) {
+                bg = tk.cellConflictBg; color = tk.cellConflictText
+              } else if (today) {
+                bg = tk.cellToday; color = tk.cellTodayText
+                outline = `2px solid ${tk.cellTodayOutline}`
+              }
+
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => handleSelect(day)}
+                  disabled={dis}
+                  title={
+                    conflict ? 'Leave already exists on this date'
+                    : dis     ? 'Date not available'
+                    : undefined
+                  }
+                  onMouseEnter={e => {
+                    if (!dis && !selected)
+                      e.currentTarget.style.background = tk.cellHoverBg
+                  }}
+                  onMouseLeave={e => {
+                    if (!dis && !selected)
+                      e.currentTarget.style.background = bg
+                  }}
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1',
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: dis ? 'not-allowed' : 'pointer',
+                    fontSize: 12,
+                    fontWeight: selected ? 700 : today ? 600 : 400,
+                    background: bg,
+                    color,
+                    transition: 'background 0.15s, color 0.15s',
+                    outline,
+                    position: 'relative',
+                  }}
+                >
+                  {day}
+                  {/* red dot for conflict days */}
+                  {conflict && !dis && (
+                    <span style={{
+                      position: 'absolute', bottom: 2, left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 3, height: 3, borderRadius: '50%',
+                      background: '#f1416c', display: 'block',
+                    }} />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Legend */}
+          <div style={{
+            display: 'flex', gap: 10, marginTop: 10,
+            paddingTop: 8, borderTop: `1px solid ${tk.legendDivider}`,
+            fontSize: 10, color: tk.legendText,
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: '#009ef7', display: 'inline-block' }} />
+              Selected
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: tk.cellConflictBg, border: `1px solid #f1416c`, display: 'inline-block' }} />
+              Has leave
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: tk.cellToday, display: 'inline-block' }} />
+              Today
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+/* ==================== End CustomDatePicker ==================== */
+
 /* -------------------- Component -------------------- */
 export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }) => {
+
+  /* ---- Read Metronic 8 theme mode ---- */
+  const { mode } = useThemeMode()
+  // mode is 'light' | 'dark' | 'system'
+  // For 'system' we fall back to the OS preference
+  const isDark = useMemo(() => {
+    if (mode === 'dark') return true
+    if (mode === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches
+    return false
+  }, [mode])
+
   /* -------------------- State -------------------- */
   const [departments, setDepartments] = useState<Department[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([])
   const [supervisors, setSupervisors] = useState<Supervisor[]>([])
   const [loadingDepartments, setLoadingDepartments] = useState(false)
   const [loadingEmployees, setLoadingEmployees] = useState(false)
@@ -196,6 +598,23 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
   const { itemIdForUpdate, setItemIdForUpdate } = useListView()
   const { refetch } = useQueryResponse()
   const currentMonthRange = useMemo(() => getCurrentMonthRange(), [])
+
+  /* ---- Build flat conflict date list for datepicker highlight ---- */
+  const conflictDateStrings = useMemo<string[]>(() => {
+    return existingRequests.flatMap((req) => {
+      const start = new Date(req.start_date_time as string)
+      const end   = new Date(req.end_date_time   as string)
+      const dates: string[] = []
+      const cur = new Date(start)
+      cur.setHours(0, 0, 0, 0)
+      end.setHours(0, 0, 0, 0)
+      while (cur <= end) {
+        dates.push(cur.toISOString().split('T')[0])
+        cur.setDate(cur.getDate() + 1)
+      }
+      return dates
+    })
+  }, [existingRequests])
 
   /* -------------------- Formik -------------------- */
   const formik = useFormik<LeaveFormValues>({
@@ -263,22 +682,13 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
         if (req.day_off_type === 'HALF_DAY') {
           const reqPeriod = getHalfDayPeriodFromTime(req.start_date_time as string)
           if (period && reqPeriod === period) {
-            return {
-              hasConflict: true,
-              message: `❌ This date is not available. You have a ${req.status || 'Pending'} leave request on this date.`
-            }
+            return { hasConflict: true, message: `❌ This date is not available. You have a ${req.status || 'Pending'} leave request on this date.` }
           }
           if (!period) {
-            return {
-              hasConflict: true,
-              message: `❌ This date is not available. You have a ${req.status || 'Pending'} leave request on this date.`
-            }
+            return { hasConflict: true, message: `❌ This date is not available. You have a ${req.status || 'Pending'} leave request on this date.` }
           }
         } else {
-          return {
-            hasConflict: true,
-            message: `❌ This date is not available. You have a ${req.status || 'Pending'} leave request on this date.`
-          }
+          return { hasConflict: true, message: `❌ This date is not available. You have a ${req.status || 'Pending'} leave request on this date.` }
         }
       }
     }
@@ -486,19 +896,11 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
         day_off_type: values.day_off_type,
         start_date_time:
           values.day_off_type === 'HALF_DAY'
-            ? setHalfDayTime(
-              new Date(values.half_day_date + 'T00:00:00'),
-              values.half_day_period || 'morning',
-              'start'
-            ).toISOString()
+            ? setHalfDayTime(new Date(values.half_day_date + 'T00:00:00'), values.half_day_period || 'morning', 'start').toISOString()
             : toLocalISOString(values.start_date),
         end_date_time:
           values.day_off_type === 'HALF_DAY'
-            ? setHalfDayTime(
-              new Date(values.half_day_date + 'T00:00:00'),
-              values.half_day_period || 'morning',
-              'end'
-            ).toISOString()
+            ? setHalfDayTime(new Date(values.half_day_date + 'T00:00:00'), values.half_day_period || 'morning', 'end').toISOString()
             : toLocalISOString(values.end_date, 'T23:59:59'),
         date_off_number: values.date_off_number,
         title: values.reason?.trim() || 'Day off request',
@@ -506,22 +908,10 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
 
       if (isEditMode && currentRequestId) {
         await updateDayOffRequest(currentRequestId, dayOffRequestDTO)
-        await Swal.fire({
-          icon: 'success',
-          title: 'Success',
-          text: 'Day off request updated successfully',
-          timer: 2000,
-          showConfirmButton: false
-        })
+        await Swal.fire({ icon: 'success', title: 'Success', text: 'Day off request updated successfully', timer: 2000, showConfirmButton: false })
       } else {
         await createDayOffRequest(dayOffRequestDTO)
-        await Swal.fire({
-          icon: 'success',
-          title: 'Success',
-          text: 'Day off request submitted successfully',
-          timer: 2000,
-          showConfirmButton: false
-        })
+        await Swal.fire({ icon: 'success', title: 'Success', text: 'Day off request submitted successfully', timer: 2000, showConfirmButton: false })
       }
 
       resetForm()
@@ -540,10 +930,7 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
   }
 
   /* -------------------- Load Request Data -------------------- */
-  const loadRequestData = useCallback(async (
-    requestId: string,
-    requestData?: FormattedDayOffRequest
-  ) => {
+  const loadRequestData = useCallback(async (requestId: string, requestData?: FormattedDayOffRequest) => {
     setIsLoadingRequest(true)
     try {
       const data = requestData ?? await getDayOffRequestById(requestId)
@@ -560,10 +947,7 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
       }
 
       const employeeId = extractId(data.employee_id)
-
-      const employee = employeesData.find(
-        (e) => e._id === employeeId || e.id === employeeId
-      )
+      const employee = employeesData.find((e) => e._id === employeeId || e.id === employeeId)
 
       let departmentId = ''
       if (employee) {
@@ -583,9 +967,7 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
 
       const startDate = formatDateForInput(data.start_date_time)
       const endDate = formatDateForInput(data.end_date_time)
-      const halfDayPeriod = data.day_off_type === 'HALF_DAY'
-        ? getHalfDayPeriodFromTime(data.start_date_time)
-        : undefined
+      const halfDayPeriod = data.day_off_type === 'HALF_DAY' ? getHalfDayPeriodFromTime(data.start_date_time) : undefined
       const halfDayDate = data.day_off_type === 'HALF_DAY' ? startDate : ''
 
       formik.setValues({
@@ -615,20 +997,14 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
   /* -------------------- Effects -------------------- */
   useEffect(() => {
     const loadInitialData = async () => {
-      await Promise.all([
-        fetchDepartments(),
-        fetchEmployees(),
-        fetchSupervisors(),
-      ])
+      await Promise.all([fetchDepartments(), fetchEmployees(), fetchSupervisors()])
       setIsInitialDataLoaded(true)
     }
     loadInitialData()
   }, [])
 
-
   useEffect(() => {
     if (!isInitialDataLoaded) return
-
     if (itemIdForUpdate) {
       loadRequestData(itemIdForUpdate, initialData)
     } else {
@@ -639,6 +1015,35 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
       setExistingRequests([])
     }
   }, [itemIdForUpdate, isInitialDataLoaded, initialData])
+
+  /* ---- Filter employees by selected department ---- */
+  useEffect(() => {
+    const selectedDeptId = formik.values.department_id
+
+    if (!selectedDeptId) {
+      setFilteredEmployees([])
+      return
+    }
+
+    const filtered = employees.filter((emp) => {
+      if (Array.isArray(emp.department_id) && emp.department_id.length > 0) {
+        return emp.department_id.some((dept) => dept._id === selectedDeptId || dept.id === selectedDeptId)
+      } else if (typeof emp.department_id === 'string') {
+        return emp.department_id === selectedDeptId
+      }
+      return false
+    })
+
+    setFilteredEmployees(filtered)
+
+    const currentEmpStillValid = filtered.some(
+      (e) => e._id === formik.values.employee_id || e.id === formik.values.employee_id
+    )
+    if (!currentEmpStillValid) {
+      formik.setFieldValue('employee_id', '')
+      setDateConflictError('')
+    }
+  }, [formik.values.department_id, employees])
 
   useEffect(() => {
     const loadExistingRequests = async () => {
@@ -655,20 +1060,15 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
 
         let requests: DayOffRequest[] = []
         if (response && typeof response === 'object') {
-          if ('data' in response && Array.isArray(response.data)) {
-            requests = response.data
-          } else if ('requests' in response && Array.isArray(response.requests)) {
-            requests = response.requests
-          } else if (Array.isArray(response)) {
-            requests = response
-          }
+          if ('data' in response && Array.isArray(response.data)) requests = response.data
+          else if ('requests' in response && Array.isArray(response.requests)) requests = response.requests
+          else if (Array.isArray(response)) requests = response
         }
 
         const activeRequests = requests.filter((req: DayOffRequest) => {
           if (req.status !== 'Pending' && req.status !== 'Accepted') return false
           if (isEditMode && currentRequestId) {
-            const reqId = typeof req._id === 'string' ? req._id :
-              typeof req.id === 'string' ? req.id : ''
+            const reqId = typeof req._id === 'string' ? req._id : typeof req.id === 'string' ? req.id : ''
             return reqId !== currentRequestId
           }
           return true
@@ -687,46 +1087,32 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
 
   useEffect(() => {
     if (existingRequests.length === 0) return
-
-    if (formik.values.day_off_type === 'FULL_DAY' &&
-      formik.values.start_date &&
-      formik.values.end_date) {
+    if (formik.values.day_off_type === 'FULL_DAY' && formik.values.start_date && formik.values.end_date) {
       const conflict = checkDateRangeConflict(formik.values.start_date, formik.values.end_date)
       setDateConflictError(conflict.message)
-    } else if (formik.values.day_off_type === 'HALF_DAY' &&
-      formik.values.half_day_date) {
+    } else if (formik.values.day_off_type === 'HALF_DAY' && formik.values.half_day_date) {
       const conflict = checkDateConflict(formik.values.half_day_date, formik.values.half_day_period)
       setDateConflictError(conflict.message)
     }
   }, [existingRequests])
 
-  // Reset dates เมื่อเปลี่ยน day_off_type
+  // Reset dates when switching day_off_type
   useEffect(() => {
     if (formik.values.day_off_type === 'HALF_DAY') {
-      if (!formik.values.half_day_period) {
-        formik.setFieldValue('half_day_period', 'morning')
-      }
-      if (!isEditMode) {
-        formik.setFieldValue('start_date', '')
-        formik.setFieldValue('end_date', '')
-      }
+      if (!formik.values.half_day_period) formik.setFieldValue('half_day_period', 'morning')
+      if (!isEditMode) { formik.setFieldValue('start_date', ''); formik.setFieldValue('end_date', '') }
     } else {
-      if (!isEditMode) {
-        formik.setFieldValue('half_day_date', '')
-        formik.setFieldValue('half_day_period', undefined)
-      }
+      if (!isEditMode) { formik.setFieldValue('half_day_date', ''); formik.setFieldValue('half_day_period', undefined) }
     }
     setDateConflictError('')
   }, [formik.values.day_off_type, isEditMode])
 
-  // Calculate days
+  // Auto-calculate date_off_number
   useEffect(() => {
     const { day_off_type, half_day_date, start_date, end_date } = formik.values
     if (day_off_type === 'FULL_DAY') {
       if (!start_date || !end_date) { formik.setFieldValue('date_off_number', 0); return }
-      const diffDays = Math.ceil(
-        Math.abs(new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1
+      const diffDays = Math.ceil(Math.abs(new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1
       formik.setFieldValue('date_off_number', diffDays)
     } else {
       formik.setFieldValue('date_off_number', half_day_date ? 0.5 : 0)
@@ -734,15 +1120,10 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
   }, [formik.values.start_date, formik.values.end_date, formik.values.half_day_date, formik.values.day_off_type])
 
   const canSubmit = useMemo(() => {
-    return isFormComplete() &&
-      formik.isValid &&
-      !dateConflictError &&
-      !isSubmitting &&
-      !loadingRequests
+    return isFormComplete() && formik.isValid && !dateConflictError && !isSubmitting && !loadingRequests
   }, [formik.values, formik.isValid, dateConflictError, isSubmitting, loadingRequests, isFormComplete])
 
   /* -------------------- Render -------------------- */
-  // ✅ แสดง loading ขณะโหลด initial data
   if (!isInitialDataLoaded) {
     return (
       <div className='d-flex justify-content-center align-items-center' style={{ minHeight: '300px' }}>
@@ -758,6 +1139,7 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
     <form className="form" onSubmit={formik.handleSubmit} noValidate>
       <div>
         <div className="card-body">
+
           {/* Department */}
           <div className="fv-row mb-10">
             <label className="required fs-6 fw-bold mb-2">Department</label>
@@ -787,7 +1169,7 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
             )}
           </div>
 
-          {/* Employee */}
+          {/* Employee — filtered by selected department */}
           <div className="fv-row mb-10">
             <label className="required fs-6 fw-bold mb-2">Employee</label>
             <div className="d-flex align-items-center gap-3">
@@ -796,15 +1178,21 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
                 className={clsx('form-select form-select-solid', {
                   'is-invalid': formik.touched.employee_id && formik.errors.employee_id
                 })}
-                disabled={loadingEmployees || isSubmitting}
+                disabled={loadingEmployees || isSubmitting || !formik.values.department_id}
                 value={formik.values.employee_id || ''}
                 onChange={(e) => {
                   formik.setFieldValue('employee_id', e.target.value)
                   setDateConflictError('')
                 }}
               >
-                <option value="">Select Employee</option>
-                {employees.map((emp) => (
+                <option value="">
+                  {!formik.values.department_id
+                    ? 'Please select department first'
+                    : filteredEmployees.length === 0
+                      ? 'No employees in this department'
+                      : 'Select Employee'}
+                </option>
+                {filteredEmployees.map((emp) => (
                   <option key={emp._id || emp.id} value={emp._id || emp.id}>
                     {getEmployeeName(emp)} - {getEmployeeDepartment(emp)}
                   </option>
@@ -812,6 +1200,11 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
               </select>
               {loadingEmployees && <span className="spinner-border spinner-border-sm text-primary"></span>}
             </div>
+            {formik.values.department_id && filteredEmployees.length === 0 && !loadingEmployees && (
+              <div className="fv-plugins-message-container">
+                <div className="fv-help-block text-warning">⚠️ No employees found in this department</div>
+              </div>
+            )}
             {formik.touched.employee_id && formik.errors.employee_id && (
               <div className="fv-plugins-message-container">
                 <div className="fv-help-block text-danger">{formik.errors.employee_id}</div>
@@ -872,44 +1265,44 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
             </div>
           </div>
 
-          {/* Full Day: Date Range */}
+          {/* Full Day: Date Range — CustomDatePicker with isDark prop */}
           {formik.values.day_off_type === 'FULL_DAY' && (
             <div className="fv-row mb-10">
               <div className="row g-6">
                 <div className="col-md-6">
                   <label className="required fs-6 fw-bold mb-2">Start Date</label>
-                  <input
-                    type="date"
-                    className={clsx('form-control form-control-solid', {
-                      'is-invalid': (formik.touched.start_date && formik.errors.start_date) || !!dateConflictError
-                    })}
+                  <CustomDatePicker
+                    value={formik.values.start_date}
+                    onChange={(val) => handleDateChange('start_date', val)}
+                    minDate={currentMonthRange.firstDay}
+                    maxDate={currentMonthRange.lastDay}
+                    placeholder="Select start date"
                     disabled={isSubmitting || loadingRequests}
-                    min={currentMonthRange.firstDay}
-                    max={currentMonthRange.lastDay}
-                    onChange={(e) => handleDateChange('start_date', e.target.value)}
-                    value={formik.values.start_date || ''}
+                    hasError={(formik.touched.start_date && !!formik.errors.start_date) || !!dateConflictError}
+                    conflictDates={conflictDateStrings}
+                    isDark={isDark}
                   />
                   {formik.touched.start_date && formik.errors.start_date && (
-                    <div className="fv-plugins-message-container">
+                    <div className="fv-plugins-message-container mt-1">
                       <div className="fv-help-block text-danger">{formik.errors.start_date}</div>
                     </div>
                   )}
                 </div>
                 <div className="col-md-6">
                   <label className="required fs-6 fw-bold mb-2">End Date</label>
-                  <input
-                    type="date"
-                    className={clsx('form-control form-control-solid', {
-                      'is-invalid': (formik.touched.end_date && formik.errors.end_date) || !!dateConflictError
-                    })}
+                  <CustomDatePicker
+                    value={formik.values.end_date}
+                    onChange={(val) => handleDateChange('end_date', val)}
+                    minDate={formik.values.start_date || currentMonthRange.firstDay}
+                    maxDate={currentMonthRange.lastDay}
+                    placeholder="Select end date"
                     disabled={isSubmitting || loadingRequests}
-                    min={formik.values.start_date || currentMonthRange.firstDay}
-                    max={currentMonthRange.lastDay}
-                    onChange={(e) => handleDateChange('end_date', e.target.value)}
-                    value={formik.values.end_date || ''}
+                    hasError={(formik.touched.end_date && !!formik.errors.end_date) || !!dateConflictError}
+                    conflictDates={conflictDateStrings}
+                    isDark={isDark}
                   />
                   {formik.touched.end_date && formik.errors.end_date && (
-                    <div className="fv-plugins-message-container">
+                    <div className="fv-plugins-message-container mt-1">
                       <div className="fv-help-block text-danger">{formik.errors.end_date}</div>
                     </div>
                   )}
@@ -923,24 +1316,24 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
             </div>
           )}
 
-          {/* Half Day */}
+          {/* Half Day — CustomDatePicker with isDark prop */}
           {formik.values.day_off_type === 'HALF_DAY' && (
             <>
               <div className="fv-row mb-10">
                 <label className="required fs-6 fw-bold mb-2">Date</label>
-                <input
-                  type="date"
-                  className={clsx('form-control form-control-solid', {
-                    'is-invalid': (formik.touched.half_day_date && formik.errors.half_day_date) || !!dateConflictError
-                  })}
+                <CustomDatePicker
+                  value={formik.values.half_day_date}
+                  onChange={(val) => handleDateChange('half_day_date', val)}
+                  minDate={currentMonthRange.firstDay}
+                  maxDate={currentMonthRange.lastDay}
+                  placeholder="Select date"
                   disabled={isSubmitting || loadingRequests}
-                  min={currentMonthRange.firstDay}
-                  max={currentMonthRange.lastDay}
-                  onChange={(e) => handleDateChange('half_day_date', e.target.value)}
-                  value={formik.values.half_day_date || ''}
+                  hasError={(formik.touched.half_day_date && !!formik.errors.half_day_date) || !!dateConflictError}
+                  conflictDates={conflictDateStrings}
+                  isDark={isDark}
                 />
                 {formik.touched.half_day_date && formik.errors.half_day_date && (
-                  <div className="fv-plugins-message-container">
+                  <div className="fv-plugins-message-container mt-1">
                     <div className="fv-help-block text-danger">{formik.errors.half_day_date}</div>
                   </div>
                 )}
@@ -1001,7 +1394,7 @@ export const DayOffRequestEditModalForm: FC<Props> = ({ onSuccess, initialData }
                 readOnly
                 value={formik.values.date_off_number || ''}
               />
-              <span className="input-group-text bg-light">days</span>
+              <span className="input-group-text bg-light border-0">days</span>
             </div>
             <div className="mt-2">
               <small className="text-muted">

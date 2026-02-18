@@ -40,16 +40,6 @@ const QueryResponseProvider: FC<WithChildren> = ({children}) => {
       // Extract filter values from state
       const filter = state.filter as Record<string, string> | undefined
 
-      console.log('🔍 Fetching with filters:', {
-        search: state.search,
-        year: filter?.year,
-        month: filter?.month,
-        department: filter?.department,
-        status: filter?.status,
-        page: state.page,
-        items_per_page: state.items_per_page,
-      })
-
       return getFilteredDayOffRequests({
         search: state.search,
         year: filter?.year,

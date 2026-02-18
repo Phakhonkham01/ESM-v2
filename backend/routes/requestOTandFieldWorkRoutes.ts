@@ -3,6 +3,7 @@ import express from "express";
 import {
   createRequest,
   getAllRequests,
+  getAllRequestsWithAggregation,
   getRequestsByUser,
   getRequestsBySupervisor,
   getRequestById,
@@ -24,6 +25,7 @@ router.post("/", createRequest);
    READ
 ============================================================ */
 router.get("/", getAllRequests);
+router.get("/", getAllRequestsWithAggregation);
 router.get("/analytics/stats", getRequestStats);
 router.get("/user/:userId", getRequestsByUser);
 router.get("/supervisor/:supervisorId", getRequestsBySupervisor);

@@ -178,3 +178,13 @@ export interface RequestOTFieldWorkDTO {
 export interface RequestOTFieldWorksQueryResponse {
   data: RequestOTFieldWork[]
 }
+
+// ============================================
+// ARRAY FORMATTING FUNCTION
+// ============================================
+
+export const formatRequestOTFieldWorkArray = (
+  requests: RequestOTFieldWork[]
+): FormattedRequestOTFieldWork[] => {
+  return requests.map(formatRequestOTFieldWork)
+}

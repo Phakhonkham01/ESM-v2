@@ -24,7 +24,7 @@ const toMinutes = (time: string): number => {
 };
 
 /* ============================================================
-   POPULATION HELPER - ✅ Centralized population config
+   POPULATION HELPER
 ============================================================ */
 
 const getPopulateConfig = () => [
@@ -59,7 +59,7 @@ export const createRequest = async (
   try {
     const {
       user_id,
-      supervisor_id, // array
+      supervisor_id,
       date,
       title,
       start_hour,
@@ -70,7 +70,6 @@ export const createRequest = async (
       date_off,
     } = req.body;
 
-    // ตรวจสอบ required fields
     if (
       !user_id ||
       !supervisor_id ||
@@ -85,41 +84,35 @@ export const createRequest = async (
       return;
     }
 
-    // Validate user ID
     if (!mongoose.Types.ObjectId.isValid(user_id)) {
       res.status(400).json({ message: "Invalid user ID" });
       return;
     }
 
-    // Validate supervisor IDs
-    const validSupervisorIds = supervisor_id.every((id: string) => 
+    const validSupervisorIds = supervisor_id.every((id: string) =>
       mongoose.Types.ObjectId.isValid(id)
     );
-    
+
     if (!validSupervisorIds) {
       res.status(400).json({ message: "Invalid supervisor IDs" });
       return;
     }
 
-    // Validate title
     if (!VALID_TITLES.includes(title)) {
       res.status(400).json({ message: "Invalid title. Must be 'OT' or 'FIELD_WORK'" });
       return;
     }
 
-    // Validate time format
     if (!isValidTime(start_hour) || !isValidTime(end_hour)) {
       res.status(400).json({ message: "Invalid time format. Use HH:MM" });
       return;
     }
 
-    // Validate time logic
     if (toMinutes(end_hour) <= toMinutes(start_hour)) {
       res.status(400).json({ message: "End time must be later than start time" });
       return;
     }
 
-    // Validate fuel for FIELD_WORK
     let finalFuel = 0;
     if (title === "FIELD_WORK") {
       if (fuel == null || isNaN(fuel) || Number(fuel) <= 0) {
@@ -131,7 +124,6 @@ export const createRequest = async (
       finalFuel = Number(fuel);
     }
 
-    // Create request
     const request = await RequestModel.create({
       user_id,
       supervisor_id,
@@ -146,7 +138,6 @@ export const createRequest = async (
       status: "Pending",
     });
 
-    // ✅ Populate before sending response
     const populatedRequest = await RequestModel.findById(request._id)
       .populate(getPopulateConfig());
 
@@ -155,60 +146,352 @@ export const createRequest = async (
       request: populatedRequest,
     });
   } catch (error: any) {
-    console.error('❌ Backend error:', error)
+    console.error('❌ Backend error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 /* ============================================================
-   GET ALL REQUESTS - ✅ UPDATED with proper population
+   GET ALL REQUESTS
 ============================================================ */
 
 export const getAllRequests = async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, status, title } = req.query;
+    const {
+      startDate,
+      endDate,
+      status,
+      title,
+      search,
+      department,
+      year,
+      month,
+      page = '1',
+      limit = '8',  // ✅ Default 8
+    } = req.query;
+
+    // ──────────────────────────────────────────────────
+    // 1. Build MongoDB query for direct fields
+    // ──────────────────────────────────────────────────
     const query: any = {};
 
-    // Filter by date range
-    if (startDate && endDate) {
+    if (year && month) {
+      const yearNum = parseInt(year as string);
+      const monthNum = parseInt(month as string);
+      const startOfMonth = new Date(yearNum, monthNum - 1, 1);
+      const endOfMonth = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+      query.date = { $gte: startOfMonth, $lte: endOfMonth };
+    } else if (year) {
+      const yearNum = parseInt(year as string);
       query.date = {
-        $gte: new Date(startDate as string),
-        $lte: new Date(endDate as string)
+        $gte: new Date(yearNum, 0, 1),
+        $lte: new Date(yearNum, 11, 31, 23, 59, 59, 999)
       };
+    } else if (startDate && endDate) {
+      const start = new Date(startDate as string);
+      const end = new Date(endDate as string);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        query.date = { $gte: start, $lte: end };
+      }
     }
 
-    // Filter by status
-    if (status && VALID_STATUSES.includes(status as any)) {
+    if (status && status !== '' && VALID_STATUSES.includes(status as any)) {
       query.status = status;
     }
 
-    // Filter by title
-    if (title && VALID_TITLES.includes(title as any)) {
+    if (title && title !== '' && VALID_TITLES.includes(title as any)) {
       query.title = title;
     }
 
-    // ✅ Use centralized population config
-    const requests = await RequestModel.find(query)
+    // ──────────────────────────────────────────────────
+    // 2. Fetch with population
+    // ──────────────────────────────────────────────────
+    let requests: any[] = await RequestModel.find(query)
       .populate(getPopulateConfig())
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.json({ 
+    // ──────────────────────────────────────────────────
+    // 3. Post-filters (for nested fields)
+    // ──────────────────────────────────────────────────
+    if (department && department !== '' && department !== 'All Departments') {
+      requests = requests.filter((r: any) => {
+        const user = r.user_id;
+        if (!user) return false;
+
+        const userDepartment = user.department_id;
+        if (!userDepartment) return false;
+
+        if (Array.isArray(userDepartment)) {
+          return userDepartment.some(dept =>
+            dept?.department_name === department
+          );
+        }
+
+        if (typeof userDepartment === 'object') {
+          return userDepartment.department_name === department;
+        }
+
+        return false;
+      });
+    }
+
+    if (search && (search as string).trim() !== '') {
+      const term = (search as string).toLowerCase().trim();
+      requests = requests.filter((r: any) => {
+        const searchableFields = [
+          r.title?.toLowerCase(),
+          r.description?.toLowerCase(),
+          r.reason?.toLowerCase(),
+          r.user_id?.first_name_en?.toLowerCase(),
+          r.user_id?.last_name_en?.toLowerCase(),
+          r.user_id?.user_name?.toLowerCase(),
+          r.user_id?.user_email?.toLowerCase(),
+          r.user_id?.employee_id?.toLowerCase()
+        ];
+        return searchableFields.some(field => field && field.includes(term));
+      });
+    }
+
+    // ──────────────────────────────────────────────────
+    // 4. Pagination
+    // ✅ FIX: || fallback prevents NaN from breaking Math.max
+    // ──────────────────────────────────────────────────
+    const total = requests.length;
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.max(1, parseInt(limit as string) || 8);
+    const skip = (pageNum - 1) * limitNum;
+    const paginated = requests.slice(skip, skip + limitNum);
+
+    res.status(200).json({
       success: true,
-      count: requests.length,
-      requests 
+      count: paginated.length,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      requests: paginated
     });
+
   } catch (error: any) {
     console.error('❌ Get all requests error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: "Failed to fetch requests",
-      error: error.message 
+      error: error.message
     });
   }
 };
 
 /* ============================================================
-   READ BY USER - ✅ UPDATED with proper population
+   GET ALL REQUESTS WITH AGGREGATION (More Efficient for Large Datasets)
+============================================================ */
+
+export const getAllRequestsWithAggregation = async (req: Request, res: Response) => {
+  try {
+    const {
+      startDate,
+      endDate,
+      status,
+      title,
+      search,
+      department,
+      year,
+      month,
+      page = '1',
+      limit = '8',  // ✅ Fixed: was '10'
+    } = req.query;
+
+    const pipeline: any[] = [];
+    const matchQuery: any = {};
+
+    if (year && month) {
+      const yearNum = parseInt(year as string);
+      const monthNum = parseInt(month as string);
+      const startOfMonth = new Date(yearNum, monthNum - 1, 1);
+      const endOfMonth = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+      matchQuery.date = { $gte: startOfMonth, $lte: endOfMonth };
+    } else if (year) {
+      const yearNum = parseInt(year as string);
+      matchQuery.date = {
+        $gte: new Date(yearNum, 0, 1),
+        $lte: new Date(yearNum, 11, 31, 23, 59, 59, 999)
+      };
+    } else if (startDate && endDate) {
+      const start = new Date(startDate as string);
+      const end = new Date(endDate as string);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        matchQuery.date = { $gte: start, $lte: end };
+      }
+    }
+
+    if (status && VALID_STATUSES.includes(status as any)) {
+      matchQuery.status = status;
+    }
+
+    if (title && VALID_TITLES.includes(title as any)) {
+      matchQuery.title = title;
+    }
+
+    if (Object.keys(matchQuery).length > 0) {
+      pipeline.push({ $match: matchQuery });
+    }
+
+    pipeline.push({
+      $lookup: {
+        from: 'users',
+        localField: 'user_id',
+        foreignField: '_id',
+        as: 'user'
+      }
+    });
+    pipeline.push({ $unwind: { path: '$user', preserveNullAndEmptyArrays: true } });
+
+    pipeline.push({
+      $lookup: {
+        from: 'departments',
+        localField: 'user.department_id',
+        foreignField: '_id',
+        as: 'department'
+      }
+    });
+    pipeline.push({ $unwind: { path: '$department', preserveNullAndEmptyArrays: true } });
+
+    if (department && department !== '' && department !== 'All Departments') {
+      pipeline.push({
+        $match: { 'department.department_name': department }
+      });
+    }
+
+    if (search && (search as string).trim() !== '') {
+      const term = (search as string).trim();
+      pipeline.push({
+        $match: {
+          $or: [
+            { title: { $regex: term, $options: 'i' } },
+            { description: { $regex: term, $options: 'i' } },
+            { 'user.first_name_en': { $regex: term, $options: 'i' } },
+            { 'user.last_name_en': { $regex: term, $options: 'i' } },
+            { 'user.user_email': { $regex: term, $options: 'i' } }
+          ]
+        }
+      });
+    }
+
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const countResult = await RequestModel.aggregate(countPipeline);
+    const total = countResult.length > 0 ? countResult[0].total : 0;
+
+    // ✅ FIX: || fallback prevents NaN from breaking Math.max
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.max(1, parseInt(limit as string) || 8);
+    const skip = (pageNum - 1) * limitNum;
+
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limitNum });
+
+    const requests = await RequestModel.aggregate(pipeline);
+
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      requests
+    });
+
+  } catch (error: any) {
+    console.error('❌ Aggregation error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch requests",
+      error: error.message
+    });
+  }
+};
+
+/* ============================================================
+   GET ALL REQUESTS OPTIMIZED
+============================================================ */
+
+export const getAllRequestsOptimized = async (req: Request, res: Response) => {
+  try {
+    const {
+      startDate,
+      endDate,
+      status,
+      title,
+      search,
+      page = '1',
+      limit = '8',  // ✅ Fixed: was '10'
+    } = req.query;
+
+    // ✅ FIX: || fallback prevents NaN from breaking Math.max
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.max(1, parseInt(limit as string) || 8);
+    const skip = (pageNum - 1) * limitNum;
+
+    const query: any = {};
+
+    if (startDate && endDate) {
+      const start = new Date(startDate as string);
+      const end = new Date(endDate as string);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        query.date = { $gte: start, $lte: end };
+      }
+    }
+
+    if (status && status !== '' && VALID_STATUSES.includes(status as any)) {
+      query.status = status;
+    }
+
+    if (title && title !== '' && VALID_TITLES.includes(title as any)) {
+      query.title = title;
+    }
+
+    if (search && (search as string).trim() !== '') {
+      const searchTerm = (search as string).trim();
+      query.$or = [
+        { title: { $regex: searchTerm, $options: 'i' } },
+        { description: { $regex: searchTerm, $options: 'i' } }
+      ];
+    }
+
+    const total = await RequestModel.countDocuments(query);
+
+    const requests = await RequestModel.find(query)
+      .populate(getPopulateConfig())
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      requests
+    });
+
+  } catch (error: any) {
+    console.error('❌ Get all requests error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch requests",
+      error: error.message
+    });
+  }
+};
+
+/* ============================================================
+   READ BY USER
 ============================================================ */
 
 export const getRequestsByUser = async (
@@ -223,27 +506,26 @@ export const getRequestsByUser = async (
       return;
     }
 
-    // ✅ Use centralized population config
     const requests = await RequestModel.find({ user_id: userId })
       .populate(getPopulateConfig())
       .sort({ createdAt: -1 });
 
-    res.json({ 
+    res.json({
       success: true,
       count: requests.length,
-      requests 
+      requests
     });
   } catch (error: any) {
     console.error('❌ Get requests by user error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };
 
 /* ============================================================
-   READ BY SUPERVISOR - ✅ UPDATED with proper population
+   READ BY SUPERVISOR
 ============================================================ */
 
 export const getRequestsBySupervisor = async (
@@ -258,8 +540,6 @@ export const getRequestsBySupervisor = async (
       return;
     }
 
-    // ✅ Use centralized population config
-    // MongoDB will automatically search in array
     const requests = await RequestModel.find({
       supervisor_id: supervisorId,
     })
@@ -274,15 +554,15 @@ export const getRequestsBySupervisor = async (
     });
   } catch (error: any) {
     console.error('❌ Get requests by supervisor error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };
 
 /* ============================================================
-   READ BY ID - ✅ UPDATED with proper population
+   READ BY ID
 ============================================================ */
 
 export const getRequestById = async (req: Request, res: Response) => {
@@ -294,32 +574,32 @@ export const getRequestById = async (req: Request, res: Response) => {
       return;
     }
 
-    // ✅ Use centralized population config
     const request = await RequestModel.findById(id)
       .populate(getPopulateConfig());
 
     if (!request) {
-      res.status(404).json({ 
+      res.status(404).json({
         success: false,
-        message: "Request not found" 
+        message: "Request not found"
       });
       return;
     }
-    res.json({ 
+
+    res.json({
       success: true,
-      request 
+      request
     });
   } catch (error: any) {
     console.error('❌ Get request by ID error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };
 
 /* ============================================================
-   UPDATE STATUS - ✅ UPDATED with proper population
+   UPDATE STATUS
 ============================================================ */
 
 export const updateRequestStatus = async (
@@ -344,29 +624,29 @@ export const updateRequestStatus = async (
       id,
       { status },
       { new: true }
-    )
-      .populate(getPopulateConfig()); // ✅ Add population
+    ).populate(getPopulateConfig());
 
     if (!updated) {
       res.status(404).json({ message: "Request not found" });
       return;
     }
-    res.json({ 
+
+    res.json({
       success: true,
-      message: "Status updated", 
-      request: updated 
+      message: "Status updated",
+      request: updated
     });
   } catch (error: any) {
     console.error('❌ Update status error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };
 
 /* ============================================================
-   UPDATE REQUEST (EDIT) - ✅ UPDATED with proper population
+   UPDATE REQUEST (EDIT)
 ============================================================ */
 
 export const updateRequest = async (
@@ -403,9 +683,7 @@ export const updateRequest = async (
     }
 
     if (toMinutes(finalEnd) <= toMinutes(finalStart)) {
-      res
-        .status(400)
-        .json({ message: "End time must be later than start time" });
+      res.status(400).json({ message: "End time must be later than start time" });
       return;
     }
 
@@ -431,8 +709,7 @@ export const updateRequest = async (
         date: date ?? existing.date,
       },
       { new: true, runValidators: true }
-    )
-      .populate(getPopulateConfig()); // ✅ Use centralized population
+    ).populate(getPopulateConfig());
 
     res.json({
       success: true,
@@ -441,15 +718,15 @@ export const updateRequest = async (
     });
   } catch (error: any) {
     console.error('❌ Update request error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };
 
 /* ============================================================
-   DELETE - ✅ UPDATED with better response
+   DELETE
 ============================================================ */
 
 export const deleteRequest = async (
@@ -465,31 +742,31 @@ export const deleteRequest = async (
     }
 
     const deleted = await RequestModel.findByIdAndDelete(id);
-    
+
     if (!deleted) {
-      res.status(404).json({ 
+      res.status(404).json({
         success: false,
-        message: "Request not found" 
+        message: "Request not found"
       });
       return;
     }
 
-    res.json({ 
+    res.json({
       success: true,
-      message: "Request deleted successfully", 
-      request: deleted 
+      message: "Request deleted successfully",
+      request: deleted
     });
   } catch (error: any) {
     console.error('❌ Delete request error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };
 
 /* ============================================================
-   ANALYTICS - ✅ UPDATED with better structure
+   ANALYTICS
 ============================================================ */
 
 export const getRequestStats = async (
@@ -497,12 +774,15 @@ export const getRequestStats = async (
   res: Response
 ) => {
   try {
-    const total = await RequestModel.countDocuments();
-    const pending = await RequestModel.countDocuments({ status: "Pending" });
-    const accepted = await RequestModel.countDocuments({ status: "Accepted" });
-    const rejected = await RequestModel.countDocuments({ status: "Rejected" });
-    const ot = await RequestModel.countDocuments({ title: "OT" });
-    const fieldWork = await RequestModel.countDocuments({ title: "FIELD_WORK" });
+    // ✅ Bonus: parallel queries for better performance
+    const [total, pending, accepted, rejected, ot, fieldWork] = await Promise.all([
+      RequestModel.countDocuments(),
+      RequestModel.countDocuments({ status: "Pending" }),
+      RequestModel.countDocuments({ status: "Accepted" }),
+      RequestModel.countDocuments({ status: "Rejected" }),
+      RequestModel.countDocuments({ title: "OT" }),
+      RequestModel.countDocuments({ title: "FIELD_WORK" }),
+    ]);
 
     res.json({
       success: true,
@@ -521,9 +801,9 @@ export const getRequestStats = async (
     });
   } catch (error: any) {
     console.error('❌ Get stats error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };

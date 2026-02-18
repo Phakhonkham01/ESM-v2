@@ -55,10 +55,7 @@ const requestsColumns: ReadonlyArray<Column<FormattedRequestOTFieldWork>> = [
     id: 'department',
     accessor: 'department_name',
     Cell: ({ value }) => {
-      const departmentName = value
-
-      // Check if department is missing or not populated
-      if (!departmentName || departmentName === 'N/A' || departmentName.includes('Not populated')) {
+      if (!value || value === 'N/A' || value === 'N/A (ID only)') {
         return (
           <div className="d-flex align-items-center p-2 bg-light-warning rounded">
             <i className="bi bi-building-x fs-5 text-warning me-2"></i>
@@ -70,7 +67,7 @@ const requestsColumns: ReadonlyArray<Column<FormattedRequestOTFieldWork>> = [
       return (
         <div className="d-flex align-items-center p-2 bg-light-primary rounded">
           <i className="bi bi-building fs-5 text-primary me-2"></i>
-          <span className="fw-bold text-gray-900">{departmentName}</span>
+          <span className="fw-bold text-gray-900">{value}</span>
         </div>
       )
     },

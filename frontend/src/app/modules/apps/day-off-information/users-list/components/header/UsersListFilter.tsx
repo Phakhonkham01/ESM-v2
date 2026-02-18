@@ -8,15 +8,15 @@ import { getDepartments } from '../../core/_requests'
 const UsersListFilter = () => {
   const { updateState } = useQueryRequest()
   const { isLoading } = useQueryResponse()
-  const [year, setYear] = useState<string>('')
+  const currentYear = new Date().getFullYear()
+  const [year, setYear] = useState<string>(currentYear.toString())
   const [month, setMonth] = useState<string>('')
   const [department, setDepartment] = useState<string>('')
   const [status, setStatus] = useState<string | undefined>(undefined)
   const [departments, setDepartments] = useState<string[]>([])
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
 
-  // Get current year for year options
-  const currentYear = new Date().getFullYear()
+  // Year options
   const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4]
 
   // Month options
@@ -69,9 +69,15 @@ const UsersListFilter = () => {
     MenuComponent.reinitialization()
   }, [])
 
+  // Apply filter with default year on initial load
+  useEffect(() => {
+    // Apply the default year filter when component mounts
+    filterData()
+  }, []) // Empty dependency array means this runs once on mount
+
   // ✅ Reset — clears local state AND query state
   const resetData = () => {
-    setYear('')
+    setYear(currentYear.toString())
     setMonth('')
     setDepartment('')
     setStatus(undefined)
